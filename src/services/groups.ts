@@ -1,5 +1,6 @@
 
 // TODO: Replace with actual data types from your backend/database
+import type { User } from '@/context/auth-context'; // Import User type
 
 /**
  * Represents the structure of a group.
@@ -29,6 +30,7 @@ export interface CreateGroupInput {
 }
 
 // In-memory store for mock groups (simulates a database)
+// Use let to allow modification
 let mockGroupsData: Group[] = [
      {
         id: 'group1-id',
@@ -121,8 +123,12 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
         return currentGroups.filter(group => group.teacherIds.includes(userId));
     } else { // Admin sees all groups in their school (in this simulation)
         // Assuming admin user has a schoolCode, filter by that if necessary
-        // For now, returning all groups as per previous logic
-        return currentGroups;
+        // For now, returning all groups in the same school as the admin
+        const adminUser = await import('@/services/users').then(m => m.fetchUsersByIds([userId])).then(users => users[0]);
+        if (adminUser) {
+            return currentGroups.filter(group => group.schoolCode === adminUser.schoolCode);
+        }
+        return []; // Return empty if admin user not found (shouldn't happen in normal flow)
     }
 }
 
@@ -141,12 +147,90 @@ export async function fetchGroupDetails(groupId: string): Promise<Group | null> 
     return foundGroup || null;
 }
 
+/**
+ * Simulates adding members (teachers or students) to a group in the in-memory store.
+ * @param groupId The ID of the group to update.
+ * @param membersToAdd An array of User objects to add.
+ * @returns Promise resolving to true if successful, false otherwise.
+ */
+export async function addMembersToGroup(groupId: string, membersToAdd: User[]): Promise<boolean> {
+    console.log(`Simulating adding ${membersToAdd.length} members to group ${groupId}`);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const groupIndex = mockGroupsData.findIndex(group => group.id === groupId);
+    if (groupIndex === -1) {
+        console.error(`Group ${groupId} not found for adding members.`);
+        return false;
+    }
+
+    const updatedGroups = [...mockGroupsData]; // Create a copy
+    const groupToUpdate = { ...updatedGroups[groupIndex] }; // Shallow copy the group object
+
+    membersToAdd.forEach(member => {
+        if (member.role === 'Teacher' || member.role === 'Admin') {
+            if (!groupToUpdate.teacherIds.includes(member.id)) {
+                groupToUpdate.teacherIds = [...groupToUpdate.teacherIds, member.id];
+                console.log(`Added teacher/admin ${member.id} to group ${groupId}`);
+            }
+        } else if (member.role === 'Student') {
+            if (!groupToUpdate.studentIds.includes(member.id)) {
+                groupToUpdate.studentIds = [...groupToUpdate.studentIds, member.id];
+                 console.log(`Added student ${member.id} to group ${groupId}`);
+            }
+        }
+    });
+
+    updatedGroups[groupIndex] = groupToUpdate; // Put the updated group back
+    mockGroupsData = updatedGroups; // Update the main store
+
+    console.log("Updated group members:", groupToUpdate);
+    return true;
+}
+
+/**
+ * Simulates removing a member (teacher or student) from a group in the in-memory store.
+ * @param groupId The ID of the group to update.
+ * @param memberId The ID of the member to remove.
+ * @returns Promise resolving to true if successful, false otherwise.
+ */
+export async function removeMemberFromGroup(groupId: string, memberId: string): Promise<boolean> {
+    console.log(`Simulating removing member ${memberId} from group ${groupId}`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    const groupIndex = mockGroupsData.findIndex(group => group.id === groupId);
+    if (groupIndex === -1) {
+        console.error(`Group ${groupId} not found for removing member.`);
+        return false;
+    }
+
+    const updatedGroups = [...mockGroupsData]; // Create a copy
+    const groupToUpdate = { ...updatedGroups[groupIndex] }; // Shallow copy the group object
+
+    // Remove from teacherIds
+    const initialTeacherCount = groupToUpdate.teacherIds.length;
+    groupToUpdate.teacherIds = groupToUpdate.teacherIds.filter(id => id !== memberId);
+    if (groupToUpdate.teacherIds.length < initialTeacherCount) {
+        console.log(`Removed teacher/admin ${memberId} from group ${groupId}`);
+    }
+
+     // Remove from studentIds
+    const initialStudentCount = groupToUpdate.studentIds.length;
+    groupToUpdate.studentIds = groupToUpdate.studentIds.filter(id => id !== memberId);
+     if (groupToUpdate.studentIds.length < initialStudentCount) {
+        console.log(`Removed student ${memberId} from group ${groupId}`);
+    }
+
+    updatedGroups[groupIndex] = groupToUpdate; // Put the updated group back
+    mockGroupsData = updatedGroups; // Update the main store
+
+    console.log("Updated group members after removal:", groupToUpdate);
+    return true;
+}
+
 
 // Add other group-related functions as needed:
 // - updateGroup(groupId, updateData)
 // - deleteGroup(groupId)
-// - addMembersToGroup(groupId, userIds)
-// - removeMembersFromGroup(groupId, userIds)
 // - requestToJoinGroup(groupId, userId)
 // - approveJoinRequest(groupId, userId)
 // - rejectJoinRequest(groupId, userId)
