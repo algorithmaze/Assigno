@@ -4,9 +4,9 @@ import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { useAuth } from '@/context/auth-context';
-import { fetchUserGroups, type Group, requestToJoinGroup, fetchGroupByCode } from '@/services/groups';
-import { Loader2, Search, LogIn, Copy, PlusCircle } from 'lucide-react'; // Added PlusCircle
+import { useAuth, type User as AuthUserType } from '@/context/auth-context'; // Renamed User to AuthUserType to avoid conflict
+import { fetchUserGroups, type Group, requestToJoinGroup, fetchGroupByCode, addMembersToGroup } from '@/services/groups';
+import { Loader2, LogIn, Copy, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 
+const POLLING_INTERVAL = 10000; // 10 seconds
+
 export default function GroupsPage() {
   const { user } = useAuth();
   const [groups, setGroups] = React.useState<Group[]>([]);
@@ -31,29 +33,58 @@ export default function GroupsPage() {
   const [isJoinGroupOpen, setIsJoinGroupOpen] = React.useState(false);
   const [joinGroupCode, setJoinGroupCode] = React.useState('');
   const [isJoiningGroup, setIsJoiningGroup] = React.useState(false);
+  const isPollingRef = React.useRef(false);
 
-  const loadGroups = React.useCallback(async () => {
+
+  const loadGroups = React.useCallback(async (isPoll: boolean = false) => {
     if (user) {
-      setLoading(true);
+      if (!isPoll) setLoading(true); // Only set loading true for initial load or manual refresh
       setError(null);
       try {
         const fetchedGroups = await fetchUserGroups(user.id, user.role);
-        setGroups(fetchedGroups);
+        // Only update state if data has actually changed to prevent unnecessary re-renders
+        setGroups(prevGroups => {
+            if (JSON.stringify(prevGroups) !== JSON.stringify(fetchedGroups)) {
+                return fetchedGroups;
+            }
+            return prevGroups;
+        });
       } catch (err) {
         console.error("Error fetching groups:", err);
-        setError('Failed to load groups.');
+        if (!isPoll) setError('Failed to load groups.'); // Only show error prominently on initial load
+        else console.warn("Polling for groups failed, suppressing UI error.");
       } finally {
-        setLoading(false);
+        if (!isPoll) setLoading(false);
       }
     } else {
        setGroups([]);
-       setLoading(false);
+       if (!isPoll) setLoading(false);
     }
   }, [user]);
 
   React.useEffect(() => {
-    loadGroups();
+    loadGroups(); // Initial load
   }, [loadGroups]);
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    const intervalId = setInterval(async () => {
+      if (isPollingRef.current) return; // Skip if already polling
+      isPollingRef.current = true;
+      try {
+        console.log("Polling for groups...");
+        await loadGroups(true); // Pass true to indicate it's a poll
+      } catch (e) {
+        console.error("Error during groups poll:", e);
+      } finally {
+        isPollingRef.current = false;
+      }
+    }, POLLING_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [user, loadGroups]);
+
 
   const handleJoinGroupSubmit = async () => {
     if (!user || !joinGroupCode.trim()) return;
@@ -73,10 +104,22 @@ export default function GroupsPage() {
          return;
       }
 
-      // For students, it's a request. For teachers, they join directly.
-      const success = user.role === 'Student'
-        ? await requestToJoinGroup(groupToJoin.id, user.id)
-        : await addMembersToGroup(groupToJoin.id, [user]); // Simplified direct add for teacher
+      let success = false;
+      if (user.role === 'Student') {
+        success = await requestToJoinGroup(groupToJoin.id, user.id);
+      } else if (user.role === 'Teacher' || user.role === 'Admin') {
+        const memberToAdd: AuthUserType = {
+            id: user.id,
+            name: user.name,
+            role: user.role,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            schoolCode: user.schoolCode,
+            // Add other necessary fields from 'user' if your addMembersToGroup expects a fuller User object
+        };
+        success = await addMembersToGroup(groupToJoin.id, [memberToAdd]);
+      }
+
 
       if (success) {
         toast({
@@ -87,9 +130,9 @@ export default function GroupsPage() {
         });
         setIsJoinGroupOpen(false);
         setJoinGroupCode('');
-        if (user.role === 'Teacher') loadGroups(); // Refresh groups if teacher joined
+        if (user.role === 'Teacher' || user.role === 'Admin') loadGroups(); // Refresh groups if teacher/admin joined
       } else {
-        toast({ title: "Action Failed", description: "Could not process your request. You might have already requested or joined.", variant: "destructive" });
+        toast({ title: "Action Failed", description: "Could not process your request. You might have already requested or joined, or an error occurred.", variant: "destructive" });
       }
     } catch (err: any) {
       console.error("Error joining group:", err);
@@ -108,21 +151,6 @@ export default function GroupsPage() {
     });
   };
 
-  // Helper function in groups service
-  async function addMembersToGroup(groupId: string, users: typeof User[]): Promise<boolean> {
-    // This is a placeholder. You'd call your actual service function.
-    console.log(`Simulating adding ${users.length} users to group ${groupId}`);
-    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return false;
-    users.forEach(u => {
-        if(u.role === 'Teacher' && !mockGroupsData[groupIndex].teacherIds.includes(u.id)) {
-            mockGroupsData[groupIndex].teacherIds.push(u.id);
-        } else if (u.role === 'Student' && !mockGroupsData[groupIndex].studentIds.includes(u.id)){
-            mockGroupsData[groupIndex].studentIds.push(u.id);
-        }
-    });
-    return true;
-  }
 
   const canCreateGroup = user?.role === 'Admin';
 
@@ -141,7 +169,7 @@ export default function GroupsPage() {
           <CardTitle>Your Groups</CardTitle>
           <CardDescription>
             {user?.role === 'Student' ? 'Groups you are a member of. You can also request to join new groups.' :
-             user?.role === 'Teacher' ? 'Groups you are managing or a member of. You can also join other groups.' :
+             (user?.role === 'Teacher' || user?.role === 'Admin') ? 'Groups you are managing or a member of. You can also join or create groups.' :
              'All groups within your school.'}
           </CardDescription>
         </CardHeader>
@@ -158,6 +186,8 @@ export default function GroupsPage() {
              <p className="text-muted-foreground text-center py-4">
                 {user?.role === 'Student' ? 'You are not currently a member of any groups. Request to join one!' : 
                  user?.role === 'Teacher' ? 'You are not part of any groups yet. Join one or wait for an admin to add you.' : 
+                 (user?.role === 'Admin' && !canCreateGroup) ? 'No groups found. You can manage groups once created.' :
+                 (user?.role === 'Admin' && canCreateGroup) ? 'No groups found yet. Click "Create Group" to get started.' :
                  'No groups to display yet.'}
             </p>
           )}
@@ -184,7 +214,7 @@ export default function GroupsPage() {
              </div>
           )}
 
-            {(user?.role === 'Student' || user?.role === 'Teacher') && (
+            {(user?.role === 'Student' || user?.role === 'Teacher' || user?.role === 'Admin') && ( // Admins might also join groups by code
                 <div className="mt-8 border-t pt-6">
                     <h3 className="text-xl font-semibold mb-3">Join a Group</h3>
                      <Dialog open={isJoinGroupOpen} onOpenChange={setIsJoinGroupOpen}>
@@ -195,7 +225,7 @@ export default function GroupsPage() {
                             <DialogHeader>
                             <DialogTitle>Join Group</DialogTitle>
                             <DialogDescription>
-                                Enter the unique code provided by your teacher or admin to request access to a group.
+                                Enter the unique code provided to request access or join a group.
                             </DialogDescription>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">

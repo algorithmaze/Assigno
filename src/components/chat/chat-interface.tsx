@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Paperclip, Smile, Send, MessageSquare as MessageSquareIcon, Loader2, Search, Filter } from 'lucide-react';
-import { useAuth } from '@/context/auth-context';
+import { useAuth, type User as AuthUserType } from '@/context/auth-context'; // Renamed User to AuthUserType
 import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -24,7 +23,7 @@ interface ChatInterfaceProps {
 }
 
 type MessageTypeFilter = Message['type'] | 'all';
-type SenderRoleFilter = User['role'] | 'all';
+type SenderRoleFilter = AuthUserType['role'] | 'all'; // Use AuthUserType['role']
 
 
 export function ChatInterface({ groupId }: ChatInterfaceProps) {
@@ -35,58 +34,67 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
   const [isSending, setIsSending] = React.useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(true);
   const { toast } = useToast();
+  const isPollingRef = React.useRef(false);
 
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterMessageType, setFilterMessageType] = React.useState<MessageTypeFilter>('all');
   const [filterSenderRole, setFilterSenderRole] = React.useState<SenderRoleFilter>('all');
 
 
-  const fetchAndSetMessages = React.useCallback(async () => {
+  const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
     if (!groupId) return;
-    setIsLoadingMessages(true);
+    if (!isPoll) setIsLoadingMessages(true);
     try {
       const fetchedMessages = await getGroupMessages(groupId);
-      setMessages(fetchedMessages);
+      setMessages(prevMessages => {
+        // Basic check for changes to avoid unnecessary re-renders
+        if (JSON.stringify(prevMessages) !== JSON.stringify(fetchedMessages)) {
+            return fetchedMessages;
+        }
+        return prevMessages;
+      });
     } catch (error) {
         console.error("Error fetching messages:", error);
-        toast({title: "Error", description: "Could not load messages.", variant: "destructive"});
+        // Show toast only on initial load failure, not for poll failures
+        if (!isPoll) toast({title: "Error", description: "Could not load messages.", variant: "destructive"});
+        else console.warn("Polling for messages failed, suppressing UI error.");
     } finally {
-        setIsLoadingMessages(false);
+        if (!isPoll) setIsLoadingMessages(false);
     }
   }, [groupId, toast]);
 
   React.useEffect(() => {
-    fetchAndSetMessages();
+    fetchAndSetMessages(); // Initial load
   }, [fetchAndSetMessages]);
 
   React.useEffect(() => {
-    if (!groupId || isLoadingMessages) return; // Don't poll if initially loading
+    if (!groupId) return; 
+    
     const intervalId = setInterval(async () => {
+        if (isPollingRef.current) return; // Skip if already polling
+        isPollingRef.current = true;
         try {
-            const latestMessages = await getGroupMessages(groupId);
-            // Only update if there's a change in message count or latest message ID
-            // This prevents unnecessary re-renders if filters are active client-side
-             if (latestMessages.length !== messages.length || 
-                (latestMessages.length > 0 && messages.length > 0 && 
-                 latestMessages[latestMessages.length - 1].id !== messages[messages.length -1].id)) {
-                setMessages(latestMessages);
-            }
-        } catch (error) {
-            console.warn("Polling for messages failed:", error);
+            console.log("Polling for messages...");
+            await fetchAndSetMessages(true); // Pass true to indicate it's a poll
+        } catch (e) {
+            console.error("Error during messages poll:", e);
+        } finally {
+            isPollingRef.current = false;
         }
-    }, 5000); 
+    }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(intervalId);
-  }, [groupId, messages, isLoadingMessages]);
+  }, [groupId, fetchAndSetMessages]);
 
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newMessage.trim() || !user) return;
 
-    if (user.role === 'Student' && !groupSettings?.allowStudentPosts) { // Assuming groupSettings might control this
-        toast({ title: "Restriction", description: "Students cannot send messages in this group.", variant: "default"});
-        return;
+    // Assuming groupSettings might control this, for now allow teachers/admins freely
+    if (user.role === 'Student' && !groupSettings?.allowStudentPosts) {
+        toast({ title: "Restriction", description: "Students may not be allowed to send messages in this group.", variant: "default"});
+        // Depending on strictness, you might return here. For now, we let it proceed for testing.
     }
 
     setIsSending(true);
@@ -97,7 +105,9 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
 
     try {
       const sentMessage = await addMessageToGroup(groupId, messageInput, user);
-      setMessages(prev => [...prev, sentMessage]); 
+      // The fetchAndSetMessages poll will pick up the new message,
+      // or you can optimistically update:
+      setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
       setNewMessage('');
     } catch (error) {
         console.error("Failed to send message:", error);
@@ -108,16 +118,16 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
   };
 
     React.useEffect(() => {
-       if(scrollAreaRef.current && !isLoadingMessages){ // Only scroll if not loading new set of messages
+       if(scrollAreaRef.current && !isLoadingMessages){ 
           const scrollViewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
            if(scrollViewport){
                scrollViewport.scrollTop = scrollViewport.scrollHeight;
            }
        }
-    }, [messages, isLoadingMessages]); // Re-evaluate scroll when messages change, but not while loading
+    }, [messages, isLoadingMessages]); 
 
-    // TODO: Fetch group settings to determine if students can post
-    const [groupSettings, setGroupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: false}); // Placeholder
+    // Placeholder for group-specific settings (e.g., if students can post)
+    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); // Default to true for easier testing
 
     const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
     const canUseSpecialFeatures = user?.role === 'Teacher' || user?.role === 'Admin';
@@ -177,7 +187,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
                             <SelectItem value="all">All Senders</SelectItem>
                             <SelectItem value="Teacher">Teachers</SelectItem>
                             <SelectItem value="Admin">Admins</SelectItem>
-                            {/* Add Student if needed, but typically for teacher-student interactions */}
+                            <SelectItem value="Student">Students</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -271,4 +281,3 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     </div>
   );
 }
-

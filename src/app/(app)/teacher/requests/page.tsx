@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -7,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, UserCheck, UserX, Inbox, User as UserIcon } from "lucide-react";
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import { fetchUserGroups, fetchGroupJoinRequests, approveJoinRequest, rejectJoinRequest } from '@/services/groups';
+import { fetchUserGroups, fetchGroupJoinRequests, approveJoinRequest, rejectJoinRequest, type Group } from '@/services/groups'; // Added Group type
+import { fetchUsersByIds } from '@/services/users'; // To get user details
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import {
@@ -23,6 +23,8 @@ interface JoinRequestWithGroupInfo {
     groupName: string;
 }
 
+const POLLING_INTERVAL = 10000; // 10 seconds
+
 export default function TeacherJoinRequestsPage() {
   const { user: teacherUser, loading: authLoading } = useAuth();
   const [joinRequests, setJoinRequests] = React.useState<JoinRequestWithGroupInfo[]>([]);
@@ -30,6 +32,7 @@ export default function TeacherJoinRequestsPage() {
   const [isProcessing, setIsProcessing] = React.useState<string | null>(null); // Stores "approve-userId-groupId" or "reject-userId-groupId"
   const { toast } = useToast();
   const router = useRouter();
+  const isPollingRef = React.useRef(false);
 
   // Redirect if not teacher
   React.useEffect(() => {
@@ -39,36 +42,67 @@ export default function TeacherJoinRequestsPage() {
     }
   }, [teacherUser, authLoading, router, toast]);
 
-  const loadJoinRequests = React.useCallback(async () => {
+  const loadJoinRequests = React.useCallback(async (isPoll: boolean = false) => {
     if (!teacherUser || (teacherUser.role !== 'Teacher' && teacherUser.role !== 'Admin')) return;
-    setLoadingRequests(true);
+    if (!isPoll) setLoadingRequests(true);
+
     try {
-      const managedGroups = await fetchUserGroups(teacherUser.id, teacherUser.role);
+      const managedGroups: Group[] = await fetchUserGroups(teacherUser.id, teacherUser.role);
       let allRequests: JoinRequestWithGroupInfo[] = [];
 
       for (const group of managedGroups) {
-        if (group.joinRequests && group.joinRequests.length > 0) {
-             // Fetch user details for each requester ID
-            const requesters = await fetchGroupJoinRequests(group.id, teacherUser.id);
+        // The fetchGroupJoinRequests function in groups.ts already handles fetching User objects.
+        // It internally uses fetchUsersByIds.
+        if (group.id) { // Ensure group ID is present
+            const requesters: AuthUserType[] = await fetchGroupJoinRequests(group.id, teacherUser.id);
             requesters.forEach(reqUser => {
-                allRequests.push({ user: reqUser, groupId: group.id, groupName: group.name });
+                if(reqUser) { // Check if reqUser is not null/undefined
+                    allRequests.push({ user: reqUser, groupId: group.id, groupName: group.name });
+                }
             });
         }
       }
-      setJoinRequests(allRequests);
+      setJoinRequests(prevRequests => {
+          if (JSON.stringify(prevRequests) !== JSON.stringify(allRequests)) {
+              return allRequests;
+          }
+          return prevRequests;
+      });
     } catch (error) {
       console.error("Failed to fetch join requests:", error);
-      toast({ title: "Error", description: "Could not load join requests.", variant: "destructive" });
+      if(!isPoll) toast({ title: "Error", description: "Could not load join requests.", variant: "destructive" });
+      else console.warn("Polling for join requests failed, suppressing UI error.");
     } finally {
-      setLoadingRequests(false);
+      if (!isPoll) setLoadingRequests(false);
     }
   }, [teacherUser, toast]);
 
   React.useEffect(() => {
     if (teacherUser && (teacherUser.role === 'Teacher' || teacherUser.role === 'Admin')) {
-      loadJoinRequests();
+      loadJoinRequests(); // Initial load
     }
   }, [teacherUser, loadJoinRequests]);
+
+
+  React.useEffect(() => {
+    if (!teacherUser || (teacherUser.role !== 'Teacher' && teacherUser.role !== 'Admin')) return;
+
+    const intervalId = setInterval(async () => {
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      try {
+        console.log("Polling for join requests...");
+        await loadJoinRequests(true);
+      } catch (e) {
+        console.error("Error during join requests poll:", e);
+      } finally {
+        isPollingRef.current = false;
+      }
+    }, POLLING_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [teacherUser, loadJoinRequests]);
+
 
   const handleApproveRequest = async (studentId: string, groupId: string, studentName: string, groupName: string) => {
     if (!teacherUser) return;
@@ -79,7 +113,7 @@ export default function TeacherJoinRequestsPage() {
         toast({ title: "Request Approved", description: `${studentName} has been added to ${groupName}.` });
         loadJoinRequests(); // Refresh the list
       } else {
-        toast({ title: "Approval Failed", description: `Could not approve ${studentName}.`, variant: "destructive" });
+        toast({ title: "Approval Failed", description: `Could not approve ${studentName}. Might have already been processed.`, variant: "destructive" });
       }
     } catch (error) {
       toast({ title: "Error", description: "An error occurred during approval.", variant: "destructive" });
@@ -97,7 +131,7 @@ export default function TeacherJoinRequestsPage() {
         toast({ title: "Request Rejected", description: `Join request for ${studentName} has been rejected.` });
         loadJoinRequests(); // Refresh the list
       } else {
-        toast({ title: "Rejection Failed", description: `Could not reject ${studentName}.`, variant: "destructive" });
+        toast({ title: "Rejection Failed", description: `Could not reject ${studentName}. Might have already been processed.`, variant: "destructive" });
       }
     } catch (error) {
       toast({ title: "Error", description: "An error occurred during rejection.", variant: "destructive" });
