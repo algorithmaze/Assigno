@@ -3,8 +3,9 @@
 // import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
-import type { User } from '@/context/auth-context'; 
-import { getSchoolDetails } from './school'; 
+import type { User } from '@/context/auth-context';
+import { getSchoolDetails } from './school';
+import { sampleCredentials } from './users'; // Import from users.ts
 
 export interface OTPVerificationResponse {
   success: boolean;
@@ -102,112 +103,6 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
 }
 
 
-// School Details for all sample users
-const SCHOOL_CODE = 'samp123';
-const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
-
-export const sampleCredentials = {
-    adminAntony: {
-        id: 'admin-antony-001',
-        name: 'Antony Admin',
-        identifier: 'antony@school.com', 
-        email: 'antony@school.com',
-        phoneNumber: undefined,
-        role: 'Admin' as 'Admin',
-        otp: '000000', 
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}adminantony001`,
-        admissionNumber: undefined,
-        class: undefined,
-        designation: undefined,
-     },
-    teacherZara: {
-        id: 'teacher-zara-001',
-        name: 'Zara Teacher',
-        identifier: 'zara@school.com',
-        email: 'zara@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '111111',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherzara001`,
-        admissionNumber: undefined,
-        class: 'Class 10A',
-        designation: 'Class Teacher' as 'Class Teacher',
-     },
-    teacherLeo: {
-        id: 'teacher-leo-002',
-        name: 'Leo Teacher',
-        identifier: 'leo@school.com',
-        email: 'leo@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '222222',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherleo002`,
-        admissionNumber: undefined,
-        class: 'Class 9B, Class 10B',
-        designation: 'Subject Teacher' as 'Subject Teacher',
-     },
-    studentMia: {
-        id: 'student-mia-001',
-        name: 'Mia Student',
-        identifier: 'mia@school.com',
-        email: 'mia@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '333333',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentmia001`,
-        admissionNumber: 'SAMP9001',
-        class: 'Class 8A',
-        designation: undefined,
-     },
-    studentOmar: {
-        id: 'student-omar-002',
-        name: 'Omar Student',
-        identifier: 'omar@school.com',
-        email: 'omar@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '444444',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentomar002`,
-        admissionNumber: 'SAMP9002',
-        class: 'Class 7C',
-        designation: undefined,
-     },
-     teacherEva: {
-        id: 'teacher-eva-003',
-        name: 'Eva Teacher',
-        identifier: 'eva@school.com',
-        email: 'eva@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '555555',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teachereva003`,
-        admissionNumber: undefined,
-        class: 'Class 11 Science',
-        designation: 'Class Teacher' as 'Class Teacher',
-    },
-    studentKen: {
-        id: 'student-ken-003',
-        name: 'Ken Student',
-        identifier: 'ken@school.com',
-        email: 'ken@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '666666',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentken003`,
-        admissionNumber: 'SAMP9003',
-        class: 'Class 6B',
-        designation: undefined,
-    },
-};
-
-
 export function logSampleCredentials() {
     console.log("--- Sample Login Credentials (School: samp123 - Sample Sr. Sec. School) ---");
     Object.values(sampleCredentials).forEach(cred => {
@@ -221,12 +116,5 @@ if (process.env.NODE_ENV === 'development') {
     logSampleCredentials();
 }
 
-// Initialize the mock users in the users service with these credentials
-// This is a bit of a hack due to module dependencies, but ensures users service is populated
-// with these sample users for other parts of the app (like group management).
-// A more robust solution might involve a shared mock data initialization module.
-import { initializeMockUsersWithCredentials } from './users';
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    // Ensure this runs client-side only or where globalThis is reliable for mocks
-    initializeMockUsersWithCredentials(sampleCredentials);
-}
+// The initialization of mock users will now be handled within users.ts itself.
+// No longer need to call initializeMockUsersWithCredentials from here.

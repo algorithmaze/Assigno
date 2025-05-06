@@ -1,9 +1,9 @@
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs)
 // import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
-import type { sampleCredentials as SampleCredentialsType } from './otp'; // Import type
 import { getSchoolDetails } from './school';
 import * as XLSX from 'xlsx';
 
@@ -29,6 +29,113 @@ if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
     isMockDataInitialized = globalThis.mockUsersInitialized_assigno_users;
 }
 
+// Define sampleCredentials and related constants directly in users.ts
+const SCHOOL_CODE = 'samp123';
+const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
+
+export const sampleCredentials = {
+    adminAntony: {
+        id: 'admin-antony-001',
+        name: 'Antony Admin',
+        identifier: 'antony@school.com',
+        email: 'antony@school.com',
+        phoneNumber: undefined,
+        role: 'Admin' as 'Admin',
+        otp: '000000',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}adminantony001`,
+        admissionNumber: undefined,
+        class: undefined,
+        designation: undefined,
+     },
+    teacherZara: {
+        id: 'teacher-zara-001',
+        name: 'Zara Teacher',
+        identifier: 'zara@school.com',
+        email: 'zara@school.com',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '111111',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherzara001`,
+        admissionNumber: undefined,
+        class: 'Class 10A',
+        designation: 'Class Teacher' as 'Class Teacher',
+     },
+    teacherLeo: {
+        id: 'teacher-leo-002',
+        name: 'Leo Teacher',
+        identifier: 'leo@school.com',
+        email: 'leo@school.com',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '222222',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherleo002`,
+        admissionNumber: undefined,
+        class: 'Class 9B, Class 10B',
+        designation: 'Subject Teacher' as 'Subject Teacher',
+     },
+    studentMia: {
+        id: 'student-mia-001',
+        name: 'Mia Student',
+        identifier: 'mia@school.com',
+        email: 'mia@school.com',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '333333',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentmia001`,
+        admissionNumber: 'SAMP9001',
+        class: 'Class 8A',
+        designation: undefined,
+     },
+    studentOmar: {
+        id: 'student-omar-002',
+        name: 'Omar Student',
+        identifier: 'omar@school.com',
+        email: 'omar@school.com',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '444444',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentomar002`,
+        admissionNumber: 'SAMP9002',
+        class: 'Class 7C',
+        designation: undefined,
+     },
+     teacherEva: {
+        id: 'teacher-eva-003',
+        name: 'Eva Teacher',
+        identifier: 'eva@school.com',
+        email: 'eva@school.com',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '555555',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teachereva003`,
+        admissionNumber: undefined,
+        class: 'Class 11 Science',
+        designation: 'Class Teacher' as 'Class Teacher',
+    },
+    studentKen: {
+        id: 'student-ken-003',
+        name: 'Ken Student',
+        identifier: 'ken@school.com',
+        email: 'ken@school.com',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '666666',
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentken003`,
+        admissionNumber: 'SAMP9003',
+        class: 'Class 6B',
+        designation: undefined,
+    },
+};
+
+type SampleCredentialsType = typeof sampleCredentials;
+
 
 async function transformCredentialToUser(cred: SampleCredentialsType[keyof SampleCredentialsType]): Promise<User> {
     const schoolDetails = await getSchoolDetails(cred.schoolCode);
@@ -48,13 +155,13 @@ async function transformCredentialToUser(cred: SampleCredentialsType[keyof Sampl
     };
 }
 
-// This function will be called from otp.ts to initialize users based on sampleCredentials
-export async function initializeMockUsersWithCredentials(credentials: SampleCredentialsType) {
-    if (isMockDataInitialized) return;
+// Self-initialization function for mock users
+async function selfInitializeMockUsers() {
+    if (isMockDataInitialized || process.env.NODE_ENV === 'production') return;
 
-    console.log("[Service:users] Initializing mock users from OTP credentials...");
+    console.log("[Service:users] Self-initializing mock users from local credentials...");
     const transformedUsers = await Promise.all(
-        Object.values(credentials).map(cred => transformCredentialToUser(cred))
+        Object.values(sampleCredentials).map(cred => transformCredentialToUser(cred))
     );
     
     const uniqueUsersMap = new Map<string, User>();
@@ -67,23 +174,23 @@ export async function initializeMockUsersWithCredentials(credentials: SampleCred
     mockUsersData.splice(0, mockUsersData.length, ...Array.from(uniqueUsersMap.values())); // Replace current mock data
     
     isMockDataInitialized = true;
-    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') { // Ensure globalThis is only set client-side for dev
         globalThis.mockUsersData_assigno_users = mockUsersData;
         globalThis.mockUsersInitialized_assigno_users = isMockDataInitialized;
     }
-    console.log("[Service:users] Initialized mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
+    console.log("[Service:users] Self-initialized mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
+}
+
+// Run self-initialization when the module is loaded (primarily for client-side dev)
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    selfInitializeMockUsers();
 }
 
 
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in fetchUsersByIds. This might happen if otp.ts didn't call initializeMockUsersWithCredentials yet.");
-        // Attempt to initialize if running in a context where credentials might be available (e.g. client-side dev)
-        // This is a fallback, ideally otp.ts handles initialization.
-         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+        console.warn("[Service:users] Mock data not initialized in fetchUsersByIds. Attempting self-initialization.");
+        await selfInitializeMockUsers();
     }
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
     // TODO: Firebase - Replace with multiple getDoc calls or a more efficient Firestore query if possible (e.g., IN query for up to 30 IDs)
@@ -104,11 +211,8 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
     if (!isMockDataInitialized) {
-       console.warn("[Service:users] Mock data not initialized in searchUsers.");
-        if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+       console.warn("[Service:users] Mock data not initialized in searchUsers. Attempting self-initialization.");
+        await selfInitializeMockUsers();
     }
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     // TODO: Firebase - Replace with Firestore query. This is complex to replicate exactly with client-side filtering.
@@ -150,11 +254,8 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
 
 export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & { id?: string }): Promise<User> {
     if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in addUser.");
-         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+        console.warn("[Service:users] Mock data not initialized in addUser. Attempting self-initialization.");
+         await selfInitializeMockUsers();
     }
     console.log("[Service:users] Adding user:", user.name);
     
@@ -210,11 +311,8 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
 
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in fetchAllUsers.");
-         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+        console.warn("[Service:users] Mock data not initialized in fetchAllUsers. Attempting self-initialization.");
+         await selfInitializeMockUsers();
      }
      console.log(`[Service:users] Fetching all users for school "${schoolCode}"`);
      // TODO: Firebase - Replace with Firestore query
@@ -236,11 +334,8 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
     if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in updateUser.");
-         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+        console.warn("[Service:users] Mock data not initialized in updateUser. Attempting self-initialization.");
+         await selfInitializeMockUsers();
     }
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
     // TODO: Firebase - Replace with Firestore updateDoc
@@ -271,11 +366,8 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
 
 export async function deleteUser(userId: string): Promise<boolean> {
     if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in deleteUser.");
-         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        }
+        console.warn("[Service:users] Mock data not initialized in deleteUser. Attempting self-initialization.");
+         await selfInitializeMockUsers();
     }
     console.log(`[Service:users] Deleting user ${userId}`);
     // TODO: Firebase - Replace with Firestore deleteDoc
@@ -408,18 +500,4 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         };
         reader.readAsBinaryString(file);
     });
-}
-
-
-// Ensure mock data is initialized if accessed directly by other modules on client side.
-if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !isMockDataInitialized) {
-    console.log("[Service:users] Attempting late initialization of mock users...");
-    (async () => {
-        try {
-            const otpService = await import('./otp');
-            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
-        } catch (e) {
-            console.error("Late initialization of mock users failed:", e);
-        }
-    })();
 }

@@ -4,6 +4,7 @@
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
+import * as usersModule from './users'; // Import users module directly
 
 /**
  * Represents the structure of a group.
@@ -106,7 +107,11 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     console.log(`[Service:groups] Fetching groups for user ${userId} (${userRole}).`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const usersModule = await import('@/services/users');
+    
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in fetchUserGroups.");
+        return [];
+    }
     const user = await usersModule.fetchUsersByIds([userId]).then(users => users[0]);
 
     const currentMockData = getMockGroupsData();
@@ -266,7 +271,11 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentMockData = getMockGroupsData();
-    const usersModule = await import('@/services/users');
+    
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in fetchGroupJoinRequests.");
+        return [];
+    }
     const teacherUser = await usersModule.fetchUsersByIds([teacherId]).then(users => users[0]);
 
     if (!teacherUser) {
@@ -294,7 +303,11 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
 
     const updatedMockData = [...currentMockData];
     const group = { ...updatedMockData[groupIndex] };
-    const usersModule = await import('@/services/users');
+
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in approveJoinRequest.");
+        return false;
+    }
     const approverUser = await usersModule.fetchUsersByIds([approverId]).then(users => users[0]);
 
     if (!approverUser) return false;
@@ -322,7 +335,11 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
 
     const updatedMockData = [...currentMockData];
     const group = { ...updatedMockData[groupIndex] };
-    const usersModule = await import('@/services/users');
+
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in rejectJoinRequest.");
+        return false;
+    }
     const rejectorUser = await usersModule.fetchUsersByIds([rejectorId]).then(users => users[0]);
 
     if(!rejectorUser) return false;
@@ -354,7 +371,16 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentMockData = getMockGroupsData();
-    const usersModule = await import('@/services/users');
+
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in getSchoolStats.");
+        // Return a default/empty stats object or throw an error
+        return {
+            totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
+            totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
+        };
+    }
+
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
     const schoolGroups = currentMockData.filter(g => g.schoolCode === schoolCode);
     const schoolStudents = allSchoolUsers.filter(u => u.role === 'Student');
@@ -393,7 +419,11 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     const updatedMockData = [...currentMockData];
     const group = updatedMockData[groupIndex];
-    const usersModule = await import('@/services/users');
+
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in updateGroupSettings.");
+        return null;
+    }
     const user = await usersModule.fetchUsersByIds([currentUserId]).then(users => users[0]);
     if (!user) {
         console.warn(`[Service:groups] User ${currentUserId} not found, cannot update group settings (mock).`);
@@ -410,3 +440,5 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Group settings for "${group.name}" updated (mock).`);
     return { ...updatedMockData[groupIndex] };
 }
+
+```
