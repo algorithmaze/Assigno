@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { useAuth } from '@/context/auth-context';
-import { Loader2, Users, BarChart3, UserCheck, UserX } from 'lucide-react';
-import { getSchoolStats, type SchoolStats } from '@/services/groups'; // Assuming stats are part of groups service for now
+import { Loader2, Users } from 'lucide-react';
+import { getSchoolStats, type SchoolStats } from '@/services/groups';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -86,9 +87,9 @@ export default function DashboardPage() {
                       <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats.totalTeachers}</div>
+                      <div className="text-2xl font-bold">{stats.totalTeachersAndAdmins}</div>
                        <p className="text-xs text-muted-foreground">
-                        {stats.teachersInAnyGroup} in groups, {stats.teachersNotInAnyGroup} not assigned
+                        {stats.staffInAnyGroup} in groups, {stats.staffNotInAnyGroup} not assigned
                       </p>
                     </CardContent>
                   </Card>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,9 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { User, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase } from "lucide-react";
+import { User as UserIcon, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase } from "lucide-react";
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link'; // Added Link import
 // TODO: import updateUser from '@/services/users' and a profile edit form component
 
 export default function ProfilePage() {
@@ -87,7 +89,7 @@ export default function ProfilePage() {
           <CardContent className="p-6 grid gap-6 md:grid-cols-2">
             <h2 className="text-xl font-semibold col-span-full border-b pb-2 mb-2">Personal Information</h2>
              <div className="space-y-1">
-               <Label htmlFor="name" className="flex items-center text-muted-foreground"><User className="mr-2 h-4 w-4" />Name</Label>
+               <Label htmlFor="name" className="flex items-center text-muted-foreground"><UserIcon className="mr-2 h-4 w-4" />Name</Label>
                <Input id="name" value={user.name} readOnly className="text-base"/>
              </div>
              <div className="space-y-1">

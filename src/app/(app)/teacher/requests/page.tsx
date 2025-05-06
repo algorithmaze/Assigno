@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, UserCheck, UserX, Inbox, User as UserIcon } from "lucide-react";
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import type { Group } from '@/services/groups';
 import { fetchUserGroups, fetchGroupJoinRequests, approveJoinRequest, rejectJoinRequest } from '@/services/groups';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
@@ -157,7 +157,7 @@ export default function TeacherJoinRequestsPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={student.profilePictureUrl} alt={student.name} data-ai-hint="student avatar"/>
+                              <AvatarImage src={student.profilePictureUrl || `https://picsum.photos/40/40?random=${student.id}`} alt={student.name} data-ai-hint="student avatar"/>
                               <AvatarFallback>
                                 {student.name ? student.name.charAt(0).toUpperCase() : <UserIcon/>}
                               </AvatarFallback>

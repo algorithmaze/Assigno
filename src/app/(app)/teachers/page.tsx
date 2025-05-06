@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -83,7 +84,7 @@ export default function TeachersPage() {
                <Card key={user.id} className="p-4 flex flex-col justify-between">
                   <div className="flex items-center gap-4 mb-3">
                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={user.profilePictureUrl} alt={user.name} data-ai-hint="profile picture staff" />
+                          <AvatarImage src={user.profilePictureUrl || `https://picsum.photos/48/48?random=${user.id}`} alt={user.name} data-ai-hint="profile picture staff" />
                           <AvatarFallback className="text-lg">
                             {user.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}
                           </AvatarFallback>

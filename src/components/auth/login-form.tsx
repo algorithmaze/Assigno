@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -42,6 +43,7 @@ export function LoginForm() {
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
   const [identifierValue, setIdentifierValue] = React.useState(''); // Store identifier for OTP step
+  const [currentOtpForDemo, setCurrentOtpForDemo] = React.useState<string | null>(null);
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -69,9 +71,15 @@ export function LoginForm() {
       await sendOTP(data.identifier);
       setIdentifierValue(data.identifier);
       setOtpSent(true); // Ensure OTP screen is shown/remains
+
+      // Find OTP for sample user if applicable
+      const sampleUserEntry = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === data.identifier.toLowerCase());
+      setCurrentOtpForDemo(sampleUserEntry ? sampleUserEntry.otp : null);
+
+
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (For demo, use OTP from console or specific user's magic OTP).`,
+        description: `An OTP has been sent to ${data.identifier}. ${sampleUserEntry ? `(For ${sampleUserEntry.name}, use OTP: ${sampleUserEntry.otp})` : '(For demo, use OTP from console or specific user\'s magic OTP).'}`,
       });
       // Clear previous OTP errors if any
       otpForm.clearErrors('otp');
@@ -129,7 +137,7 @@ export function LoginForm() {
           description: response.message || 'The OTP entered is incorrect.',
           variant: 'destructive',
         });
-        otpForm.setError('otp', { message: 'Invalid OTP' });
+        otpForm.setError('otp', { message: response.message || 'Invalid OTP' });
       }
     } catch (error) {
       console.error('Error verifying OTP:', error);
@@ -144,30 +152,15 @@ export function LoginForm() {
   };
 
   // Function to quickly fill form for sample users
-  const fillSampleUser = (role: 'student' | 'teacher' | 'admin') => {
-    let targetIdentifier: string | undefined;
-    switch (role) {
-      case 'admin':
-        targetIdentifier = sampleCredentials.adminAntony.identifier;
-        break;
-      case 'teacher':
-        // You can pick one, e.g., Zara. Or add more buttons if needed.
-        targetIdentifier = sampleCredentials.teacherZara.identifier;
-        break;
-      case 'student':
-        // You can pick one, e.g., Mia.
-        targetIdentifier = sampleCredentials.studentMia.identifier;
-        break;
-      default:
-        console.warn(`No specific sample credential logic for role: ${role}`);
-    }
-
-    if (targetIdentifier) {
-      loginForm.setValue('identifier', targetIdentifier);
+  const fillSampleUser = (roleKey: keyof typeof sampleCredentials) => {
+    const userCred = sampleCredentials[roleKey];
+    if (userCred) {
+      loginForm.setValue('identifier', userCred.identifier);
+      setCurrentOtpForDemo(userCred.otp); // Set current OTP for display
     } else {
       toast({
         title: "Sample User Not Configured",
-        description: `Quick login for '${role}' role is not set up for a specific user.`,
+        description: `Quick login for '${roleKey}' role is not set up correctly.`,
         variant: "destructive"
       });
     }
@@ -204,14 +197,16 @@ export function LoginForm() {
             {/* Sample User Buttons */}
             <div className="mt-4 space-y-2 text-center">
                 <p className="text-sm text-muted-foreground">Quick Login (Demo):</p>
-                <div className="flex justify-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('student')}>Student (Mia)</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('teacher')}>Teacher (Zara)</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('admin')}>Admin (Antony)</Button>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('studentMia')}>Student (Mia)</Button>
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('teacherZara')}>Teacher (Zara)</Button>
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('adminAntony')}>Admin (Antony)</Button>
                 </div>
-                 <p className="text-xs text-accent">
-                    (Uses magic OTP: <strong>{sampleCredentials.adminAntony.otp}</strong> for above sample users)
-                 </p>
+                 {currentOtpForDemo && (
+                    <p className="text-xs text-accent mt-1">
+                        (Selected user's demo OTP: <strong>{currentOtpForDemo}</strong>)
+                    </p>
+                 )}
             </div>
          </>
       ) : (
@@ -220,9 +215,11 @@ export function LoginForm() {
              <p className="text-sm text-muted-foreground">
               Enter the 6-digit OTP sent to <strong>{identifierValue}</strong>.
              </p>
-              <p className="text-xs text-center text-accent">
-                 (For demo sample users, use OTP: <strong>{sampleCredentials.adminAntony.otp}</strong>)
-              </p>
+              {currentOtpForDemo && (
+                <p className="text-xs text-center text-accent">
+                    (For this demo user, use OTP: <strong>{currentOtpForDemo}</strong>)
+                </p>
+              )}
             <FormField
               control={otpForm.control}
               name="otp"
@@ -250,7 +247,7 @@ export function LoginForm() {
               Verify OTP & Login
             </Button>
              <div className="flex flex-col sm:flex-row justify-between gap-2">
-                <Button variant="link" size="sm" onClick={() => { setOtpSent(false); loginForm.reset(); }} disabled={isLoading || isResendingOtp} className="flex-1">
+                <Button variant="link" size="sm" onClick={() => { setOtpSent(false); loginForm.reset(); setCurrentOtpForDemo(null); }} disabled={isLoading || isResendingOtp} className="flex-1">
                 Change Email/Phone
                 </Button>
                 <Button

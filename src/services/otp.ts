@@ -1,4 +1,6 @@
+
 import type { User } from '@/context/auth-context'; // Import User type
+import { getSchoolDetails } from './school'; // To get school details
 
 /**
  * Interface representing the response from an OTP verification request.
@@ -28,7 +30,13 @@ export interface OTPVerificationResponse {
  */
 export async function sendOTP(identifier: string): Promise<void> {
   console.log(`Simulating OTP sent to ${identifier}. In a real app, an SMS/email would be sent.`);
-  console.log(`(Test OTP: Use '000000' for sample users)`);
+  // Log specific OTP for sample users
+  const sampleUserEntry = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === identifier.toLowerCase());
+  if (sampleUserEntry) {
+    console.log(`(For ${sampleUserEntry.name}, use Test OTP: ${sampleUserEntry.otp})`);
+  } else {
+    console.log(`(For other identifiers, a generic OTP might be needed or signup flow)`);
+  }
   await new Promise(resolve => setTimeout(resolve, 500));
   return;
 }
@@ -45,47 +53,54 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   console.log(`Verifying OTP ${otp} for ${identifier}`);
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  if (otp === '000000') {
-    let sampleUser: User | undefined;
+  const sampleUserEntry = Object.values(sampleCredentials).find(
+    cred => cred.identifier.toLowerCase() === identifier.toLowerCase() && cred.otp === otp
+  );
 
-    if (identifier.toLowerCase() === sampleCredentials.adminAntony.identifier.toLowerCase()) {
-      sampleUser = sampleCredentials.adminAntony as User;
-    } else if (identifier.toLowerCase() === sampleCredentials.teacherZara.identifier.toLowerCase()) {
-      sampleUser = sampleCredentials.teacherZara as User;
-    } else if (identifier.toLowerCase() === sampleCredentials.teacherLeo.identifier.toLowerCase()) {
-      sampleUser = sampleCredentials.teacherLeo as User;
-    } else if (identifier.toLowerCase() === sampleCredentials.studentMia.identifier.toLowerCase()) {
-       sampleUser = sampleCredentials.studentMia as User;
-    } else if (identifier.toLowerCase() === sampleCredentials.studentOmar.identifier.toLowerCase()) {
-       sampleUser = sampleCredentials.studentOmar as User;
-    }
-
-    if (sampleUser) {
-      console.log(`Magic OTP successful for sample user: ${sampleUser.name}`);
-      return { success: true, message: 'Sample user login successful.', user: sampleUser };
-    } else {
-       console.warn(`Magic OTP used, but no sample user found for identifier: ${identifier}. Defaulting to basic success.`);
-        const genericUser: User = {
-            id: 'user-' + Math.random().toString(36).substring(7),
-            name: 'Logged In User',
-            email: identifier.includes('@') ? identifier : undefined,
-            phoneNumber: !identifier.includes('@') ? identifier : undefined,
-            role: 'Student',
-            schoolCode: 'samp123', // Fallback school code
-            schoolName: 'Sample Sr. Sec. School',
-            schoolAddress: '456 School Road, Testville',
-        };
-       return { success: true, message: 'OTP verification successful (generic).', user: genericUser };
-    }
+  if (sampleUserEntry) {
+    console.log(`OTP successful for sample user: ${sampleUserEntry.name}`);
+    const schoolDetails = await getSchoolDetails(sampleUserEntry.schoolCode);
+    return {
+      success: true,
+      message: 'Sample user login successful.',
+      user: {
+        id: sampleUserEntry.id,
+        name: sampleUserEntry.name,
+        email: sampleUserEntry.email,
+        phoneNumber: sampleUserEntry.phoneNumber,
+        role: sampleUserEntry.role,
+        schoolCode: sampleUserEntry.schoolCode,
+        schoolName: schoolDetails?.schoolName,
+        schoolAddress: schoolDetails?.address,
+        profilePictureUrl: sampleUserEntry.profilePictureUrl,
+        admissionNumber: sampleUserEntry.admissionNumber,
+        class: sampleUserEntry.class,
+      }
+    };
   }
 
-  if (otp.length === 6) {
-     console.log('Incorrect OTP (Simulation).');
-     return { success: false, message: 'The OTP entered is incorrect.' };
-  } else {
-      console.log('Invalid OTP format.');
-      return { success: false, message: 'OTP must be 6 digits.' };
+  // Fallback for generic OTP verification if no sample user matches
+  // This part might be removed if strict matching against sample OTPs is required
+  if (otp === '123456' && !sampleUserEntry) { // A generic OTP for testing non-sample users
+     console.warn(`Generic OTP used for identifier: ${identifier}. This user might not be fully configured.`);
+     const schoolCodeForGeneric = identifier.split('@')[1]?.startsWith('school.com') ? 'samp123' : 'unknownSchool';
+     const schoolDetails = await getSchoolDetails(schoolCodeForGeneric);
+     const genericUser: User = {
+         id: 'user-' + Math.random().toString(36).substring(7),
+         name: 'Generic User',
+         email: identifier.includes('@') ? identifier : undefined,
+         phoneNumber: !identifier.includes('@') ? identifier : undefined,
+         role: 'Student', // Default role
+         schoolCode: schoolDetails?.schoolCode || schoolCodeForGeneric,
+         schoolName: schoolDetails?.schoolName,
+         schoolAddress: schoolDetails?.address,
+     };
+     return { success: true, message: 'Generic OTP verification successful.', user: genericUser };
   }
+
+
+  console.log('Incorrect OTP or identifier mismatch.');
+  return { success: false, message: 'The OTP entered is incorrect or identifier mismatch.' };
 }
 
 
@@ -97,79 +112,103 @@ export const sampleCredentials = {
     adminAntony: {
         id: 'admin-antony-001',
         name: 'Antony Admin',
-        identifier: 'antony@school.com',
+        identifier: 'antony@school.com', // Unique identifier
         email: 'antony@school.com',
-        role: 'Admin',
-        otp: '000000', // Magic OTP
+        phoneNumber: undefined,
+        role: 'Admin' as 'Admin',
+        otp: '000000', // Specific OTP for this user
         schoolCode: 'samp123',
-        schoolName: 'Sample Sr. Sec. School',
-        schoolAddress: '456 School Road, Testville',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=antony',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'admin-antony-001'}`,
+        admissionNumber: undefined,
+        class: undefined,
      },
     teacherZara: {
         id: 'teacher-zara-001',
         name: 'Zara Teacher',
         identifier: 'zara@school.com',
         email: 'zara@school.com',
-        role: 'Teacher',
-        otp: '000000',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '111111',
         schoolCode: 'samp123',
-        schoolName: 'Sample Sr. Sec. School',
-        schoolAddress: '456 School Road, Testville',
-        class: 'Class 10A', // Example class
-        profilePictureUrl: 'https://picsum.photos/100/100?random=zara',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-zara-001'}`,
+        admissionNumber: undefined,
+        class: 'Class 10A',
      },
     teacherLeo: {
         id: 'teacher-leo-002',
         name: 'Leo Teacher',
         identifier: 'leo@school.com',
         email: 'leo@school.com',
-        role: 'Teacher',
-        otp: '000000',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '222222',
         schoolCode: 'samp123',
-        schoolName: 'Sample Sr. Sec. School',
-        schoolAddress: '456 School Road, Testville',
-        class: 'Class 9B', // Example class
-        profilePictureUrl: 'https://picsum.photos/100/100?random=leo',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-leo-002'}`,
+        admissionNumber: undefined,
+        class: 'Class 9B',
      },
     studentMia: {
         id: 'student-mia-001',
         name: 'Mia Student',
         identifier: 'mia@school.com',
         email: 'mia@school.com',
-        role: 'Student',
-        otp: '000000',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '333333',
         schoolCode: 'samp123',
-        schoolName: 'Sample Sr. Sec. School',
-        schoolAddress: '456 School Road, Testville',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-mia-001'}`,
         admissionNumber: 'SAMP9001',
         class: 'Class 8A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=mia',
      },
     studentOmar: {
         id: 'student-omar-002',
         name: 'Omar Student',
         identifier: 'omar@school.com',
         email: 'omar@school.com',
-        role: 'Student',
-        otp: '000000',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '444444',
         schoolCode: 'samp123',
-        schoolName: 'Sample Sr. Sec. School',
-        schoolAddress: '456 School Road, Testville',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-omar-002'}`,
         admissionNumber: 'SAMP9002',
         class: 'Class 7C',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=omar',
      },
+     // Additional dummy users for general app population
+     teacherEva: {
+        id: 'teacher-eva-003',
+        name: 'Eva Teacher',
+        identifier: 'eva@school.com',
+        email: 'eva@school.com',
+        phoneNumber: undefined,
+        role: 'Teacher' as 'Teacher',
+        otp: '555555',
+        schoolCode: 'samp123',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-eva-003'}`,
+        admissionNumber: undefined,
+        class: 'Class 11 Science',
+    },
+    studentKen: {
+        id: 'student-ken-003',
+        name: 'Ken Student',
+        identifier: 'ken@school.com',
+        email: 'ken@school.com',
+        phoneNumber: undefined,
+        role: 'Student' as 'Student',
+        otp: '666666',
+        schoolCode: 'samp123',
+        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-ken-003'}`,
+        admissionNumber: 'SAMP9003',
+        class: 'Class 6B',
+    },
 };
 
 
 export function logSampleCredentials() {
-    console.log("--- Sample Login Credentials (Use OTP: 000000) ---");
-    console.log("Admin Antony:", sampleCredentials.adminAntony.identifier);
-    console.log("Teacher Zara:", sampleCredentials.teacherZara.identifier);
-    console.log("Teacher Leo:", sampleCredentials.teacherLeo.identifier);
-    console.log("Student Mia:", sampleCredentials.studentMia.identifier);
-    console.log("Student Omar:", sampleCredentials.studentOmar.identifier);
+    console.log("--- Sample Login Credentials ---");
+    Object.values(sampleCredentials).forEach(cred => {
+        console.log(`${cred.role} ${cred.name}: ${cred.identifier} (OTP: ${cred.otp})`);
+    });
     console.log("-------------------------------------------------");
 }
 
