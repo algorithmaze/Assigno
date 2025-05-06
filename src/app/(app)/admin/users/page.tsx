@@ -86,6 +86,10 @@ export default function AdminUsersPage() {
   };
 
   const handleDownloadTemplate = () => {
+    // Explicitly define headers matching ExcelUser type keys
+    const teacherHeaders = ["Name", "Email or Phone", "Role", "Designation (Teacher Only)", "Class Handling (Teacher Only)"];
+    const studentHeaders = ["Name", "Email or Phone", "Role", "Admission Number (Student Only)", "Class (Student Only)"];
+
     const teacherSheetData: Partial<ExcelUser>[] = [
       { Name: "Teacher Example One", 'Email or Phone': "teacher1@example.com", Role: "Teacher", 'Designation (Teacher Only)': "Class Teacher", 'Class Handling (Teacher Only)': "10A" },
       { Name: "Teacher Example Two", 'Email or Phone': "1234567891", Role: "Teacher", 'Designation (Teacher Only)': "Subject Teacher", 'Class Handling (Teacher Only)': "9B, 11C" },
@@ -96,12 +100,8 @@ export default function AdminUsersPage() {
     ];
 
     const wb = XLSX.utils.book_new();
-    const wsTeachers = XLSX.utils.json_to_sheet(teacherSheetData, {
-      header: ["Name", "Email or Phone", "Role", "Designation (Teacher Only)", "Class Handling (Teacher Only)"]
-    });
-    const wsStudents = XLSX.utils.json_to_sheet(studentSheetData, {
-       header: ["Name", "Email or Phone", "Role", "Admission Number (Student Only)", "Class (Student Only)"]
-    });
+    const wsTeachers = XLSX.utils.json_to_sheet(teacherSheetData, { header: teacherHeaders });
+    const wsStudents = XLSX.utils.json_to_sheet(studentSheetData, { header: studentHeaders });
 
     XLSX.utils.book_append_sheet(wb, wsTeachers, "Teachers_Template");
     XLSX.utils.book_append_sheet(wb, wsStudents, "Students_Template");
@@ -246,3 +246,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+

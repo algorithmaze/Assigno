@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -57,7 +58,7 @@ export default function DashboardPage() {
               </div>
             ) : stats ? (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold mb-3">School Statistics ({user.schoolName})</h2>
+                <h2 className="text-xl font-semibold mb-3">School Statistics ({user.schoolName || user.schoolCode})</h2>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -135,4 +136,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 

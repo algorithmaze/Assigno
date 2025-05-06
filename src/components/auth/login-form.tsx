@@ -20,7 +20,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, Users, UserCheck, CornerDownLeft, Info } from 'lucide-react';
 import { sendOTP, verifyOTP, sampleCredentials } from '@/services/otp'; 
-import { useAuth, type User } from '@/context/auth-context'; 
+import type { User } from '@/context/auth-context'; 
+import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -37,13 +38,15 @@ type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
 type SampleUserKey = keyof typeof sampleCredentials;
+type SampleCredentialType = typeof sampleCredentials[SampleUserKey];
+
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
   const [identifierValue, setIdentifierValue] = React.useState(''); 
-  const [currentSampleUser, setCurrentSampleUser] = React.useState<typeof sampleCredentials[SampleUserKey] | null>(null);
+  const [currentSampleUser, setCurrentSampleUser] = React.useState<SampleCredentialType | null>(null);
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -129,7 +132,7 @@ export function LoginForm() {
     const userCred = sampleCredentials[roleKey];
     if (userCred) {
       loginForm.setValue('identifier', userCred.identifier);
-      setCurrentSampleUser(userCred); 
+      setCurrentSampleUser(userCred); // Set this state so the OTP hint shows
     } else {
       toast({
         title: "Sample User Not Configured",
@@ -138,6 +141,22 @@ export function LoginForm() {
       });
     }
   }
+
+  // Update currentSampleUser if identifier changes manually
+  React.useEffect(() => {
+    const currentIdentifier = loginForm.getValues('identifier');
+    if (otpSent) return; // Don't change if OTP already sent for a different identifier
+
+    if (currentIdentifier) {
+        const matchedUser = Object.values(sampleCredentials).find(
+            (cred) => cred.identifier.toLowerCase() === currentIdentifier.toLowerCase()
+        );
+        setCurrentSampleUser(matchedUser || null);
+    } else {
+        setCurrentSampleUser(null);
+    }
+  }, [loginForm.watch('identifier'), otpSent, loginForm]);
+
 
   return (
     <div className="space-y-6">
@@ -194,11 +213,11 @@ export function LoginForm() {
                  {currentSampleUser && (
                     <Alert variant="default" className="mt-4 text-left text-sm">
                         <Info className="h-4 w-4" />
-                        <AlertTitle>Demo User Selected: {currentSampleUser.name}</AlertTitle>
+                        <AlertTitle>Demo User: {currentSampleUser.name}</AlertTitle>
                         <AlertDescription>
-                            Identifier <code className="bg-muted px-1 rounded">{currentSampleUser.identifier}</code> filled.
+                            Identifier <code className="bg-muted px-1 rounded">{currentSampleUser.identifier}</code> is ready.
                             <br />
-                            Use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
+                            Click "Send OTP" then use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
                         </AlertDescription>
                     </Alert>
                  )}
@@ -212,7 +231,7 @@ export function LoginForm() {
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
                 </p>
             </div>
-            {currentSampleUser && (
+            {currentSampleUser && ( // Show OTP hint on OTP screen if it's a sample user
                  <Alert variant="default" className="text-sm">
                     <Info className="h-4 w-4" />
                     <AlertTitle>Demo User: {currentSampleUser.name}</AlertTitle>
@@ -253,7 +272,7 @@ export function LoginForm() {
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => { setOtpSent(false); loginForm.reset(); setCurrentSampleUser(null); }} 
+                        onClick={() => { setOtpSent(false); setCurrentSampleUser(null); /* Keep loginForm identifier */ }} 
                         disabled={isLoading || isResendingOtp} 
                         className="w-full sm:w-auto"
                     >
@@ -278,3 +297,4 @@ export function LoginForm() {
     </div>
   );
 }
+

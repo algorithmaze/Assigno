@@ -1,10 +1,10 @@
 
-// TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc)
+// TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch)
 // import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
-import * as usersModule from './users'; // Import users module directly
+// Import users module dynamically where needed or ensure it's initialized before use
 
 /**
  * Represents the structure of a group.
@@ -65,7 +65,7 @@ function updateMockGroupsData(newData: Group[]): void {
 function generateGroupCodeInternal(schoolCode: string, existingGroups: Group[]): string {
     let newCode;
     let attempts = 0;
-    const normalizedSchoolCode = schoolCode.toUpperCase().slice(0,4).replace(/[^A-Z0-9]/g, '');
+    const normalizedSchoolCode = schoolCode.toUpperCase().slice(0,7).replace(/[^A-Z0-9]/g, '');
     do {
         newCode = `${normalizedSchoolCode}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         attempts++;
@@ -107,6 +107,7 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     console.log(`[Service:groups] Fetching groups for user ${userId} (${userRole}).`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
+    const usersModule = await import('./users');
     
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in fetchUserGroups.");
@@ -181,6 +182,7 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
         } else if (member.role === 'Student') {
             if (!groupToUpdate.studentIds.includes(member.id)) {
                 groupToUpdate.studentIds = [...groupToUpdate.studentIds, member.id];
+                // Remove from join requests if they were there
                 groupToUpdate.joinRequests = groupToUpdate.joinRequests?.filter(id => id !== member.id);
                 changed = true;
             }
@@ -225,7 +227,6 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
-    console.warn(`[Service:groups] Group deletion is disabled. Group ID: ${groupId}`);
     // Firebase - Group deletion is disabled as per requirement
     // If it were enabled for mock:
     // await new Promise(resolve => setTimeout(resolve, 10));
@@ -239,7 +240,8 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
     // updateMockGroupsData(updatedMockData);
     // console.log(`[Service:groups] Group ${groupId} deleted (mock).`);
     // return true;
-    return false;
+    console.warn(`[Service:groups] Group deletion is currently disabled. Group ID: ${groupId}`);
+    return false; 
 }
 
 
@@ -271,6 +273,7 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentMockData = getMockGroupsData();
+    const usersModule = await import('./users');
     
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in fetchGroupJoinRequests.");
@@ -303,6 +306,7 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
 
     const updatedMockData = [...currentMockData];
     const group = { ...updatedMockData[groupIndex] };
+    const usersModule = await import('./users');
 
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in approveJoinRequest.");
@@ -335,6 +339,7 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
 
     const updatedMockData = [...currentMockData];
     const group = { ...updatedMockData[groupIndex] };
+    const usersModule = await import('./users');
 
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in rejectJoinRequest.");
@@ -371,6 +376,7 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentMockData = getMockGroupsData();
+    const usersModule = await import('./users');
 
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in getSchoolStats.");
@@ -380,6 +386,11 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
+    // Ensure users module is initialized before fetching all users
+    if (typeof usersModule.ensureMockDataInitialized === 'function') { 
+        await usersModule.ensureMockDataInitialized();
+    }
+
 
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
     const schoolGroups = currentMockData.filter(g => g.schoolCode === schoolCode);
@@ -419,6 +430,7 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     const updatedMockData = [...currentMockData];
     const group = updatedMockData[groupIndex];
+    const usersModule = await import('./users');
 
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in updateGroupSettings.");
@@ -440,5 +452,3 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Group settings for "${group.name}" updated (mock).`);
     return { ...updatedMockData[groupIndex] };
 }
-
-```

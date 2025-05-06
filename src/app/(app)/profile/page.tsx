@@ -7,10 +7,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { User as UserIcon, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase, Award } from "lucide-react"; // Added Award for designation
+import { User as UserIcon, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase, Award, ShieldCheck, LogOut, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link'; // Added Link import
+import Link from 'next/link';
 // TODO: import updateUser from '@/services/users' and a profile edit form component
 
 export default function ProfilePage() {
@@ -155,12 +155,14 @@ export default function ProfilePage() {
              <CardDescription>Quick links for administrators.</CardDescription>
            </CardHeader>
            <CardContent className="flex flex-wrap gap-4">
-             <Link href="/admin/users"><Button>Manage Users</Button></Link>
+             <Link href="/admin/users"><Button><UserIcon className="mr-2 h-4 w-4" /> Manage Users</Button></Link>
              {/* <Link href="/admin/groups"><Button>Manage All Groups</Button></Link> */}
-             <Link href="/admin/school"><Button>School Settings</Button></Link>
+             <Link href="/admin/school"><Button><ShieldCheck className="mr-2 h-4 w-4" /> School Settings</Button></Link>
+             <Link href="/settings"><Button variant="outline"><SettingsIcon className="mr-2 h-4 w-4"/>General Settings</Button></Link>
            </CardContent>
          </Card>
        )}
     </div>
   );
 }
+

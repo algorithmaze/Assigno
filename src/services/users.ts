@@ -181,17 +181,15 @@ async function selfInitializeMockUsers() {
     console.log("[Service:users] Self-initialized mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
 }
 
-// Run self-initialization when the module is loaded (primarily for client-side dev)
-if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-    selfInitializeMockUsers();
+async function ensureMockDataInitialized() {
+    if (!isMockDataInitialized && process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        await selfInitializeMockUsers();
+    }
 }
 
 
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
-    if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in fetchUsersByIds. Attempting self-initialization.");
-        await selfInitializeMockUsers();
-    }
+    await ensureMockDataInitialized();
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
     // TODO: Firebase - Replace with multiple getDoc calls or a more efficient Firestore query if possible (e.g., IN query for up to 30 IDs)
     // const firestore = getFirestore();
@@ -210,10 +208,7 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
 }
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
-    if (!isMockDataInitialized) {
-       console.warn("[Service:users] Mock data not initialized in searchUsers. Attempting self-initialization.");
-        await selfInitializeMockUsers();
-    }
+    await ensureMockDataInitialized();
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     // TODO: Firebase - Replace with Firestore query. This is complex to replicate exactly with client-side filtering.
     // Firestore queries for searching parts of strings typically require a third-party search service like Algolia or Typesense,
@@ -253,10 +248,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
 }
 
 export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & { id?: string }): Promise<User> {
-    if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in addUser. Attempting self-initialization.");
-         await selfInitializeMockUsers();
-    }
+    await ensureMockDataInitialized();
     console.log("[Service:users] Adding user:", user.name);
     
     const schoolDetails = await getSchoolDetails(user.schoolCode);
@@ -310,10 +302,7 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
 }
 
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
-     if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in fetchAllUsers. Attempting self-initialization.");
-         await selfInitializeMockUsers();
-     }
+     await ensureMockDataInitialized();
      console.log(`[Service:users] Fetching all users for school "${schoolCode}"`);
      // TODO: Firebase - Replace with Firestore query
      // const firestore = getFirestore();
@@ -333,10 +322,7 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
-    if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in updateUser. Attempting self-initialization.");
-         await selfInitializeMockUsers();
-    }
+    await ensureMockDataInitialized();
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
     // TODO: Firebase - Replace with Firestore updateDoc
     // const firestore = getFirestore();
@@ -365,10 +351,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
-    if (!isMockDataInitialized) {
-        console.warn("[Service:users] Mock data not initialized in deleteUser. Attempting self-initialization.");
-         await selfInitializeMockUsers();
-    }
+    await ensureMockDataInitialized();
     console.log(`[Service:users] Deleting user ${userId}`);
     // TODO: Firebase - Replace with Firestore deleteDoc
     // const firestore = getFirestore();
@@ -406,6 +389,7 @@ export type ExcelUser = {
 };
 
 export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Promise<{ successCount: number, errorCount: number, errors: string[] }> {
+    await ensureMockDataInitialized();
     const reader = new FileReader();
     let successCount = 0;
     let errorCount = 0;
@@ -420,7 +404,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                     return;
                 }
                 const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0];
+                const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
 
@@ -447,6 +431,11 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             errorCount++;
                             continue;
                         }
+                         if (row.Role !== 'Student' && row.Role !== 'Teacher') {
+                            errors.push(`Skipping row for "${row.Name}": Invalid Role "${row.Role}". Must be 'Student' or 'Teacher'.`);
+                            errorCount++;
+                            continue;
+                        }
 
                         const baseUser: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & {id?: string} = {
                             name: row.Name,
@@ -458,7 +447,12 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                         
                         if (row.Role === 'Teacher') {
                             if(!row['Designation (Teacher Only)']){
-                                errors.push(`Skipping Teacher "${row.Name}": Missing Designation. Row: ${JSON.stringify(row)}`);
+                                errors.push(`Skipping Teacher "${row.Name}": Missing "Designation (Teacher Only)". Row: ${JSON.stringify(row)}`);
+                                errorCount++;
+                                continue;
+                            }
+                            if (row['Designation (Teacher Only)'] !== 'Class Teacher' && row['Designation (Teacher Only)'] !== 'Subject Teacher') {
+                                errors.push(`Skipping Teacher "${row.Name}": Invalid "Designation (Teacher Only)" value "${row['Designation (Teacher Only)']}". Must be 'Class Teacher' or 'Subject Teacher'.`);
                                 errorCount++;
                                 continue;
                             }
@@ -466,16 +460,12 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             baseUser.class = row['Class Handling (Teacher Only)'];
                         } else if (row.Role === 'Student') {
                             if(!row['Admission Number (Student Only)'] || !row['Class (Student Only)']){
-                                 errors.push(`Skipping Student "${row.Name}": Missing Admission Number or Class. Row: ${JSON.stringify(row)}`);
+                                 errors.push(`Skipping Student "${row.Name}": Missing "Admission Number (Student Only)" or "Class (Student Only)". Row: ${JSON.stringify(row)}`);
                                  errorCount++;
                                  continue;
                             }
                             baseUser.admissionNumber = row['Admission Number (Student Only)'];
                             baseUser.class = row['Class (Student Only)'];
-                        } else {
-                            errors.push(`Skipping row: Invalid Role "${row.Role}". Row: ${JSON.stringify(row)}`);
-                            errorCount++;
-                            continue;
                         }
 
                         // TODO: Firebase - In a real scenario, you'd likely want to check if user already exists by email/phone
@@ -500,4 +490,10 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         };
         reader.readAsBinaryString(file);
     });
+}
+
+// Run self-initialization when the module is loaded (primarily for client-side dev)
+// Ensure this is called after sampleCredentials is defined
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    ensureMockDataInitialized();
 }

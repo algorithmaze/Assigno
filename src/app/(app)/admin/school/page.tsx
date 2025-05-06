@@ -21,7 +21,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription }
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Save } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { getSchoolDetails, updateSchoolDetails as updateSchoolDetailsService, type SchoolDetails } from '@/services/school';
+import { getSchoolDetails, updateSchoolDetails as updateSchoolDetailsService } from '@/services/school';
+import type { SchoolDetails } from '@/services/school';
 import { useRouter } from 'next/navigation';
 
 const schoolSettingsSchema = z.object({
@@ -58,7 +59,7 @@ export default function AdminSchoolSettingsPage() {
 
   React.useEffect(() => {
     const loadSchoolDetails = async () => {
-      if (!adminUser || adminUser.role !== 'Admin') return;
+      if (!adminUser || adminUser.role !== 'Admin' || !adminUser.schoolCode) return;
       setIsFetchingSchool(true);
       try {
         const fetchedSchool = await getSchoolDetails(adminUser.schoolCode);
@@ -185,3 +186,4 @@ export default function AdminSchoolSettingsPage() {
     </div>
   );
 }
+

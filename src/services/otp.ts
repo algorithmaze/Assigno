@@ -5,7 +5,8 @@
 
 import type { User } from '@/context/auth-context';
 import { getSchoolDetails } from './school';
-import { sampleCredentials } from './users'; // Import from users.ts
+// Dynamically import sampleCredentials and ensure users module is initialized.
+// import { sampleCredentials } from './users'; // This will be imported dynamically
 
 export interface OTPVerificationResponse {
   success: boolean;
@@ -16,7 +17,12 @@ export interface OTPVerificationResponse {
 export async function sendOTP(identifier: string): Promise<void> {
   console.log(`Simulating OTP sent to ${identifier}. In a real app, an SMS/email would be sent.`);
   // TODO: Firebase - No direct OTP sending logic in Firestore. This would be a separate service (e.g., Firebase Auth Phone, or a third-party SMS/email provider).
-  const sampleUserEntry = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === identifier.toLowerCase());
+  const usersModule = await import('./users'); // Import dynamically
+  if (typeof usersModule.ensureMockDataInitialized === 'function') {
+    await usersModule.ensureMockDataInitialized();
+  }
+
+  const sampleUserEntry = Object.values(usersModule.sampleCredentials).find(cred => cred.identifier.toLowerCase() === identifier.toLowerCase());
   if (sampleUserEntry) {
     console.log(`(For ${sampleUserEntry.name}, use Test OTP: ${sampleUserEntry.otp})`);
   } else {
@@ -28,6 +34,10 @@ export async function sendOTP(identifier: string): Promise<void> {
 
 export async function verifyOTP(identifier: string, otp: string): Promise<OTPVerificationResponse> {
   console.log(`Verifying OTP ${otp} for ${identifier}`);
+  const usersModule = await import('./users'); // Import dynamically
+  if (typeof usersModule.ensureMockDataInitialized === 'function') {
+    await usersModule.ensureMockDataInitialized();
+  }
   // TODO: Firebase - OTP verification itself is usually handled by Firebase Auth.
   // If using a custom OTP system, you'd check against a temporary code stored (e.g., in Firestore or Redis).
   // Upon successful verification, you'd then fetch or create the user in your 'users' Firestore collection.
@@ -35,7 +45,7 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   // --- Mock implementation ---
   await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay
 
-  const sampleUserEntry = Object.values(sampleCredentials).find(
+  const sampleUserEntry = Object.values(usersModule.sampleCredentials).find(
     cred => cred.identifier.toLowerCase() === identifier.toLowerCase() && cred.otp === otp
   );
 
@@ -73,15 +83,21 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   // Ensure this logic aligns with how you want to handle non-predefined users.
   if (otp === '123456' && !sampleUserEntry) { 
      console.warn(`Generic OTP used for identifier: ${identifier}. This user might not be fully configured.`);
-     // Attempt to derive school code or use a default
      const isEmail = identifier.includes('@');
-     const schoolCodeForGeneric = isEmail && identifier.split('@')[1]?.startsWith('school.com') ? 'samp123' : 'samp123'; // Default to samp123
+     let schoolCodeForGeneric = 'samp123'; // Default
+      // A simple heuristic for demo, might need refinement or explicit school code during signup
+      if (identifier.includes('@school.com')) {
+          schoolCodeForGeneric = 'samp123';
+      } else if (identifier.includes('@anotherschool.edu')) {
+          // schoolCodeForGeneric = 'another123'; // If you had another school
+      }
+
      const schoolDetails = await getSchoolDetails(schoolCodeForGeneric);
      const genericUserId = 'user-' + Math.random().toString(36).substring(7);
      
      const genericUser: User = {
          id: genericUserId,
-         name: 'Generic User',
+         name: 'Generic User (' + identifier.substring(0, identifier.indexOf('@') > 0 ? identifier.indexOf('@') : 5) + ')',
          email: isEmail ? identifier : undefined,
          phoneNumber: !isEmail ? identifier : undefined,
          role: 'Student', // Default role for generic OTP users
@@ -103,9 +119,13 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
 }
 
 
-export function logSampleCredentials() {
+export async function logSampleCredentials() {
+    const usersModule = await import('./users');
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+      await usersModule.ensureMockDataInitialized();
+    }
     console.log("--- Sample Login Credentials (School: samp123 - Sample Sr. Sec. School) ---");
-    Object.values(sampleCredentials).forEach(cred => {
+    Object.values(usersModule.sampleCredentials).forEach(cred => {
         console.log(`${cred.role} ${cred.name}: ${cred.identifier} (OTP: ${cred.otp})`);
     });
     console.log("-------------------------------------------------");
@@ -118,3 +138,4 @@ if (process.env.NODE_ENV === 'development') {
 
 // The initialization of mock users will now be handled within users.ts itself.
 // No longer need to call initializeMockUsersWithCredentials from here.
+
