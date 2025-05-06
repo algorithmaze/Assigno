@@ -89,7 +89,16 @@ let mockUsersData: User[] = [
         admissionNumber: 'S12349',
         class: 'Class 11C',
         profilePictureUrl: 'https://picsum.photos/100/100?random=student5',
-     }
+     },
+     // Add another admin for testing
+      {
+        id: 'admin-002',
+        name: 'Super Admin',
+        email: 'super@school.com',
+        role: 'Admin',
+        schoolCode: 'XYZ123',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=superadmin',
+      },
 ];
 
 
@@ -99,10 +108,11 @@ let mockUsersData: User[] = [
  * @returns Promise resolving to an array of User objects found.
  */
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
-    console.log(`Simulating fetching users by IDs: ${userIds.join(', ')}`);
+    console.log(`[Service:users] Simulating fetching users by IDs: ${userIds.join(', ')}`);
     await new Promise(resolve => setTimeout(resolve, 200)); // Simulate short delay
 
     const users = mockUsersData.filter(user => userIds.includes(user.id));
+    console.log(`[Service:users] Found ${users.length} users for IDs: ${userIds.join(', ')}`);
     return users;
 }
 
@@ -115,34 +125,40 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
  * @returns Promise resolving to an array of matching User objects.
  */
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
-    console.log(`Simulating user search for term "${searchTerm}" in school "${schoolCode}", excluding ${excludeIds.length} IDs`);
+    console.log(`[Service:users] Simulating user search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     await new Promise(resolve => setTimeout(resolve, 400)); // Simulate search delay
 
-    if (!searchTerm.trim()) {
-        return []; // Don't return all users on empty search
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        console.log("[Service:users] Search term too short, returning empty array.");
+        return []; // Don't return users on empty or very short search terms
     }
 
     const lowerSearchTerm = searchTerm.toLowerCase();
-    const results = mockUsersData.filter(user =>
-        user.schoolCode === schoolCode && // Match school
-        !excludeIds.includes(user.id) && // Exclude specified IDs
-        (user.name.toLowerCase().includes(lowerSearchTerm) || // Match name
-         (user.email && user.email.toLowerCase().includes(lowerSearchTerm))) // Match email
-    );
+    const results = mockUsersData.filter(user => {
+        const matchesSchool = user.schoolCode === schoolCode;
+        const isExcluded = excludeIds.includes(user.id);
+        const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
+        const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
+        // console.log(`[Service:users] Checking user ${user.id} (${user.name}): School=${matchesSchool}, Excluded=${isExcluded}, Name=${matchesName}, Email=${matchesEmail}`);
+        return matchesSchool && !isExcluded && (matchesName || matchesEmail);
+    });
 
-    console.log(`Found ${results.length} users matching search.`);
+    console.log(`[Service:users] Found ${results.length} users matching search criteria.`);
+    // console.log("[Service:users] Results:", results.map(u => ({ id: u.id, name: u.name })));
     return results;
 }
 
 // Function to add a new user (mainly for signup simulation if needed)
 export function addUser(user: User): void {
     mockUsersData.push(user);
-    console.log("Added mock user:", user);
+    console.log("[Service:users] Added mock user:", user);
 }
 
 // Function to get all users (e.g., for admin management)
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
-     console.log(`Simulating fetching all users for school "${schoolCode}"`);
+     console.log(`[Service:users] Simulating fetching all users for school "${schoolCode}"`);
      await new Promise(resolve => setTimeout(resolve, 300));
-     return mockUsersData.filter(user => user.schoolCode === schoolCode);
+     const users = mockUsersData.filter(user => user.schoolCode === schoolCode);
+     console.log(`[Service:users] Found ${users.length} users in school ${schoolCode}.`);
+     return users;
 }
