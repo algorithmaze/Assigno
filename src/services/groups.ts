@@ -1,4 +1,3 @@
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch)
 // import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -31,33 +30,40 @@ export interface CreateGroupInput {
   subject?: string;
 }
 
-declare global {
-  var mockGroupsData_assigno_groups: Group[] | undefined;
-}
-
-// Initialize mockGroupsData_assigno_groups on globalThis if it doesn't exist (for dev environment)
-if (process.env.NODE_ENV !== 'production') {
-  if (!globalThis.mockGroupsData_assigno_groups) {
-    globalThis.mockGroupsData_assigno_groups = [];
-    console.log("[Service:groups] Initialized global mockGroupsData_assigno_groups (empty).");
-  }
-}
+const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data';
 
 function getMockGroupsData(): Group[] {
-  if (process.env.NODE_ENV === 'production') {
-    // In production, this would interact with a database. For now, return empty.
-    return [];
+  if (typeof window === 'undefined') {
+    return []; // No localStorage on server-side
   }
-  // Ensure globalThis.mockGroupsData_assigno_groups is initialized
-  if (!globalThis.mockGroupsData_assigno_groups) {
-    globalThis.mockGroupsData_assigno_groups = [];
+  try {
+    const storedData = localStorage.getItem(GROUPS_STORAGE_KEY);
+    if (storedData) {
+      // Deserialize date strings back to Date objects
+      return (JSON.parse(storedData) as Array<Omit<Group, 'createdAt'> & {createdAt: string}>).map(g => ({
+        ...g,
+        createdAt: new Date(g.createdAt) 
+      }));
+    }
+  } catch (error) {
+    console.error("[Service:groups] Error reading groups from localStorage:", error);
   }
-  return globalThis.mockGroupsData_assigno_groups;
+  return [];
 }
 
 function updateMockGroupsData(newData: Group[]): void {
-  if (process.env.NODE_ENV !== 'production') {
-    globalThis.mockGroupsData_assigno_groups = newData;
+  if (typeof window === 'undefined') {
+    return; // No localStorage on server-side
+  }
+  try {
+    // Serialize Date objects to ISO strings for storage
+    const serializableData = newData.map(g => ({
+      ...g,
+      createdAt: g.createdAt.toISOString()
+    }));
+    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(serializableData));
+  } catch (error) {
+    console.error("[Service:groups] Error writing groups to localStorage:", error);
   }
 }
 
@@ -86,7 +92,7 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
         studentIds: [],
         schoolCode: schoolCode,
         groupCode: generateGroupCodeInternal(schoolCode, currentMockData),
-        createdAt: new Date(),
+        createdAt: new Date(), // Store as Date object
         joinRequests: [],
     };
 
@@ -170,8 +176,8 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
       return false;
     }
     
-    const updatedMockData = [...currentMockData];
-    const groupToUpdate = { ...updatedMockData[groupIndex] };
+    const updatedMockData = [...currentMockData]; // Create a new array to ensure state updates
+    const groupToUpdate = { ...updatedMockData[groupIndex] }; // Clone the group object
     let changed = false;
     membersToAdd.forEach(member => {
         if (member.role === 'Teacher' || member.role === 'Admin') {
@@ -228,20 +234,22 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
     // Firebase - Group deletion is disabled as per requirement
-    // If it were enabled for mock:
-    // await new Promise(resolve => setTimeout(resolve, 10));
-    // const currentMockData = getMockGroupsData();
-    // const groupIndex = currentMockData.findIndex(g => g.id === groupId && g.schoolCode === schoolCode);
-    // if (groupIndex === -1) {
-    //   console.warn(`[Service:groups] Group ${groupId} not found or school code mismatch for deletion.`);
-    //   return false;
-    // }
-    // const updatedMockData = currentMockData.filter(g => g.id !== groupId);
-    // updateMockGroupsData(updatedMockData);
-    // console.log(`[Service:groups] Group ${groupId} deleted (mock).`);
-    // return true;
-    console.warn(`[Service:groups] Group deletion is currently disabled. Group ID: ${groupId}`);
-    return false; 
+    // To enable mock deletion by admin, uncomment the following block and remove the warning + return false.
+    /*
+    await new Promise(resolve => setTimeout(resolve, 10));
+    const currentMockData = getMockGroupsData();
+    const groupIndex = currentMockData.findIndex(g => g.id === groupId && g.schoolCode === schoolCode);
+    if (groupIndex === -1) {
+      console.warn(`[Service:groups] Group ${groupId} not found or school code mismatch for deletion.`);
+      return false;
+    }
+    const updatedMockData = currentMockData.filter(g => g.id !== groupId);
+    updateMockGroupsData(updatedMockData);
+    console.log(`[Service:groups] Group ${groupId} deleted (mock).`);
+    return true;
+    */
+    console.warn(`[Service:groups] Mock group deletion is currently UI-only. Group ID: ${groupId} not removed from localStorage.`);
+    return true; // Return true to allow UI to proceed with confirmations, but data is not actually deleted from mock store.
 }
 
 
@@ -429,7 +437,7 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
       return null;
     }
     const updatedMockData = [...currentMockData];
-    const group = updatedMockData[groupIndex];
+    const group = { ...updatedMockData[groupIndex] }; // Clone before modifying
     const usersModule = await import('./users');
 
     if (!usersModule) {
