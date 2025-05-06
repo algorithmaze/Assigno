@@ -1,15 +1,17 @@
+
 'use client';
 
 import * as React from 'react';
 import Link from 'next/link';
 import { ChatInterface } from "@/components/chat/chat-interface";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup, deleteGroup } from '@/services/groups';
+// Removed deleteGroup from imports as groups should not be deleted
+import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup } from '@/services/groups';
 import { fetchUsersByIds, searchUsers } from '@/services/users';
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy, MessageSquare as MessageSquareIcon } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -20,17 +22,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+// AlertDialog related imports are removed as delete functionality is removed
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -44,8 +36,6 @@ interface GroupDetailPageProps {
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  // Unwrap params using React.use() if params itself is a Promise
-  // or if Next.js requires this for accessing param properties in certain components.
   const resolvedParams = React.use(params);
   const groupId = resolvedParams.groupId;
 
@@ -64,17 +54,19 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [isSearching, setIsSearching] = React.useState(false);
   const [membersToAdd, setMembersToAdd] = React.useState<User[]>([]);
   const [isUpdatingMembers, setIsUpdatingMembers] = React.useState(false);
-  const [isDeletingGroup, setIsDeletingGroup] = React.useState(false);
+  // isDeletingGroup state is removed as delete functionality is removed
 
   const loadGroupAndMembers = React.useCallback(async () => {
      setLoading(true);
      setError(null);
      try {
+         // TODO: Firebase - Replace with Firestore call
          const fetchedGroup = await fetchGroupDetails(groupId);
          if (fetchedGroup) {
              setGroup(fetchedGroup);
              const memberIds = [...new Set([...fetchedGroup.teacherIds, ...fetchedGroup.studentIds])];
              if (memberIds.length > 0) {
+                // TODO: Firebase - Replace with Firestore call
                 const fetchedMembers = await fetchUsersByIds(memberIds);
                 setMembers(fetchedMembers);
              } else {
@@ -107,8 +99,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
      if (!currentUser || !group || !currentUser.schoolCode) return;
      setIsSearching(true);
      try {
-       // Exclude current members, members staged to be added, and the current user themselves.
        const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
+       // TODO: Firebase - Replace with Firestore query
        const results = await searchUsers(currentUser.schoolCode, currentSearchTerm, excludeIds);
        setSearchResults(results);
      } catch (err) {
@@ -121,14 +113,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
    React.useEffect(() => {
      if (!isManageMembersOpen) {
         setSearchResults([]);
-        setSearchTerm(''); // Clear search term when dialog closes
+        setSearchTerm('');
         return;
      }
-     // Trigger search immediately if dialog opens with empty search term (to show initial list)
-     // or debounce if user is typing.
      const debounceTimer = setTimeout(() => {
         handleSearchUsers(searchTerm);
-     }, searchTerm.trim().length === 0 && !isSearching ? 0 : 500); // No delay for initial load
+     }, searchTerm.trim().length === 0 && !isSearching ? 0 : 500);
 
      return () => clearTimeout(debounceTimer);
    }, [searchTerm, isManageMembersOpen, handleSearchUsers, isSearching]);
@@ -141,7 +131,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
     const removeMemberFromStaging = (userToRemove: User) => {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      // Re-add to search results only if they match the current search term or if search is empty
       const currentSearchTermLower = searchTerm.trim().toLowerCase();
       const nameMatches = userToRemove.name.toLowerCase().includes(currentSearchTermLower);
       const emailMatches = userToRemove.email?.toLowerCase().includes(currentSearchTermLower) ?? false;
@@ -157,6 +146,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
      if (!group || membersToAdd.length === 0) return;
      setIsUpdatingMembers(true);
      try {
+       // TODO: Firebase - Replace with Firestore update
        const success = await addMembersToGroup(groupId, membersToAdd);
        if (success) {
          toast({ title: "Members Added", description: `${membersToAdd.length} member(s) added successfully.` });
@@ -173,7 +163,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
     const handleRemoveMember = async (memberIdToRemove: string) => {
         if (!group) return;
-        // Prevent removing the last teacher/admin if they are the only one
         const memberToRemove = members.find(m => m.id === memberIdToRemove);
         if (memberToRemove && (memberToRemove.role === 'Teacher' || memberToRemove.role === 'Admin')) {
             const teachersInGroup = members.filter(m => m.role === 'Teacher' || m.role === 'Admin');
@@ -183,13 +172,13 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
             }
         }
 
-        setIsUpdatingMembers(true); // Use a general updating state or a specific one
+        setIsUpdatingMembers(true);
         try {
+            // TODO: Firebase - Replace with Firestore update
             const success = await removeMemberFromGroup(groupId, memberIdToRemove);
             if (success) {
                 toast({ title: "Member Removed", description: `Member removed successfully.` });
-                await loadGroupAndMembers(); // Reload group and its members
-                 // Refresh search results if the removed member was in staging or could appear in search
+                await loadGroupAndMembers();
                 setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
                 handleSearchUsers(searchTerm);
             } else { throw new Error("Failed to remove member via service."); }
@@ -209,29 +198,9 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     };
 
     const canManageGroup = currentUser && group && (currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id));
-    const isAdminUser = currentUser?.role === 'Admin';
+    // const isAdminUser = currentUser?.role === 'Admin'; // No longer needed for delete button
 
-    const handleDeleteGroup = async () => {
-        if (!group || !currentUser || currentUser.role !== 'Admin') {
-            toast({ title: "Unauthorized", description: "Only admins can delete groups.", variant: "destructive" });
-            return;
-        }
-        setIsDeletingGroup(true);
-        try {
-            // Pass schoolCode for potential backend validation if needed, although adminId implies school context
-            const success = await deleteGroup(group.id, currentUser.id, group.schoolCode);
-            if (success) {
-                toast({ title: "Group Deleted", description: `Group "${group.name}" has been deleted.` });
-                router.push('/groups');
-            } else {
-                toast({ title: "Deletion Failed", description: "Could not delete the group.", variant: "destructive" });
-            }
-        } catch (error) {
-            toast({ title: "Error", description: "An error occurred during group deletion.", variant: "destructive" });
-        } finally {
-            setIsDeletingGroup(false);
-        }
-    };
+    // handleDeleteGroup function is removed as groups should not be deleted.
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text).then(() => {
@@ -309,36 +278,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                             <Button variant="outline" size="sm"><Settings className="mr-2 h-4 w-4" /> Group Settings</Button>
                         </Link>
                     )}
-                    {isAdminUser && ( // Only school admin can delete group
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                <Button variant="destructive" size="sm" disabled={isDeletingGroup}>
-                                    {isDeletingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                                    Delete Group
-                                </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader>
-                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the group "{group.name}" and all its data.
-                                </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeletingGroup}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={handleDeleteGroup} disabled={isDeletingGroup} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                                    {isDeletingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                                    Yes, delete group
-                                </AlertDialogAction>
-                                </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    )}
-                    {canManageGroup && ( // Group managers (teachers/admins in group) can manage members
+                    {/* Delete Group Button and AlertDialog removed as per requirement */}
+                    {canManageGroup && (
                         <Dialog open={isManageMembersOpen} onOpenChange={(open) => {
                             setIsManageMembersOpen(open);
                             if (!open) resetManageMembersDialog();
-                            else handleSearchUsers(''); // Load initial users when dialog opens
+                            else handleSearchUsers('');
                         }}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4" /> Manage Members</Button>
@@ -402,7 +347,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                                         <span>{member.name} ({member.role})</span>
                                                         {(member.role === 'Teacher' || member.role === 'Admin') && <Badge variant="outline" size="sm" className="text-xs">{member.role === 'Admin' && group.teacherIds.includes(member.id) ? 'Admin Lead' : 'Teacher'}</Badge>}
                                                     </div>
-                                                    {/* Prevent removing oneself or the last teacher/admin */}
                                                     {currentUser?.id !== member.id &&
                                                      !((member.role === 'Teacher' || member.role === 'Admin') && members.filter(m => m.role === 'Teacher' || m.role === 'Admin').length === 1 && group.teacherIds.includes(member.id)) &&
                                                       (

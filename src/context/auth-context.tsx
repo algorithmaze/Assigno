@@ -1,14 +1,16 @@
 
 'use client';
 
+// TODO: Firebase - Import Firebase Auth related functions if using Firebase Authentication
+// import { getAuth, onAuthStateChanged, signOut, deleteUser as deleteFirebaseAuthUser } from 'firebase/auth';
+// import { app as firebaseApp } from '@/lib/firebase'; // Assuming firebase.ts exports the initialized app
+
 import type { ReactNode } from 'react';
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
-// Define the user data structure
-// Add fields as needed based on your backend response
 export interface User {
-  id: string;
+  id: string; // This would typically be the Firebase Auth UID
   name: string;
   email?: string;
   phoneNumber?: string;
@@ -17,34 +19,58 @@ export interface User {
   schoolCode: string;
   schoolName?: string;
   schoolAddress?: string;
-  admissionNumber?: string; // Only for students
-  class?: string; // For students and optionally teachers
-  // Add any other fields relevant to the user profile
+  admissionNumber?: string; 
+  class?: string; 
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (userData: User) => Promise<void>;
+  login: (userData: User) => Promise<void>; // userData would be fetched from Firestore after auth
   logout: () => Promise<void>;
-  updateUserSession: (updatedUserData: Partial<User>) => Promise<void>; // For profile updates
-  deleteAccount: () => Promise<boolean>; // For account deletion
+  updateUserSession: (updatedUserData: Partial<User>) => Promise<void>; 
+  deleteAccount: () => Promise<boolean>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'assigno_user';
+// TODO: Firebase - If using Firebase Auth, localStorage might not be needed for the primary user object,
+// as Firebase Auth SDK handles session persistence. You'd still store app-specific user details from Firestore.
+const AUTH_STORAGE_KEY = 'assigno_user_details'; // Changed key to reflect it's app user details
 const AUTH_PROTECTED_ROUTES_PREFIX = '/';
 const AUTH_PUBLIC_ROUTES = ['/login', '/signup'];
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null); // This would be your app-specific User object from Firestore
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
+  // TODO: Firebase - Replace localStorage with Firebase Auth listener and Firestore fetch
+  // useEffect(() => {
+  //   const auth = getAuth(firebaseApp);
+  //   const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+  //     if (firebaseUser) {
+  //       // User is signed in, fetch their details from Firestore
+  //       const userDoc = await fetchUserFromFirestore(firebaseUser.uid); // Implement this function
+  //       if (userDoc) {
+  //         setUser(userDoc);
+  //       } else {
+  //         // Handle case where user exists in Auth but not Firestore (e.g., incomplete signup)
+  //         setUser(null); 
+  //         // Optionally sign them out of Firebase Auth here or redirect to complete profile
+  //       }
+  //     } else {
+  //       // User is signed out
+  //       setUser(null);
+  //     }
+  //     setLoading(false);
+  //   });
+  //   return () => unsubscribe(); // Cleanup subscription on unmount
+  // }, []);
 
+  // Current mock/localStorage implementation
   useEffect(() => {
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (storedUser) {
@@ -59,51 +85,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
+
   useEffect(() => {
     if (loading) return;
 
     const isPublicRoute = AUTH_PUBLIC_ROUTES.includes(pathname);
     const isAppRoute = pathname.startsWith(AUTH_PROTECTED_ROUTES_PREFIX) && !isPublicRoute;
 
-
     if (!user && isAppRoute) {
       router.replace('/login');
     } else if (user && isPublicRoute) {
        router.replace('/dashboard');
     }
-
   }, [user, loading, pathname, router]);
 
 
   const login = useCallback(async (userData: User) => {
-    console.log("Logging in user with data:", userData);
-    const completeUserData = { ...userData };
-    setUser(completeUserData);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(completeUserData));
+    console.log("Storing user details:", userData);
+    // TODO: Firebase - This function would be called *after* successful Firebase Auth login.
+    // It would mainly be responsible for setting the app-specific user state.
+    // Firebase Auth SDK handles the actual login token.
+    setUser(userData);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData)); // Store app user details
   }, []);
 
   const logout = useCallback(async () => {
+    // TODO: Firebase - Call Firebase Auth signOut
+    // const auth = getAuth(firebaseApp);
+    // await signOut(auth);
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
-     router.replace('/login');
+    router.replace('/login');
   }, [router]);
 
   const updateUserSession = useCallback(async (updatedUserData: Partial<User>) => {
+    // TODO: Firebase - User data updates should primarily happen in Firestore.
+    // This function would update the local state and localStorage if still used for caching.
+    // The source of truth for user profile is Firestore.
     if (user) {
       const newUserData = { ...user, ...updatedUserData };
       setUser(newUserData);
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUserData));
-      console.log("User session updated:", newUserData);
+      console.log("User session updated (local cache):", newUserData);
     }
   }, [user]);
 
   const deleteAccount = useCallback(async (): Promise<boolean> => {
     if (!user) return false;
-    // Simulate backend call
+    // TODO: Firebase - Implement full account deletion
+    // 1. Delete user from Firebase Authentication:
+    //    const auth = getAuth(firebaseApp);
+    //    const firebaseUser = auth.currentUser;
+    //    if (firebaseUser && firebaseUser.uid === user.id) { // Ensure it's the current user
+    //        await deleteFirebaseAuthUser(firebaseUser); // This might require re-authentication
+    //    } else { throw new Error("User mismatch or not authenticated for deletion."); }
+    // 2. Delete user document from Firestore 'users' collection.
+    //    await deleteUserFromFirestore(user.id); // Implement this
+    // 3. Delete user's content or anonymize (e.g., messages, posts in groups - complex operation, often done via Cloud Functions).
     console.log(`Simulating account deletion for user: ${user.id}`);
-    // In a real app, call usersService.deleteUser(user.id)
     await new Promise(resolve => setTimeout(resolve, 500));
-    logout(); // Log out after "deletion"
+    await logout(); 
     return true;
   }, [user, logout]);
 
@@ -125,3 +166,13 @@ export function useAuth() {
   return context;
 }
 
+// Example placeholder for fetching user from Firestore
+// async function fetchUserFromFirestore(uid: string): Promise<User | null> {
+//   const firestore = getFirestore();
+//   const userRef = doc(firestore, 'users', uid);
+//   const docSnap = await getDoc(userRef);
+//   if (docSnap.exists()) {
+//     return { id: docSnap.id, ...docSnap.data() } as User;
+//   }
+//   return null;
+// }

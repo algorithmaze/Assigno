@@ -1,4 +1,12 @@
+
 'use client';
+
+// TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
+// import { getFirestore, doc, setDoc } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
+// TODO: Firebase - Import Firebase Auth functions (e.g., createUserWithEmailAndPassword, sendEmailVerification) if using email/password auth
+// import { getAuth, createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,10 +25,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { sendOTP, verifyOTP } from '@/services/otp'; // Assuming service functions
-import { getSchoolDetails } from '@/services/school'; // Assuming service function
+import { sendOTP, verifyOTP } from '@/services/otp'; 
+import { getSchoolDetails } from '@/services/school'; 
 import type { SchoolDetails } from '@/services/school';
-import { useAuth } from '@/context/auth-context';
+import { useAuth, type User } from '@/context/auth-context'; // Added User import
 import { useRouter } from 'next/navigation';
 
 const signupStep1Schema = z.object({
@@ -32,17 +40,9 @@ const signupStep1Schema = z.object({
 const signupStep2Schema = z.object({
   otp: z.string().length(6, { message: 'OTP must be 6 digits' }),
   name: z.string().min(2, { message: 'Name is required' }),
-  admissionNumber: z.string().optional(), // Required for students conditionally
-  class: z.string().optional(), // Required for students conditionally, optional for teachers
+  admissionNumber: z.string().optional(), 
+  class: z.string().optional(), 
 }).refine((data) => {
-  // Conditional validation: admissionNumber and class required if role is Student
-  if (/* role === 'Student' && */ (!data.admissionNumber || !data.class)) {
-    // We can't access the role directly here easily without more complex state/context.
-    // A better approach might be server-side validation or splitting forms further.
-    // For now, rely on UI logic to show/hide fields and basic optionality.
-    // More robust validation would happen on the backend.
-    // console.warn("Client-side conditional validation skipped for admissionNumber/class");
-  }
   return true;
 });
 
@@ -52,11 +52,11 @@ type SignupStep2Data = z.infer<typeof signupStep2Schema>;
 
 export function SignupForm() {
   const [isLoading, setIsLoading] = React.useState(false);
-  const [step, setStep] = React.useState(1); // 1: Initial info, 2: OTP + Details
+  const [step, setStep] = React.useState(1); 
   const [formData, setFormData] = React.useState<Partial<SignupStep1Data & SignupStep2Data>>({});
   const [schoolDetails, setSchoolDetails] = React.useState<SchoolDetails | null>(null);
   const { toast } = useToast();
-  const { login } = useAuth(); // Use login after successful signup
+  const { login } = useAuth(); 
   const router = useRouter();
 
   const step1Form = useForm<SignupStep1Data>({
@@ -80,10 +80,10 @@ export function SignupForm() {
 
   const handleStep1Submit = async (data: SignupStep1Data) => {
     setIsLoading(true);
-    setFormData(data); // Store step 1 data
+    setFormData(data); 
 
     try {
-       // 1. Verify School Code
+       // TODO: Firebase - getSchoolDetails might query Firestore 'schools' collection
        const fetchedSchoolDetails = await getSchoolDetails(data.schoolCode);
        if (!fetchedSchoolDetails) {
          step1Form.setError('schoolCode', { message: 'Invalid school code' });
@@ -91,11 +91,9 @@ export function SignupForm() {
        }
        setSchoolDetails(fetchedSchoolDetails);
 
-
-      // 2. Send OTP
-      // TODO: Validate if identifier is email or phone if needed
-      await sendOTP(data.identifier); // Call your API to send OTP
-      setStep(2); // Move to OTP and details step
+      // TODO: Firebase - sendOTP might involve a Firebase Cloud Function or third-party service if not using Firebase Auth Phone
+      await sendOTP(data.identifier); 
+      setStep(2); 
       toast({
         title: 'OTP Sent',
         description: `An OTP has been sent to ${data.identifier}.`,
@@ -119,38 +117,49 @@ export function SignupForm() {
     const fullData = { ...formData, ...data } as SignupStep1Data & SignupStep2Data;
 
     try {
-      // 1. Verify OTP
+      // TODO: Firebase - verifyOTP might check against a code stored temporarily (e.g. in Firestore) or handled by Firebase Auth
       const otpResponse = await verifyOTP(fullData.identifier, data.otp);
       if (!otpResponse.success) {
         step2Form.setError('otp', { message: otpResponse.message || 'Invalid OTP' });
         throw new Error('Invalid OTP');
       }
 
-      // 2. Call Backend Signup API with all data
-      console.log('Submitting signup data:', fullData);
-      // const signupResponse = await yourSignupApiCall(fullData); // Replace with your actual API call
+      // TODO: Firebase - This is where you would create the user in Firebase Authentication (if applicable)
+      // and then create their user document in Firestore.
+      // Example with Firebase Auth (email/password, adjust for phone OTP):
+      // const auth = getAuth();
+      // let firebaseUserCredential;
+      // if (fullData.identifier.includes('@')) { // Assuming email
+      //   firebaseUserCredential = await createUserWithEmailAndPassword(auth, fullData.identifier, /* some temporary password or handle differently */);
+      //   await sendEmailVerification(firebaseUserCredential.user); // Optional
+      // } else { /* Handle phone auth if that's the identifier type */ }
+      // const firebaseUserId = firebaseUserCredential?.user.uid || 'mock-uid-' + Date.now(); // Fallback for mock
 
-      // TODO: Replace with actual backend signup logic
-      // Simulate successful signup and login
-       const newUser = {
-          id: 'user-' + Math.random().toString(36).substring(7),
+       const newUser: User = { // This User object structure should match what you store in Firestore
+          id: otpResponse.user?.id || `user-${Date.now()}-${Math.random().toString(16).slice(2)}`, // Use ID from OTP response if available (e.g. pre-created user stub)
           name: fullData.name,
-          email: fullData.identifier.includes('@') ? fullData.identifier : undefined,
-          phoneNumber: !fullData.identifier.includes('@') ? fullData.identifier : undefined,
+          email: fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.email,
+          phoneNumber: !fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.phoneNumber,
           role: fullData.role,
           schoolCode: fullData.schoolCode,
+          schoolName: schoolDetails?.schoolName,
+          schoolAddress: schoolDetails?.address,
           admissionNumber: fullData.role === 'Student' ? fullData.admissionNumber : undefined,
           class: fullData.role === 'Student' || fullData.role === 'Teacher' ? fullData.class : undefined,
-          // Add profile picture later
+          profilePictureUrl: `https://picsum.photos/100/100?random=${fullData.name.split(' ')[0]}`, // Default pic
        };
-       await login(newUser); // Log the user in
 
+      // TODO: Firebase - Save newUser object to Firestore 'users' collection with newUser.id as document ID
+      // const firestore = getFirestore();
+      // await setDoc(doc(firestore, 'users', newUser.id), newUser);
+
+       await login(newUser); 
 
       toast({
         title: 'Signup Successful',
         description: 'Your account has been created. Welcome!',
       });
-      router.push('/dashboard'); // Redirect to dashboard
+      router.push('/dashboard'); 
 
     } catch (error: any) {
       console.error('Signup Step 2 Error:', error);
@@ -313,7 +322,6 @@ export function SignupForm() {
                     )}
                 />
              )}
-            {/* TODO: Add Profile Picture upload field */}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
@@ -322,7 +330,6 @@ export function SignupForm() {
              <Button variant="link" size="sm" onClick={() => setStep(1)} disabled={isLoading} className="w-full">
                Back to Previous Step
              </Button>
-              {/* TODO: Add Resend OTP functionality */}
               <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full">
                Resend OTP
              </Button>

@@ -1,36 +1,20 @@
 
-import type { User } from '@/context/auth-context'; // Import User type
-import { getSchoolDetails } from './school'; // To get school details
+// TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc, getDoc)
+// import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
-/**
- * Interface representing the response from an OTP verification request.
- */
+import type { User } from '@/context/auth-context'; 
+import { getSchoolDetails } from './school'; 
+
 export interface OTPVerificationResponse {
-  /**
-   * Indicates whether the OTP verification was successful.
-   */
   success: boolean;
-
-  /**
-   * An optional message providing additional information about the verification result.
-   */
   message?: string;
-
-  /**
-   * Optional user data returned upon successful verification.
-   */
   user?: User;
 }
 
-/**
- * Sends an OTP (One-Time Password) to the specified identifier (email or phone).
- *
- * @param identifier The email or phone number to send the OTP to.
- * @returns A promise that resolves when the OTP has been successfully sent (simulated).
- */
 export async function sendOTP(identifier: string): Promise<void> {
   console.log(`Simulating OTP sent to ${identifier}. In a real app, an SMS/email would be sent.`);
-  // Log specific OTP for sample users
+  // TODO: Firebase - No direct OTP sending logic in Firestore. This would be a separate service (e.g., Firebase Auth Phone, or a third-party SMS/email provider).
   const sampleUserEntry = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === identifier.toLowerCase());
   if (sampleUserEntry) {
     console.log(`(For ${sampleUserEntry.name}, use Test OTP: ${sampleUserEntry.otp})`);
@@ -41,16 +25,13 @@ export async function sendOTP(identifier: string): Promise<void> {
   return;
 }
 
-/**
- * Verifies the provided OTP (One-Time Password) against the expected value.
- * Includes logic for sample user login using a magic OTP.
- *
- * @param identifier The identifier (email/phone) the OTP was sent to.
- * @param otp The OTP to verify.
- * @returns A promise that resolves with an OTPVerificationResponse indicating the verification result.
- */
 export async function verifyOTP(identifier: string, otp: string): Promise<OTPVerificationResponse> {
   console.log(`Verifying OTP ${otp} for ${identifier}`);
+  // TODO: Firebase - OTP verification itself is usually handled by Firebase Auth.
+  // If using a custom OTP system, you'd check against a temporary code stored (e.g., in Firestore or Redis).
+  // Upon successful verification, you'd then fetch or create the user in your 'users' Firestore collection.
+
+  // --- Mock implementation ---
   await new Promise(resolve => setTimeout(resolve, 500));
 
   const sampleUserEntry = Object.values(sampleCredentials).find(
@@ -60,6 +41,13 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   if (sampleUserEntry) {
     console.log(`OTP successful for sample user: ${sampleUserEntry.name}`);
     const schoolDetails = await getSchoolDetails(sampleUserEntry.schoolCode);
+    // TODO: Firebase - If user found via sample, ensure they exist in Firestore or create them.
+    // const firestore = getFirestore();
+    // const userRef = doc(firestore, 'users', sampleUserEntry.id);
+    // const userSnap = await getDoc(userRef);
+    // let userData = userSnap.exists() ? {id: userSnap.id, ...userSnap.data()} as User : null;
+    // if (!userData) { /* create user in Firestore */ }
+    
     return {
       success: true,
       message: 'Sample user login successful.',
@@ -79,46 +67,45 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
     };
   }
 
-  // Fallback for generic OTP verification if no sample user matches
-  // This part might be removed if strict matching against sample OTPs is required
-  if (otp === '123456' && !sampleUserEntry) { // A generic OTP for testing non-sample users
+  if (otp === '123456' && !sampleUserEntry) { 
      console.warn(`Generic OTP used for identifier: ${identifier}. This user might not be fully configured.`);
      const schoolCodeForGeneric = identifier.split('@')[1]?.startsWith('school.com') ? 'samp123' : 'unknownSchool';
      const schoolDetails = await getSchoolDetails(schoolCodeForGeneric);
+     const genericUserId = 'user-' + Math.random().toString(36).substring(7);
      const genericUser: User = {
-         id: 'user-' + Math.random().toString(36).substring(7),
+         id: genericUserId,
          name: 'Generic User',
          email: identifier.includes('@') ? identifier : undefined,
          phoneNumber: !identifier.includes('@') ? identifier : undefined,
-         role: 'Student', // Default role
+         role: 'Student', 
          schoolCode: schoolDetails?.schoolCode || schoolCodeForGeneric,
          schoolName: schoolDetails?.schoolName,
          schoolAddress: schoolDetails?.address,
      };
+     // TODO: Firebase - Create this generic user in Firestore if they don't exist.
+     // const firestore = getFirestore();
+     // const userRef = doc(firestore, 'users', genericUserId);
+     // await setDoc(userRef, genericUser, { merge: true }); // Create or merge
      return { success: true, message: 'Generic OTP verification successful.', user: genericUser };
   }
 
-
   console.log('Incorrect OTP or identifier mismatch.');
   return { success: false, message: 'The OTP entered is incorrect or identifier mismatch.' };
+  // --- End mock implementation ---
 }
 
 
-/**
- * Provides sample login credentials for testing purposes.
- * DO NOT USE IN PRODUCTION.
- */
 export const sampleCredentials = {
     adminAntony: {
         id: 'admin-antony-001',
         name: 'Antony Admin',
-        identifier: 'antony@school.com', // Unique identifier
+        identifier: 'antony@school.com', 
         email: 'antony@school.com',
         phoneNumber: undefined,
         role: 'Admin' as 'Admin',
-        otp: '000000', // Specific OTP for this user
+        otp: '000000', 
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'admin-antony-001'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=admin-antony-001`,
         admissionNumber: undefined,
         class: undefined,
      },
@@ -131,7 +118,7 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '111111',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-zara-001'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-zara-001`,
         admissionNumber: undefined,
         class: 'Class 10A',
      },
@@ -144,7 +131,7 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '222222',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-leo-002'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-leo-002`,
         admissionNumber: undefined,
         class: 'Class 9B',
      },
@@ -157,7 +144,7 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '333333',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-mia-001'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=student-mia-001`,
         admissionNumber: 'SAMP9001',
         class: 'Class 8A',
      },
@@ -170,11 +157,10 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '444444',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-omar-002'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=student-omar-002`,
         admissionNumber: 'SAMP9002',
         class: 'Class 7C',
      },
-     // Additional dummy users for general app population
      teacherEva: {
         id: 'teacher-eva-003',
         name: 'Eva Teacher',
@@ -184,7 +170,7 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '555555',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'teacher-eva-003'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-eva-003`,
         admissionNumber: undefined,
         class: 'Class 11 Science',
     },
@@ -197,7 +183,7 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '666666',
         schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=${'student-ken-003'}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=student-ken-003`,
         admissionNumber: 'SAMP9003',
         class: 'Class 6B',
     },
