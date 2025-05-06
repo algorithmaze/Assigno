@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -5,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, Mic, PlusCircle, Calendar, BarChart2 } from 'lucide-react';
+import { Paperclip, Smile, Send, Mic, PlusCircle, Calendar, BarChart2, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 
 // TODO: Replace with actual message type from backend/data source
