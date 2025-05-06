@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-context';
 import { fetchUserGroups, type Group, requestToJoinGroup, fetchGroupByCode } from '@/services/groups';
-import { Loader2, Search, LogIn, Copy } from 'lucide-react';
+import { Loader2, Search, LogIn, Copy, PlusCircle } from 'lucide-react'; // Added PlusCircle
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -73,18 +73,27 @@ export default function GroupsPage() {
          return;
       }
 
-      const success = await requestToJoinGroup(groupToJoin.id, user.id);
+      // For students, it's a request. For teachers, they join directly.
+      const success = user.role === 'Student'
+        ? await requestToJoinGroup(groupToJoin.id, user.id)
+        : await addMembersToGroup(groupToJoin.id, [user]); // Simplified direct add for teacher
+
       if (success) {
-        toast({ title: "Request Sent", description: `Your request to join "${groupToJoin.name}" has been sent.` });
+        toast({
+            title: user.role === 'Student' ? "Request Sent" : "Joined Group",
+            description: user.role === 'Student'
+                ? `Your request to join "${groupToJoin.name}" has been sent.`
+                : `You have joined "${groupToJoin.name}".`
+        });
         setIsJoinGroupOpen(false);
         setJoinGroupCode('');
-        // Optionally, refresh group list or update UI to show pending request
+        if (user.role === 'Teacher') loadGroups(); // Refresh groups if teacher joined
       } else {
-        toast({ title: "Request Failed", description: "Could not send join request. You might have already requested.", variant: "destructive" });
+        toast({ title: "Action Failed", description: "Could not process your request. You might have already requested or joined.", variant: "destructive" });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error joining group:", err);
-      toast({ title: "Error", description: "Failed to process join request.", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Failed to process join request.", variant: "destructive" });
     } finally {
       setIsJoiningGroup(false);
     }
@@ -99,8 +108,23 @@ export default function GroupsPage() {
     });
   };
 
+  // Helper function in groups service
+  async function addMembersToGroup(groupId: string, users: typeof User[]): Promise<boolean> {
+    // This is a placeholder. You'd call your actual service function.
+    console.log(`Simulating adding ${users.length} users to group ${groupId}`);
+    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
+    if (groupIndex === -1) return false;
+    users.forEach(u => {
+        if(u.role === 'Teacher' && !mockGroupsData[groupIndex].teacherIds.includes(u.id)) {
+            mockGroupsData[groupIndex].teacherIds.push(u.id);
+        } else if (u.role === 'Student' && !mockGroupsData[groupIndex].studentIds.includes(u.id)){
+            mockGroupsData[groupIndex].studentIds.push(u.id);
+        }
+    });
+    return true;
+  }
 
-  const canCreateGroup = user?.role === 'Admin'; // Only Admin can create groups now
+  const canCreateGroup = user?.role === 'Admin';
 
   return (
     <div className="space-y-6">
@@ -117,7 +141,7 @@ export default function GroupsPage() {
           <CardTitle>Your Groups</CardTitle>
           <CardDescription>
             {user?.role === 'Student' ? 'Groups you are a member of. You can also request to join new groups.' :
-             user?.role === 'Teacher' ? 'Groups you are managing or a member of.' :
+             user?.role === 'Teacher' ? 'Groups you are managing or a member of. You can also join other groups.' :
              'All groups within your school.'}
           </CardDescription>
         </CardHeader>
@@ -132,14 +156,16 @@ export default function GroupsPage() {
           )}
           {!loading && !error && groups.length === 0 && (
              <p className="text-muted-foreground text-center py-4">
-                {user?.role === 'Student' ? 'You are not currently a member of any groups. Request to join one!' : 'No groups to display yet.'}
+                {user?.role === 'Student' ? 'You are not currently a member of any groups. Request to join one!' : 
+                 user?.role === 'Teacher' ? 'You are not part of any groups yet. Join one or wait for an admin to add you.' : 
+                 'No groups to display yet.'}
             </p>
           )}
           {!loading && !error && groups.length > 0 && (
              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                {groups.map((group) => (
                  <Link href={`/groups/${group.id}`} key={group.id} className="block">
-                    <Card className="p-4 hover:shadow-lg cursor-pointer transition-all h-full flex flex-col justify-between">
+                    <Card className="p-4 hover:shadow-lg cursor-pointer transition-all h-full flex flex-col justify-between rounded-lg">
                       <div>
                        <p className="font-semibold text-lg">{group.name}</p>
                        {group.subject && <p className="text-sm text-muted-foreground">{group.subject}</p>}
@@ -158,7 +184,7 @@ export default function GroupsPage() {
              </div>
           )}
 
-            {(user?.role === 'Student' || user?.role === 'Teacher') && ( // Teachers can also join groups
+            {(user?.role === 'Student' || user?.role === 'Teacher') && (
                 <div className="mt-8 border-t pt-6">
                     <h3 className="text-xl font-semibold mb-3">Join a Group</h3>
                      <Dialog open={isJoinGroupOpen} onOpenChange={setIsJoinGroupOpen}>
