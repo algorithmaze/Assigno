@@ -21,7 +21,7 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input'; // Corrected quote here
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -29,11 +29,14 @@ import { Badge } from '@/components/ui/badge';
 
 
 interface GroupDetailPageProps {
-  params: { groupId: string };
+  params: Promise<{ groupId: string }>; // Params is a promise in this context
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const groupId = React.use(Promise.resolve(params.groupId)); // Unwrap promise
+  // Correctly unwrap the params promise using React.use()
+  const resolvedParams = React.use(params);
+  const groupId = resolvedParams.groupId;
+
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
 
@@ -130,7 +133,10 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
       // Optionally add back to search results if they match the current term
       if (searchTerm.trim() && (userToRemove.name.toLowerCase().includes(searchTerm.toLowerCase()) || userToRemove.email?.toLowerCase().includes(searchTerm.toLowerCase()))) {
-          setSearchResults(prev => [userToRemove, ...prev]);
+          // Avoid adding duplicates if already in results
+          if (!searchResults.some(u => u.id === userToRemove.id)) {
+              setSearchResults(prev => [userToRemove, ...prev]);
+          }
       }
     };
 
@@ -352,3 +358,5 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     </div>
   );
 }
+
+    
