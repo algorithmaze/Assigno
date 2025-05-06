@@ -6,12 +6,11 @@ import Link from 'next/link';
 import { ChatInterface } from "@/components/chat/chat-interface";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// Removed deleteGroup from imports as groups should not be deleted
-import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup } from '@/services/groups';
+import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup, deleteGroup } from '@/services/groups';
 import { fetchUsersByIds, searchUsers } from '@/services/users';
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -22,7 +21,17 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
-// AlertDialog related imports are removed as delete functionality is removed
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -54,19 +63,21 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [isSearching, setIsSearching] = React.useState(false);
   const [membersToAdd, setMembersToAdd] = React.useState<User[]>([]);
   const [isUpdatingMembers, setIsUpdatingMembers] = React.useState(false);
-  // isDeletingGroup state is removed as delete functionality is removed
+  
+  const [isDeleteConfirm1Open, setIsDeleteConfirm1Open] = React.useState(false);
+  const [isDeleteConfirm2Open, setIsDeleteConfirm2Open] = React.useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = React.useState(false);
+
 
   const loadGroupAndMembers = React.useCallback(async () => {
      setLoading(true);
      setError(null);
      try {
-         // TODO: Firebase - Replace with Firestore call
          const fetchedGroup = await fetchGroupDetails(groupId);
          if (fetchedGroup) {
              setGroup(fetchedGroup);
              const memberIds = [...new Set([...fetchedGroup.teacherIds, ...fetchedGroup.studentIds])];
              if (memberIds.length > 0) {
-                // TODO: Firebase - Replace with Firestore call
                 const fetchedMembers = await fetchUsersByIds(memberIds);
                 setMembers(fetchedMembers);
              } else {
@@ -100,7 +111,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
      setIsSearching(true);
      try {
        const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
-       // TODO: Firebase - Replace with Firestore query
        const results = await searchUsers(currentUser.schoolCode, currentSearchTerm, excludeIds);
        setSearchResults(results);
      } catch (err) {
@@ -146,7 +156,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
      if (!group || membersToAdd.length === 0) return;
      setIsUpdatingMembers(true);
      try {
-       // TODO: Firebase - Replace with Firestore update
        const success = await addMembersToGroup(groupId, membersToAdd);
        if (success) {
          toast({ title: "Members Added", description: `${membersToAdd.length} member(s) added successfully.` });
@@ -174,13 +183,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
         setIsUpdatingMembers(true);
         try {
-            // TODO: Firebase - Replace with Firestore update
             const success = await removeMemberFromGroup(groupId, memberIdToRemove);
             if (success) {
                 toast({ title: "Member Removed", description: `Member removed successfully.` });
                 await loadGroupAndMembers();
                 setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
-                handleSearchUsers(searchTerm);
+                handleSearchUsers(searchTerm); // Refresh search results as user might be available again
             } else { throw new Error("Failed to remove member via service."); }
         } catch (error) {
             toast({ title: "Error", description: "Failed to remove member.", variant: "destructive" });
@@ -198,9 +206,31 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     };
 
     const canManageGroup = currentUser && group && (currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id));
-    // const isAdminUser = currentUser?.role === 'Admin'; // No longer needed for delete button
+    const isAdminUser = currentUser?.role === 'Admin';
 
-    // handleDeleteGroup function is removed as groups should not be deleted.
+    const handleDeleteGroup = async () => {
+        if (!group || !currentUser || currentUser.role !== 'Admin') {
+            toast({ title: "Unauthorized", description: "You do not have permission to delete this group.", variant: "destructive" });
+            return;
+        }
+        setIsDeletingGroup(true);
+        try {
+            const success = await deleteGroup(groupId, currentUser.id, currentUser.schoolCode);
+            if (success) {
+                toast({ title: "Group Deleted", description: `Group "${group.name}" has been permanently deleted.` });
+                router.replace('/groups');
+            } else {
+                toast({ title: "Deletion Failed", description: "Could not delete the group. It might have already been removed or an error occurred.", variant: "destructive" });
+            }
+        } catch (error: any) {
+            toast({ title: "Error Deleting Group", description: error.message || "An unexpected error occurred.", variant: "destructive" });
+        } finally {
+            setIsDeletingGroup(false);
+            setIsDeleteConfirm1Open(false);
+            setIsDeleteConfirm2Open(false);
+        }
+    };
+
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text).then(() => {
@@ -278,12 +308,73 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                             <Button variant="outline" size="sm"><Settings className="mr-2 h-4 w-4" /> Group Settings</Button>
                         </Link>
                     )}
-                    {/* Delete Group Button and AlertDialog removed as per requirement */}
+                    {isAdminUser && (
+                        <AlertDialog open={isDeleteConfirm1Open} onOpenChange={setIsDeleteConfirm1Open}>
+                            <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm" disabled={isDeletingGroup}>
+                                    {isDeletingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                                    Delete Group
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle className="flex items-center gap-2">
+                                        <AlertTriangle className="h-5 w-5 text-destructive" /> Are you sure?
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action will permanently delete the group "{group.name}". This cannot be undone.
+                                        All associated messages and data will be lost.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setIsDeleteConfirm1Open(false)}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        className="bg-destructive hover:bg-destructive/90"
+                                        onClick={() => {
+                                            setIsDeleteConfirm1Open(false);
+                                            setIsDeleteConfirm2Open(true);
+                                        }}
+                                    >
+                                        Yes, I understand the consequences
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                    {/* Second confirmation dialog */}
+                    <AlertDialog open={isDeleteConfirm2Open} onOpenChange={setIsDeleteConfirm2Open}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="flex items-center gap-2">
+                                     <AlertTriangle className="h-5 w-5 text-destructive" /> Final Confirmation
+                                </AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    You are about to permanently delete the group "{group.name}". 
+                                    <strong className="text-destructive"> This is your final warning. This action is irreversible.</strong> Are you absolutely sure you want to proceed?
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setIsDeleteConfirm2Open(false)} disabled={isDeletingGroup}>
+                                    Cancel
+                                </AlertDialogCancel>
+                                <AlertDialogAction
+                                    className="bg-destructive hover:bg-destructive/90"
+                                    onClick={handleDeleteGroup}
+                                    disabled={isDeletingGroup}
+                                >
+                                    {isDeletingGroup ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    Yes, delete this group permanently
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+
+
                     {canManageGroup && (
                         <Dialog open={isManageMembersOpen} onOpenChange={(open) => {
                             setIsManageMembersOpen(open);
                             if (!open) resetManageMembersDialog();
-                            else handleSearchUsers('');
+                            else handleSearchUsers(''); // Load initial list or empty state
                         }}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4" /> Manage Members</Button>
@@ -313,7 +404,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                             {searchResults.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <Avatar className="h-6 w-6"><AvatarImage src={userRes.profilePictureUrl} data-ai-hint="user avatar"/><AvatarFallback>{userRes.name.charAt(0)}</AvatarFallback></Avatar>
+                                                        <Avatar className="h-6 w-6"><AvatarImage src={userRes.profilePictureUrl || `https://picsum.photos/30/30?random=${userRes.id}`} data-ai-hint="user avatar"/><AvatarFallback>{userRes.name.charAt(0)}</AvatarFallback></Avatar>
                                                         <span>{userRes.name} ({userRes.role})</span>
                                                     </div>
                                                     <Button variant="ghost" size="sm" onClick={() => addMemberToStaging(userRes)}><UserPlus className="h-4 w-4" /></Button>
@@ -343,7 +434,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                             {members.map(member => (
                                                 <div key={member.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <Avatar className="h-6 w-6"><AvatarImage src={member.profilePictureUrl} data-ai-hint="member avatar"/><AvatarFallback>{member.name.charAt(0)}</AvatarFallback></Avatar>
+                                                        <Avatar className="h-6 w-6"><AvatarImage src={member.profilePictureUrl || `https://picsum.photos/30/30?random=${member.id}`} data-ai-hint="member avatar"/><AvatarFallback>{member.name.charAt(0)}</AvatarFallback></Avatar>
                                                         <span>{member.name} ({member.role})</span>
                                                         {(member.role === 'Teacher' || member.role === 'Admin') && <Badge variant="outline" size="sm" className="text-xs">{member.role === 'Admin' && group.teacherIds.includes(member.id) ? 'Admin Lead' : 'Teacher'}</Badge>}
                                                     </div>
@@ -379,3 +470,4 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     </div>
   );
 }
+

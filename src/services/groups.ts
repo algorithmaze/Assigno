@@ -54,7 +54,7 @@ function generateGroupCode(schoolCode: string): string {
     let newCode;
     let attempts = 0;
     do {
-        newCode = `${schoolCode.toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        newCode = `${schoolCode.toUpperCase().slice(0,4)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         attempts++;
         if (attempts > 10) throw new Error("Failed to generate unique group code after multiple attempts.");
         // TODO: Firebase - Check Firestore for groupCode uniqueness instead of mockGroupsData
@@ -263,8 +263,7 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
     // --- End mock implementation ---
 }
 
-// Groups should not be deleted once created. This function is now commented out.
-/*
+
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
     // TODO: Firebase - Replace with Firestore deleteDoc
@@ -277,6 +276,7 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
     // }
     // await deleteDoc(groupRef);
     // console.log(`[Service:groups] Group "${groupSnap.data().name}" (ID: ${groupId}) deleted successfully from Firestore.`);
+    // // TODO: Firebase - Delete associated messages subcollection (e.g. using a Cloud Function)
     // return true;
 
     // --- Mock implementation ---
@@ -292,6 +292,15 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
     }
     const initialLength = mockGroupsData.length;
     mockGroupsData = mockGroupsData.filter(group => group.id !== groupId);
+
+    // Also remove messages associated with this group from the mock message store
+    const messagesModule = await import('./messages');
+    if (messagesModule.groupMessagesStore_assigno) { // Check if mock store is defined
+      messagesModule.groupMessagesStore_assigno.delete(groupId);
+      console.log(`[Service:groups] Deleted messages for group ${groupId} from mock store.`);
+    }
+
+
     const success = mockGroupsData.length < initialLength;
     if (success) {
       console.log(`[Service:groups] Group "${groupToDelete.name}" (ID: ${groupId}) deleted successfully (mock).`);
@@ -301,7 +310,7 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
     return success;
     // --- End mock implementation ---
 }
-*/
+
 
 export async function requestToJoinGroup(groupId: string, studentId: string): Promise<boolean> {
     console.log(`[Service:groups] Student ${studentId} requesting to join group ${groupId}`);
@@ -349,20 +358,20 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
 
     // --- Mock implementation ---
     await new Promise(resolve => setTimeout(resolve, 100));
-    const group = mockGroupsData.find(g => g.id === groupId && g.teacherIds.includes(teacherId));
+    const group = mockGroupsData.find(g => g.id === groupId && (g.teacherIds.includes(teacherId) || g.schoolCode === (await import('@/services/users')).sampleCredentials.adminAntony.schoolCode && teacherId === (await import('@/services/users')).sampleCredentials.adminAntony.id)); // Admin can also view
     if (!group || !group.joinRequests || group.joinRequests.length === 0) return [];
     const usersModule = await import('@/services/users');
     return usersModule.fetchUsersByIds(group.joinRequests);
     // --- End mock implementation ---
 }
 
-export async function approveJoinRequest(groupId: string, studentId: string, teacherId: string): Promise<boolean> {
-    console.log(`[Service:groups] Teacher ${teacherId} approving join request for student ${studentId} in group ${groupId}`);
+export async function approveJoinRequest(groupId: string, studentId: string, approverId: string): Promise<boolean> {
+    console.log(`[Service:groups] Approver ${approverId} approving join request for student ${studentId} in group ${groupId}`);
     // TODO: Firebase - Replace with Firestore updateDoc: add to studentIds, remove from joinRequests
     // const firestore = getFirestore();
     // const groupRef = doc(firestore, 'groups', groupId);
     // const groupSnap = await getDoc(groupRef);
-    // if (!groupSnap.exists() || !groupSnap.data().teacherIds.includes(teacherId)) return false;
+    // if (!groupSnap.exists() || !(groupSnap.data().teacherIds.includes(approverId) || userIsAdminOfSchool)) return false; // Check if approver is teacher in group OR admin of school
     // await updateDoc(groupRef, {
     //     studentIds: arrayUnion(studentId),
     //     joinRequests: arrayRemove(studentId)
@@ -371,9 +380,19 @@ export async function approveJoinRequest(groupId: string, studentId: string, tea
 
     // --- Mock implementation ---
     await new Promise(resolve => setTimeout(resolve, 100));
-    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId && g.teacherIds.includes(teacherId));
+    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) return false;
+    
     const group = { ...mockGroupsData[groupIndex] };
+    const usersModule = await import('@/services/users');
+    const approverUser = await usersModule.fetchUsersByIds([approverId]).then(users => users[0]);
+
+    if (!approverUser) return false;
+    const isTeacherInGroup = group.teacherIds.includes(approverId);
+    const isAdminOfSchool = approverUser.role === 'Admin' && approverUser.schoolCode === group.schoolCode;
+
+    if (!isTeacherInGroup && !isAdminOfSchool) return false; // Must be a teacher in the group or admin of the school
+
     if (!group.joinRequests?.includes(studentId)) return false;
     group.studentIds = [...group.studentIds, studentId];
     group.joinRequests = group.joinRequests.filter(id => id !== studentId);
@@ -383,21 +402,31 @@ export async function approveJoinRequest(groupId: string, studentId: string, tea
     // --- End mock implementation ---
 }
 
-export async function rejectJoinRequest(groupId: string, studentId: string, teacherId: string): Promise<boolean> {
-    console.log(`[Service:groups] Teacher ${teacherId} rejecting join request for student ${studentId} in group ${groupId}`);
+export async function rejectJoinRequest(groupId: string, studentId: string, rejectorId: string): Promise<boolean> {
+    console.log(`[Service:groups] Rejector ${rejectorId} rejecting join request for student ${studentId} in group ${groupId}`);
     // TODO: Firebase - Replace with Firestore updateDoc: remove from joinRequests
     // const firestore = getFirestore();
     // const groupRef = doc(firestore, 'groups', groupId);
     // const groupSnap = await getDoc(groupRef);
-    // if (!groupSnap.exists() || !groupSnap.data().teacherIds.includes(teacherId)) return false;
+    // if (!groupSnap.exists() || !(groupSnap.data().teacherIds.includes(rejectorId) || userIsAdminOfSchool)) return false;
     // await updateDoc(groupRef, { joinRequests: arrayRemove(studentId) });
     // return true;
 
     // --- Mock implementation ---
     await new Promise(resolve => setTimeout(resolve, 100));
-    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId && g.teacherIds.includes(teacherId));
+    const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) return false;
+
     const group = { ...mockGroupsData[groupIndex] };
+    const usersModule = await import('@/services/users');
+    const rejectorUser = await usersModule.fetchUsersByIds([rejectorId]).then(users => users[0]);
+
+    if(!rejectorUser) return false;
+    const isTeacherInGroup = group.teacherIds.includes(rejectorId);
+    const isAdminOfSchool = rejectorUser.role === 'Admin' && rejectorUser.schoolCode === group.schoolCode;
+
+    if (!isTeacherInGroup && !isAdminOfSchool) return false; // Must be a teacher in the group or admin of the school
+
     if (!group.joinRequests?.includes(studentId)) return false;
     group.joinRequests = group.joinRequests.filter(id => id !== studentId);
     mockGroupsData[groupIndex] = group;
@@ -500,3 +529,4 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     return { ...mockGroupsData[groupIndex] };
     // --- End mock implementation ---
 }
+
