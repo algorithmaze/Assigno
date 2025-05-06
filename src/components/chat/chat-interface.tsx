@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -22,18 +23,31 @@ interface Message {
 
 // Placeholder messages
 const initialMessages: Message[] = [
-  { id: '1', senderId: 't1', senderName: 'Alice Smith', senderRole: 'Teacher', content: 'Welcome to the Class 10 Maths group!', timestamp: new Date(Date.now() - 60000 * 5), type: 'text' },
-  { id: '2', senderId: 's1', senderName: 'Bob Williams', senderRole: 'Student', content: 'Hi Ms. Smith!', timestamp: new Date(Date.now() - 60000 * 4), type: 'text'},
-  { id: '3', senderId: 't1', senderName: 'Alice Smith', senderRole: 'Teacher', content: 'Remember the homework due Friday.', timestamp: new Date(Date.now() - 60000 * 2), type: 'text', senderAvatar: 'https://picsum.photos/40/40?random=1' },
+  { id: '1', senderId: 'teacher-001', senderName: 'Alice Smith', senderRole: 'Teacher', content: 'Welcome to the Class 10 Maths group!', timestamp: new Date(Date.now() - 60000 * 5), type: 'text', senderAvatar: 'https://picsum.photos/40/40?random=teacher-001' },
+  { id: '2', senderId: 'student-001', senderName: 'Student User', senderRole: 'Student', content: 'Hi Ms. Smith!', timestamp: new Date(Date.now() - 60000 * 4), type: 'text', senderAvatar: 'https://picsum.photos/40/40?random=student-001'},
+  { id: '3', senderId: 'teacher-001', senderName: 'Alice Smith', senderRole: 'Teacher', content: 'Remember the homework due Friday.', timestamp: new Date(Date.now() - 60000 * 2), type: 'text', senderAvatar: 'https://picsum.photos/40/40?random=teacher-001' },
 ];
 
-export function ChatInterface() {
-  const [messages, setMessages] = React.useState<Message[]>(initialMessages);
+
+interface ChatInterfaceProps {
+    groupId: string; // Accept groupId as a prop
+}
+
+export function ChatInterface({ groupId }: ChatInterfaceProps) {
+  const [messages, setMessages] = React.useState<Message[]>(initialMessages); // TODO: Fetch messages for groupId
   const [newMessage, setNewMessage] = React.useState('');
   const { user } = useAuth(); // Get current logged-in user
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
 
-  // TODO: Implement message sending logic (call API)
+    // TODO: Fetch messages specific to the groupId when the component mounts or groupId changes
+    React.useEffect(() => {
+        console.log(`Fetching messages for group: ${groupId}`);
+        // Replace initialMessages with fetched messages
+        // fetchMessages(groupId).then(setMessages);
+    }, [groupId]);
+
+
+  // TODO: Implement message sending logic (call API, include groupId)
   const handleSendMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!newMessage.trim() || !user) return;
@@ -53,8 +67,9 @@ export function ChatInterface() {
     setMessages(prev => [...prev, messageToSend]);
     setNewMessage('');
 
-    // TODO: Call backend API to actually send the message
+    // TODO: Call backend API to actually send the message, including groupId
     // await sendMessageApi(groupId, messageToSend);
+    console.log(`Simulating sending message to group ${groupId}:`, messageToSend);
   };
 
     // Scroll to bottom when new messages arrive
@@ -67,8 +82,8 @@ export function ChatInterface() {
        }
     }, [messages]);
 
-    // TODO: Determine user permissions for sending messages, polls, etc.
-    const canSendMessage = user?.role === 'Teacher' || user?.role === 'Admin';
+    // TODO: Determine user permissions for sending messages, polls, etc. based on group rules/backend check
+    const canSendMessage = user?.role === 'Teacher' || user?.role === 'Admin' || user?.role === 'Student'; // Allow students for now, adjust based on rules
     const canCreatePoll = user?.role === 'Teacher' || user?.role === 'Admin';
     const canCreateEvent = user?.role === 'Teacher' || user?.role === 'Admin';
     const canAttachFile = user?.role === 'Teacher' || user?.role === 'Admin';
@@ -86,7 +101,7 @@ export function ChatInterface() {
              {msg.senderId !== user?.id && (
                 <Avatar className="h-8 w-8">
                 <AvatarImage src={msg.senderAvatar || `https://picsum.photos/40/40?random=${msg.senderId}`} data-ai-hint="sender avatar"/>
-                <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                <AvatarFallback>{msg.senderName?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
                 </Avatar>
              )}
 
@@ -113,7 +128,7 @@ export function ChatInterface() {
              {msg.senderId === user?.id && (
                 <Avatar className="h-8 w-8">
                 <AvatarImage src={msg.senderAvatar || `https://picsum.photos/40/40?random=${msg.senderId}`} data-ai-hint="sender avatar"/>
-                <AvatarFallback>{msg.senderName.charAt(0)}</AvatarFallback>
+                <AvatarFallback>{msg.senderName?.charAt(0)?.toUpperCase() || 'U'}</AvatarFallback>
                 </Avatar>
              )}
           </div>

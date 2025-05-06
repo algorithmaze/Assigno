@@ -6,19 +6,24 @@ import { ChatInterface } from "@/components/chat/chat-interface";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { fetchGroupDetails, type Group } from '@/services/groups'; // Import service
 import { Loader2 } from 'lucide-react';
+import { useParams } from 'next/navigation'; // Import useParams
 
-interface GroupDetailPageProps {
-  params: { groupId: string };
-}
+// Remove params from props definition
+// interface GroupDetailPageProps {
+//   params: { groupId: string };
+// }
 
-export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const { groupId } = params;
+export default function GroupDetailPage(/* { params }: GroupDetailPageProps */) {
+  const params = useParams(); // Use the hook
+  const groupId = params.groupId as string; // Get groupId from the hook's return value
   const [group, setGroup] = React.useState<Group | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
   // Fetch group details based on groupId
   React.useEffect(() => {
+    if (!groupId) return; // Don't fetch if groupId is not available yet
+
     const loadGroupDetails = async () => {
       setLoading(true);
       setError(null);
@@ -38,7 +43,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     };
 
     loadGroupDetails();
-  }, [groupId]);
+  }, [groupId]); // Depend on groupId from useParams
 
 
   // TODO: Fetch messages for this group
@@ -79,7 +84,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
           </CardHeader>
       </Card>
        <div className="flex-grow min-h-0"> {/* Ensure ChatInterface takes remaining space */}
-         <ChatInterface />
+         <ChatInterface groupId={groupId} /> {/* Pass groupId to ChatInterface if needed */}
        </div>
     </div>
   );
