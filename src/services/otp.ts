@@ -1,3 +1,4 @@
+
 import type { User } from '@/context/auth-context'; // Import User type
 
 /**
@@ -55,40 +56,14 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   if (otp === '000000') {
     let sampleUser: User | undefined;
 
-    if (identifier.toLowerCase() === 'admin@school.com') {
-      sampleUser = {
-        id: 'admin-001',
-        name: 'Admin User',
-        email: 'admin@school.com',
-        role: 'Admin',
-        schoolCode: 'XYZ123',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=admin',
-      };
-    } else if (identifier.toLowerCase() === 'teacher@school.com') {
-      sampleUser = {
-        id: 'teacher-001',
-        name: 'Teacher User',
-        email: 'teacher@school.com',
-        role: 'Teacher',
-        schoolCode: 'XYZ123',
-        class: 'Class 10A', // Example class teacher assignment
-        profilePictureUrl: 'https://picsum.photos/100/100?random=teacher',
-      };
-    } else if (identifier.toLowerCase() === 'student@school.com') {
-       sampleUser = {
-        id: 'student-001',
-        name: 'Student User',
-        email: 'student@school.com',
-        role: 'Student',
-        schoolCode: 'XYZ123',
-        admissionNumber: 'S12345',
-        class: 'Class 10A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student',
-      };
+    if (identifier.toLowerCase() === sampleCredentials.admin.identifier.toLowerCase()) {
+      sampleUser = sampleCredentials.admin as User;
+    } else if (identifier.toLowerCase() === sampleCredentials.teacher.identifier.toLowerCase()) {
+      sampleUser = sampleCredentials.teacher as User;
+    } else if (identifier.toLowerCase() === sampleCredentials.student.identifier.toLowerCase()) {
+       sampleUser = sampleCredentials.student as User;
     }
-    // Add more sample users here if needed
-    // else if (identifier === 'another@example.com') { ... }
-
+    // Add more sample users here if needed using their identifiers from sampleCredentials
 
     if (sampleUser) {
       console.log(`Magic OTP successful for sample user: ${sampleUser.name}`);
@@ -97,7 +72,17 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
        console.warn(`Magic OTP used, but no sample user found for identifier: ${identifier}. Defaulting to basic success.`);
        // Fallback: If identifier doesn't match a sample user, still succeed but without specific user data
        // The login form will need to handle this case (e.g., create a generic user)
-       return { success: true, message: 'OTP verification successful (generic).' };
+        const genericUser: User = {
+            id: 'user-' + Math.random().toString(36).substring(7),
+            name: 'Logged In User',
+            email: identifier.includes('@') ? identifier : undefined,
+            phoneNumber: !identifier.includes('@') ? identifier : undefined,
+            role: 'Student', // Default role or determine based on identifier pattern
+            schoolCode: 'UNKNOWN', // Indicate unknown school
+            schoolName: 'Unknown School', // Add default school name
+            schoolAddress: 'N/A', // Add default school address
+        };
+       return { success: true, message: 'OTP verification successful (generic).', user: genericUser };
     }
   }
   // --- End Sample User Login Logic ---
@@ -124,9 +109,45 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
  * DO NOT USE IN PRODUCTION.
  */
 export const sampleCredentials = {
-    admin: { identifier: 'admin@school.com', otp: '000000', role: 'Admin' },
-    teacher: { identifier: 'teacher@school.com', otp: '000000', role: 'Teacher' },
-    student: { identifier: 'student@school.com', otp: '000000', role: 'Student' },
+    admin: {
+        id: 'admin-001',
+        name: 'Admin User',
+        identifier: 'admin@school.com',
+        email: 'admin@school.com',
+        role: 'Admin',
+        otp: '000000',
+        schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=admin',
+     },
+    teacher: {
+        id: 'teacher-001',
+        name: 'Teacher User',
+        identifier: 'teacher@school.com',
+        email: 'teacher@school.com',
+        role: 'Teacher',
+        otp: '000000',
+        schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
+        class: 'Class 10A',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=teacher',
+     },
+    student: {
+        id: 'student-001',
+        name: 'Student User',
+        identifier: 'student@school.com',
+        email: 'student@school.com',
+        role: 'Student',
+        otp: '000000',
+        schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
+        admissionNumber: 'S12345',
+        class: 'Class 10A',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=student',
+     },
 };
 
 /**

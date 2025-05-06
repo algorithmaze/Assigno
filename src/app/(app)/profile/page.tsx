@@ -1,33 +1,36 @@
+
+'use client';
+
+import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { User, Edit } from "lucide-react";
-
-// TODO: Fetch user data based on logged-in user context
+import { User, Edit, Loader2 } from "lucide-react";
+import { useAuth } from '@/context/auth-context'; // Import useAuth
 
 export default function ProfilePage() {
-  // Placeholder user data - replace with actual data from context/API
-  const user = {
-    name: "Current User Name",
-    email: "user@example.com",
-    phoneNumber: "+1234567890",
-    role: "Student", // Example: Could be 'Teacher', 'Admin'
-    admissionNumber: "S12345", // Only for students
-    class: "10A", // For students and maybe teachers
-    profilePictureUrl: "https://picsum.photos/150/150?random=profile",
-    schoolCode: "XYZ123",
-    schoolName: "Example High School",
-    schoolAddress: "123 Main St, Anytown"
-  };
+  const { user, loading } = useAuth(); // Use the hook to get user data
+
+  // TODO: Implement profile editing functionality
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-theme(spacing.24))]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    // Handle case where user is somehow null after loading (should be redirected by AuthProvider)
+    return <div className="text-center mt-10 text-muted-foreground">User not found.</div>;
+  }
 
   const isStudent = user.role === 'Student';
   const isTeacher = user.role === 'Teacher';
   const isAdmin = user.role === 'Admin';
-
-
-  // TODO: Implement profile editing functionality
 
   return (
     <div className="space-y-6">
@@ -35,13 +38,13 @@ export default function ProfilePage() {
       <Card className="shadow-lg">
         <CardHeader className="items-center text-center">
           <Avatar className="h-24 w-24 mb-4">
-            <AvatarImage src={user.profilePictureUrl} alt={user.name} data-ai-hint="profile picture" />
+            <AvatarImage src={user.profilePictureUrl || `https://picsum.photos/100/100?random=${user.id}`} alt={user.name} data-ai-hint="profile picture" />
             <AvatarFallback className="text-3xl">
                 <User/>
             </AvatarFallback>
           </Avatar>
           <CardTitle className="text-2xl">{user.name}</CardTitle>
-          <CardDescription>{user.role} @ {user.schoolName}</CardDescription>
+          <CardDescription>{user.role} @ {user.schoolName || 'Your School'}</CardDescription> {/* Display school name */}
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
            <div className="space-y-1">
@@ -61,8 +64,8 @@ export default function ProfilePage() {
            {user.phoneNumber && (
               <div className="space-y-1">
                 <Label htmlFor="phone">Phone Number</Label>
-                {/* Mask phone number */}
-                <Input id="phone" value={'****' + user.phoneNumber.slice(-4)} readOnly />
+                {/* Consider better masking or showing partial number */}
+                <Input id="phone" value={user.phoneNumber.length > 4 ? '****' + user.phoneNumber.slice(-4) : '****'} readOnly />
               </div>
            )}
            {isStudent && user.admissionNumber && (
@@ -79,18 +82,20 @@ export default function ProfilePage() {
            )}
            <div className="space-y-1 md:col-span-2">
              <Label htmlFor="schoolName">School</Label>
-             <Input id="schoolName" value={`${user.schoolName} (${user.schoolCode})`} readOnly />
+             {/* Display school name and code */}
+             <Input id="schoolName" value={`${user.schoolName || 'N/A'} (${user.schoolCode || 'N/A'})`} readOnly />
            </div>
             <div className="space-y-1 md:col-span-2">
              <Label htmlFor="schoolAddress">School Address</Label>
-             <Input id="schoolAddress" value={user.schoolAddress} readOnly />
+              {/* Display school address */}
+             <Input id="schoolAddress" value={user.schoolAddress || 'N/A'} readOnly />
            </div>
         </CardContent>
          <CardFooter className="flex justify-end">
-            <Button variant="outline">
+            {/* TODO: Implement Edit Profile functionality */}
+            <Button variant="outline" disabled> {/* Disable edit button for now */}
               <Edit className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
-            {/* TODO: Add Edit Profile Modal/Page */}
          </CardFooter>
       </Card>
        {isAdmin && (
@@ -99,10 +104,10 @@ export default function ProfilePage() {
              <CardTitle>Admin Actions</CardTitle>
            </CardHeader>
            <CardContent className="flex flex-wrap gap-4">
-             <Button>Manage Users</Button>
-             <Button>Manage Groups</Button>
-             <Button>School Settings</Button>
              {/* TODO: Link these to respective management pages */}
+             <Button disabled>Manage Users</Button>
+             <Button disabled>Manage Groups</Button>
+             <Button disabled>School Settings</Button>
            </CardContent>
          </Card>
        )}

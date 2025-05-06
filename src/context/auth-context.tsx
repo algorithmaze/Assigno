@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
@@ -14,6 +15,8 @@ export interface User {
   role: 'Student' | 'Teacher' | 'Admin';
   profilePictureUrl?: string;
   schoolCode: string;
+  schoolName?: string; // Added school name
+  schoolAddress?: string; // Added school address
   admissionNumber?: string; // Only for students
   class?: string; // For students and optionally teachers
 }
@@ -46,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const parsedUser = JSON.parse(storedUser) as User;
         // TODO: Optionally verify token/session with backend here
+        // Ensure schoolName and schoolAddress are loaded if they exist
         setUser(parsedUser);
       } catch (error) {
         console.error("Failed to parse stored user:", error);
@@ -77,8 +81,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const login = useCallback(async (userData: User) => {
-    setUser(userData);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(userData));
+     console.log("Logging in user with data:", userData); // Debug log
+    // Ensure school details are included before setting state and storage
+    const completeUserData = {
+        ...userData,
+        // Fetch school details if missing? Or ensure they are always passed in.
+        // For now, assume userData includes them if available.
+    };
+    setUser(completeUserData);
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(completeUserData));
     // No need to router.push here, the useEffect above will handle redirection
   }, []);
 

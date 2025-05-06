@@ -1,45 +1,25 @@
 
 // TODO: Replace with actual user data type from your backend/database
 import type { User } from '@/context/auth-context';
+import { sampleCredentials } from './otp'; // Import sample credentials
 
 // Mock user data (extending sample users from otp.ts)
 // In a real app, this would be fetched from a database/API
 let mockUsersData: User[] = [
-    // From sampleCredentials in otp.ts
-    {
-        id: 'admin-001',
-        name: 'Admin User',
-        email: 'admin@school.com',
-        role: 'Admin',
-        schoolCode: 'XYZ123',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=admin',
-    },
-    {
-        id: 'teacher-001',
-        name: 'Teacher User',
-        email: 'teacher@school.com',
-        role: 'Teacher',
-        schoolCode: 'XYZ123',
-        class: 'Class 10A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=teacher',
-    },
-    {
-        id: 'student-001',
-        name: 'Student User',
-        email: 'student@school.com',
-        role: 'Student',
-        schoolCode: 'XYZ123',
-        admissionNumber: 'S12345',
-        class: 'Class 10A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student',
-    },
-    // Add more mock users for searching/adding
+    // Base sample users from sampleCredentials
+    { ...sampleCredentials.admin } as User,
+    { ...sampleCredentials.teacher } as User,
+    { ...sampleCredentials.student } as User,
+
+    // Add more mock users for searching/adding with school details
     {
         id: 'teacher-002',
         name: 'Alice Smith', // Match teachers page
         email: 'alice@school.com',
         role: 'Teacher',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         profilePictureUrl: 'https://picsum.photos/100/100?random=1',
     },
      {
@@ -48,6 +28,8 @@ let mockUsersData: User[] = [
         email: 'charlie@school.com',
         role: 'Teacher',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         profilePictureUrl: 'https://picsum.photos/100/100?random=3',
     },
     {
@@ -56,6 +38,8 @@ let mockUsersData: User[] = [
         email: 'bob@school.com',
         role: 'Student',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         admissionNumber: 'S12346',
         class: 'Class 10B',
         profilePictureUrl: 'https://picsum.photos/100/100?random=student2',
@@ -66,6 +50,8 @@ let mockUsersData: User[] = [
         email: 'diana@school.com',
         role: 'Student',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         admissionNumber: 'S12347',
         class: 'Class 9A',
         profilePictureUrl: 'https://picsum.photos/100/100?random=student3',
@@ -76,6 +62,8 @@ let mockUsersData: User[] = [
         email: 'eve@school.com',
         role: 'Student',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         admissionNumber: 'S12348',
         class: 'Class 10A',
         profilePictureUrl: 'https://picsum.photos/100/100?random=student4',
@@ -86,6 +74,8 @@ let mockUsersData: User[] = [
         email: 'frank@school.com',
         role: 'Student',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         admissionNumber: 'S12349',
         class: 'Class 11C',
         profilePictureUrl: 'https://picsum.photos/100/100?random=student5',
@@ -97,6 +87,8 @@ let mockUsersData: User[] = [
         email: 'super@school.com',
         role: 'Admin',
         schoolCode: 'XYZ123',
+        schoolName: 'Example High School',
+        schoolAddress: '123 Main St, Anytown',
         profilePictureUrl: 'https://picsum.photos/100/100?random=superadmin',
       },
 ];
@@ -118,8 +110,8 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
 
 /**
  * Simulates searching for users within a school, excluding certain IDs.
- * If searchTerm is less than 2 chars, returns all eligible users.
- * Otherwise, searches by name or email (case-insensitive).
+ * If searchTerm is empty, returns all eligible users.
+ * Otherwise, searches by name or email (case-insensitive). Requires minimum 2 chars for filtering.
  * @param schoolCode The school code to filter users by.
  * @param searchTerm The string to search for in name or email (min 2 chars for filtering).
  * @param excludeIds An array of user IDs to exclude from the results.
@@ -130,7 +122,8 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
     await new Promise(resolve => setTimeout(resolve, 400)); // Simulate search delay
 
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
-    const filterByTerm = lowerSearchTerm.length >= 2;
+    const filterByTerm = lowerSearchTerm.length > 0; // Filter if term is not empty
+    // const filterByTerm = lowerSearchTerm.length >= 2; // Original: Filter only if term >= 2 chars
 
     const results = mockUsersData.filter(user => {
         const matchesSchool = user.schoolCode === schoolCode;
@@ -154,14 +147,22 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
     return results;
 }
 
+
 // Function to add a new user (mainly for signup simulation if needed)
 export function addUser(user: User): void {
     // Avoid adding duplicates if user already exists by ID
     if (!mockUsersData.some(existingUser => existingUser.id === user.id)) {
-        mockUsersData.push(user);
-        console.log("[Service:users] Added mock user:", user);
+        // Ensure school details are present, add defaults if missing
+        const userToAdd = {
+            ...user,
+            schoolName: user.schoolName ?? 'Unknown School',
+            schoolAddress: user.schoolAddress ?? 'N/A',
+        };
+        mockUsersData.push(userToAdd);
+        console.log("[Service:users] Added mock user:", userToAdd);
     } else {
         console.log("[Service:users] User already exists, not adding:", user.id);
+        // Optionally update existing user?
     }
 }
 
@@ -174,10 +175,18 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      return users;
 }
 
-// Ensure all sample users are in the mock data on module load
-import { sampleCredentials } from './otp';
+// Ensure mockUsersData is unique by ID after initial population
+const uniqueUsersMap = new Map<string, User>();
+mockUsersData.forEach(user => {
+    if (!uniqueUsersMap.has(user.id)) {
+        // Ensure school details for existing users too
+        uniqueUsersMap.set(user.id, {
+            ...user,
+            schoolName: user.schoolName ?? 'Example High School', // Add default if missing
+            schoolAddress: user.schoolAddress ?? '123 Main St, Anytown', // Add default if missing
+        });
+    }
+});
+mockUsersData = Array.from(uniqueUsersMap.values());
+console.log("[Service:users] Initialized unique mock users:", mockUsersData.length);
 
-addUser(sampleCredentials.admin as User);
-addUser(sampleCredentials.teacher as User);
-addUser(sampleCredentials.student as User);
-// The others are already added manually above

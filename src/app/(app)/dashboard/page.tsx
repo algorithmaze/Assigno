@@ -25,6 +25,7 @@ export default function DashboardPage() {
        <h1 className="text-3xl font-bold">Dashboard</h1>
        <Card>
         <CardHeader>
+          {/* Updated CardTitle to include schoolName if available */}
           <CardTitle>Welcome to Assigno{user?.schoolName ? ` @ ${user.schoolName}` : ''}!</CardTitle>
         </CardHeader>
         <CardContent>
