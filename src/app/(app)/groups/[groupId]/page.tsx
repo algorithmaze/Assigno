@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -10,7 +11,7 @@ import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup
 import { fetchUsersByIds, searchUsers } from '@/services/users';
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy, AlertTriangle } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from '@/components/ui/input';
+// Removed Input import as it's no longer used for search
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -58,11 +59,11 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [error, setError] = React.useState<string | null>(null);
 
   const [isManageMembersOpen, setIsManageMembersOpen] = React.useState(false);
-  const [searchTerm, setSearchTerm] = React.useState('');
-  const [searchResults, setSearchResults] = React.useState<User[]>([]);
-  const [isSearching, setIsSearching] = React.useState(false);
+  // Removed searchTerm and isSearching states
+  const [availableUsers, setAvailableUsers] = React.useState<User[]>([]);
   const [membersToAdd, setMembersToAdd] = React.useState<User[]>([]);
   const [isUpdatingMembers, setIsUpdatingMembers] = React.useState(false);
+  const [isLoadingAvailableUsers, setIsLoadingAvailableUsers] = React.useState(false);
   
   const [isDeleteConfirm1Open, setIsDeleteConfirm1Open] = React.useState(false);
   const [isDeleteConfirm2Open, setIsDeleteConfirm2Open] = React.useState(false);
@@ -106,49 +107,45 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     loadGroupAndMembers();
   }, [groupId, loadGroupAndMembers]);
 
-  const handleSearchUsers = React.useCallback(async (currentSearchTerm: string) => {
-     if (!currentUser || !group || !currentUser.schoolCode) return;
-     setIsSearching(true);
-     try {
-       const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
-       const results = await searchUsers(currentUser.schoolCode, currentSearchTerm, excludeIds);
-       setSearchResults(results);
-     } catch (err) {
-       toast({ title: "Search Error", description: "Could not search for users.", variant: "destructive" });
-     } finally {
-       setIsSearching(false);
-     }
-   }, [currentUser, group, members, membersToAdd, toast]);
+  // Fetch available users when dialog opens
+  const loadAvailableUsers = React.useCallback(async () => {
+    if (!currentUser || !group || !currentUser.schoolCode) return;
+    setIsLoadingAvailableUsers(true);
+    try {
+      // Fetch all users from the school and filter out existing members and users already staged for adding
+      const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
+      // Using searchUsers with an empty term effectively fetches all users, then we filter client-side.
+      // Or, ideally, have a dedicated `fetchAllUsersInSchool` or similar service function.
+      const allSchoolUsers = await searchUsers(currentUser.schoolCode, '', []); // Empty search term
+      const filteredUsers = allSchoolUsers.filter(u => !excludeIds.includes(u.id));
+      setAvailableUsers(filteredUsers);
+    } catch (err) {
+      toast({ title: "Error", description: "Could not load available users.", variant: "destructive" });
+      setAvailableUsers([]);
+    } finally {
+      setIsLoadingAvailableUsers(false);
+    }
+  }, [currentUser, group, members, membersToAdd, toast]);
 
-   React.useEffect(() => {
-     if (!isManageMembersOpen) {
-        setSearchResults([]);
-        setSearchTerm('');
-        return;
-     }
-     const debounceTimer = setTimeout(() => {
-        handleSearchUsers(searchTerm);
-     }, searchTerm.trim().length === 0 && !isSearching ? 0 : 500);
-
-     return () => clearTimeout(debounceTimer);
-   }, [searchTerm, isManageMembersOpen, handleSearchUsers, isSearching]);
+  React.useEffect(() => {
+    if (isManageMembersOpen && group) {
+      loadAvailableUsers();
+    } else {
+      setAvailableUsers([]); // Clear when dialog is closed
+    }
+  }, [isManageMembersOpen, group, loadAvailableUsers]);
 
 
    const addMemberToStaging = (userToAdd: User) => {
      setMembersToAdd(prev => [...prev, userToAdd]);
-     setSearchResults(prev => prev.filter(u => u.id !== userToAdd.id));
+     setAvailableUsers(prev => prev.filter(u => u.id !== userToAdd.id)); // Remove from available list
    };
 
     const removeMemberFromStaging = (userToRemove: User) => {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      const currentSearchTermLower = searchTerm.trim().toLowerCase();
-      const nameMatches = userToRemove.name.toLowerCase().includes(currentSearchTermLower);
-      const emailMatches = userToRemove.email?.toLowerCase().includes(currentSearchTermLower) ?? false;
-
-      if (currentSearchTermLower === '' || nameMatches || emailMatches) {
-          if (!searchResults.some(u => u.id === userToRemove.id)) {
-            setSearchResults(prev => [userToRemove, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
-          }
+      // Add back to available users if not already there (idempotency)
+      if (!availableUsers.some(u => u.id === userToRemove.id)) {
+        setAvailableUsers(prev => [...prev, userToRemove].sort((a, b) => a.name.localeCompare(b.name)));
       }
     };
 
@@ -188,7 +185,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                 toast({ title: "Member Removed", description: `Member removed successfully.` });
                 await loadGroupAndMembers();
                 setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
-                handleSearchUsers(searchTerm); // Refresh search results as user might be available again
+                if(isManageMembersOpen) loadAvailableUsers(); // Refresh available users list
             } else { throw new Error("Failed to remove member via service."); }
         } catch (error) {
             toast({ title: "Error", description: "Failed to remove member.", variant: "destructive" });
@@ -198,10 +195,9 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     };
 
     const resetManageMembersDialog = () => {
-        setSearchTerm('');
-        setSearchResults([]);
+        setAvailableUsers([]);
         setMembersToAdd([]);
-        setIsSearching(false);
+        setIsLoadingAvailableUsers(false);
         setIsUpdatingMembers(false);
     };
 
@@ -374,7 +370,6 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                         <Dialog open={isManageMembersOpen} onOpenChange={(open) => {
                             setIsManageMembersOpen(open);
                             if (!open) resetManageMembersDialog();
-                            else handleSearchUsers(''); // Load initial list or empty state
                         }}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4" /> Manage Members</Button>
@@ -388,20 +383,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                 </DialogHeader>
                                 <div className="space-y-2 pt-4">
                                     <h3 className="text-sm font-medium">Add New Members</h3>
-                                    <div className="relative">
-                                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            placeholder="Search users by name or email..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="pl-8"
-                                        />
-                                    </div>
+                                    {/* Search Input Removed */}
                                     <ScrollArea className="h-[150px] border rounded-md">
                                         <div className="p-2 space-y-1">
-                                            {isSearching && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Searching...</div>}
-                                            {!isSearching && searchResults.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{searchTerm.trim() ? `No users found matching "${searchTerm}".` : "No other users available in this school or type to search."}</div>}
-                                            {searchResults.map(userRes => (
+                                            {isLoadingAvailableUsers && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Loading available users...</div>}
+                                            {!isLoadingAvailableUsers && availableUsers.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">No other users available to add from this school.</div>}
+                                            {availableUsers.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
                                                         <Avatar className="h-6 w-6"><AvatarImage src={userRes.profilePictureUrl || `https://picsum.photos/30/30?random=${userRes.id}`} data-ai-hint="user avatar"/><AvatarFallback>{userRes.name.charAt(0)}</AvatarFallback></Avatar>
