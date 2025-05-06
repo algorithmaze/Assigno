@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { ReactNode } from 'react';
@@ -15,10 +14,11 @@ export interface User {
   role: 'Student' | 'Teacher' | 'Admin';
   profilePictureUrl?: string;
   schoolCode: string;
-  schoolName?: string; // Added school name
-  schoolAddress?: string; // Added school address
+  schoolName?: string;
+  schoolAddress?: string;
   admissionNumber?: string; // Only for students
   class?: string; // For students and optionally teachers
+  // Add any other fields relevant to the user profile
 }
 
 interface AuthContextType {
@@ -26,30 +26,29 @@ interface AuthContextType {
   loading: boolean;
   login: (userData: User) => Promise<void>;
   logout: () => Promise<void>;
+  updateUserSession: (updatedUserData: Partial<User>) => Promise<void>; // For profile updates
+  deleteAccount: () => Promise<boolean>; // For account deletion
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const AUTH_STORAGE_KEY = 'assigno_user';
-const AUTH_PROTECTED_ROUTES_PREFIX = '/'; // Protect all routes under /app by default
-const AUTH_PUBLIC_ROUTES = ['/login', '/signup']; // Routes accessible without login
+const AUTH_PROTECTED_ROUTES_PREFIX = '/';
+const AUTH_PUBLIC_ROUTES = ['/login', '/signup'];
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // Start loading until we check storage/API
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
 
-  // Check for user session on initial load
   useEffect(() => {
     const storedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser) as User;
-        // TODO: Optionally verify token/session with backend here
-        // Ensure schoolName and schoolAddress are loaded if they exist
         setUser(parsedUser);
       } catch (error) {
         console.error("Failed to parse stored user:", error);
@@ -59,55 +58,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-   // Redirect logic based on auth state and route
   useEffect(() => {
-    if (loading) return; // Don't redirect while loading
+    if (loading) return;
 
     const isPublicRoute = AUTH_PUBLIC_ROUTES.includes(pathname);
-    const isProtectedRoute = pathname.startsWith(AUTH_PROTECTED_ROUTES_PREFIX) && !isPublicRoute;
+    const isAppRoute = pathname.startsWith(AUTH_PROTECTED_ROUTES_PREFIX) && !isPublicRoute;
 
-    if (!user && isProtectedRoute) {
-      // If not logged in and trying to access protected route, redirect to login
+
+    if (!user && isAppRoute) {
       router.replace('/login');
     } else if (user && isPublicRoute) {
-       // If logged in and trying to access public auth route, redirect to dashboard
        router.replace('/dashboard');
     }
-     // No redirection needed if:
-     // - User is logged in and on a protected route
-     // - User is not logged in and on a public route
 
   }, [user, loading, pathname, router]);
 
 
   const login = useCallback(async (userData: User) => {
-     console.log("Logging in user with data:", userData); // Debug log
-    // Ensure school details are included before setting state and storage
-    const completeUserData = {
-        ...userData,
-        // Fetch school details if missing? Or ensure they are always passed in.
-        // For now, assume userData includes them if available.
-    };
+    console.log("Logging in user with data:", userData);
+    const completeUserData = { ...userData };
     setUser(completeUserData);
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(completeUserData));
-    // No need to router.push here, the useEffect above will handle redirection
   }, []);
 
   const logout = useCallback(async () => {
-    // TODO: Call backend logout API if necessary (e.g., invalidate token)
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
-     router.replace('/login'); // Explicitly redirect to login on logout
+     router.replace('/login');
   }, [router]);
 
+  const updateUserSession = useCallback(async (updatedUserData: Partial<User>) => {
+    if (user) {
+      const newUserData = { ...user, ...updatedUserData };
+      setUser(newUserData);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUserData));
+      console.log("User session updated:", newUserData);
+    }
+  }, [user]);
 
-  const value = { user, loading, login, logout };
+  const deleteAccount = useCallback(async (): Promise<boolean> => {
+    if (!user) return false;
+    // Simulate backend call
+    console.log(`Simulating account deletion for user: ${user.id}`);
+    // In a real app, call usersService.deleteUser(user.id)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    logout(); // Log out after "deletion"
+    return true;
+  }, [user, logout]);
+
+
+  const value = { user, loading, login, logout, updateUserSession, deleteAccount };
 
   return (
      <AuthContext.Provider value={value}>
-        {/* Render children only after loading is complete and redirection logic has potentially run */}
-        {/* Or show a global loader based on `loading` state */}
-        {!loading ? children : null /* Or your global loading indicator */}
+        {!loading ? children : null}
     </AuthContext.Provider>
   );
 }

@@ -15,25 +15,25 @@ import {
 import {
   LayoutDashboard,
   Users,
-  MessageSquare,
   Megaphone,
   Settings,
   UserCircle,
   LogOut,
   School,
   BookUser,
-  ClipboardList,
+  ClipboardList, // For Join Requests
+  ShieldCheck, // For Admin specific section
+  PlusCircle, // For Create User/Group by Admin
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
-import { Button } from '../ui/button';
 
 
 // Helper function to determine if a path is active
-const isActive = (pathname: string, href: string) => {
-  if (href === '/dashboard') {
-    return pathname === href; // Exact match for dashboard
+const isActive = (pathname: string, href: string, exact: boolean = false) => {
+  if (exact) {
+    return pathname === href;
   }
-  return pathname.startsWith(href); // Starts with for others
+  return pathname.startsWith(href);
 };
 
 
@@ -43,7 +43,7 @@ export function AppSidebar() {
 
   const isAdmin = user?.role === 'Admin';
   const isTeacher = user?.role === 'Teacher';
-  const isStudent = user?.role === 'Student';
+  // const isStudent = user?.role === 'Student';
 
   return (
     <>
@@ -61,7 +61,7 @@ export function AppSidebar() {
           {/* Common Links */}
           <SidebarMenuItem>
             <Link href="/dashboard" passHref legacyBehavior>
-              <SidebarMenuButton asChild isActive={isActive(pathname, '/dashboard')} tooltip="Dashboard">
+              <SidebarMenuButton asChild isActive={isActive(pathname, '/dashboard', true)} tooltip="Dashboard">
                 <a><LayoutDashboard /> <span>Dashboard</span></a>
               </SidebarMenuButton>
             </Link>
@@ -86,16 +86,34 @@ export function AppSidebar() {
             <SidebarMenuItem>
                 <Link href="/teachers" passHref legacyBehavior>
                 <SidebarMenuButton asChild isActive={isActive(pathname, '/teachers')} tooltip="Teachers & Admins">
-                    <a><BookUser /> <span>Teachers & Admins</span></a>
+                    <a><BookUser /> <span>Staff Directory</span></a>
                 </SidebarMenuButton>
                 </Link>
            </SidebarMenuItem>
 
 
-           {/* Admin Specific Links */}
+           {/* Teacher & Admin Specific Links */}
+           {(isTeacher || isAdmin) && (
+            <>
+                {/* <SidebarSeparator /> */}
+                 <SidebarMenuItem>
+                    <Link href="/teacher/requests" passHref legacyBehavior>
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/teacher/requests')} tooltip="Group Join Requests">
+                        <a><ClipboardList /> <span>Join Requests</span></a>
+                    </SidebarMenuButton>
+                    </Link>
+                </SidebarMenuItem>
+            </>
+           )}
+
+
+           {/* Admin Specific Section */}
            {isAdmin && (
             <>
                 <SidebarSeparator />
+                 <SidebarMenuItem className="mt-2 mb-1 px-2 text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
+                    Admin Panel
+                 </SidebarMenuItem>
                  <SidebarMenuItem>
                     <Link href="/admin/users" passHref legacyBehavior>
                     <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/users')} tooltip="Manage Users">
@@ -103,13 +121,14 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                     </Link>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                    <Link href="/admin/groups" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/groups')} tooltip="Manage Groups">
-                        <a><Users /> <span>Manage Groups</span></a>
+                 {/* Admins can create groups from the main /groups page now, consistent with teachers if they could create
+                 <SidebarMenuItem>
+                    <Link href="/groups/create" passHref legacyBehavior>
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/groups/create')} tooltip="Create New Group">
+                        <a><PlusCircle /> <span>Create Group</span></a>
                     </SidebarMenuButton>
                     </Link>
-                </SidebarMenuItem>
+                </SidebarMenuItem> */}
                 <SidebarMenuItem>
                     <Link href="/admin/school" passHref legacyBehavior>
                     <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/school')} tooltip="School Settings">
@@ -119,35 +138,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
             </>
            )}
-
-            {/* Teacher Specific Links */}
-           {isTeacher && (
-            <>
-                <SidebarSeparator />
-                 <SidebarMenuItem>
-                    <Link href="/teacher/requests" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/teacher/requests')} tooltip="Join Requests">
-                        <a><ClipboardList /> <span>Join Requests</span></a>
-                    </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-            </>
-           )}
-
-
-           {/* Student Specific Links - Maybe Chat History? */}
-            {/* {isStudent && (
-            <>
-                <SidebarSeparator />
-                 <SidebarMenuItem>
-                    <Link href="/student/chats" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/student/chats')} tooltip="My Chats">
-                        <a><MessageSquare /> <span>My Chats</span></a>
-                    </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-            </>
-           )} */}
 
         </SidebarMenu>
       </SidebarContent>
@@ -176,7 +166,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
             </SidebarMenuItem>
          </SidebarMenu>
-
       </SidebarFooter>
     </>
   );

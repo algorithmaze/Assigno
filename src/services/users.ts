@@ -1,129 +1,72 @@
-
-// TODO: Replace with actual user data type from your backend/database
 import type { User } from '@/context/auth-context';
-import { sampleCredentials } from './otp'; // Import sample credentials
+import { sampleCredentials } from './otp';
 
-// Mock user data (extending sample users from otp.ts)
-// In a real app, this would be fetched from a database/API
+// Initialize mockUsersData with the new sample users
 let mockUsersData: User[] = [
-    // Base sample users from sampleCredentials
-    { ...sampleCredentials.admin } as User,
-    { ...sampleCredentials.teacher } as User,
-    { ...sampleCredentials.student } as User,
-
-    // Add more mock users for searching/adding with school details
+    { ...(sampleCredentials.adminAntony as User) },
+    { ...(sampleCredentials.teacherZara as User) },
+    { ...(sampleCredentials.teacherLeo as User) },
+    { ...(sampleCredentials.studentMia as User) },
+    { ...(sampleCredentials.studentOmar as User) },
+    // Add any other specific users needed for testing that are not part of initial login samples
     {
-        id: 'teacher-002',
-        name: 'Alice Smith', // Match teachers page
-        email: 'alice@school.com',
+        id: 'teacher-extra-003',
+        name: 'Eva Teacher',
+        email: 'eva@school.com',
         role: 'Teacher',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=1',
-    },
-     {
-        id: 'teacher-003',
-        name: 'Charlie Brown', // Match teachers page
-        email: 'charlie@school.com',
-        role: 'Teacher',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=3',
+        schoolCode: 'samp123',
+        schoolName: 'Sample Sr. Sec. School',
+        schoolAddress: '456 School Road, Testville',
+        class: 'Class 11 Science',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=eva',
     },
     {
-        id: 'student-002',
-        name: 'Bob Williams',
-        email: 'bob@school.com',
+        id: 'student-extra-003',
+        name: 'Ken Student',
+        email: 'ken@school.com',
         role: 'Student',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        admissionNumber: 'S12346',
-        class: 'Class 10B',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student2',
+        schoolCode: 'samp123',
+        schoolName: 'Sample Sr. Sec. School',
+        schoolAddress: '456 School Road, Testville',
+        admissionNumber: 'SAMP9003',
+        class: 'Class 6B',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=ken',
     },
-     {
-        id: 'student-003',
-        name: 'Diana Prince',
-        email: 'diana@school.com',
-        role: 'Student',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        admissionNumber: 'S12347',
-        class: 'Class 9A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student3',
-     },
-      {
-        id: 'student-004',
-        name: 'Eve Adams',
-        email: 'eve@school.com',
-        role: 'Student',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        admissionNumber: 'S12348',
-        class: 'Class 10A',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student4',
-     },
-      {
-        id: 'student-005',
-        name: 'Frank Miller',
-        email: 'frank@school.com',
-        role: 'Student',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        admissionNumber: 'S12349',
-        class: 'Class 11C',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=student5',
-     },
-     // Add another admin for testing
-      {
-        id: 'admin-002',
-        name: 'Super Admin',
-        email: 'super@school.com',
-        role: 'Admin',
-        schoolCode: 'XYZ123',
-        schoolName: 'Example High School',
-        schoolAddress: '123 Main St, Anytown',
-        profilePictureUrl: 'https://picsum.photos/100/100?random=superadmin',
-      },
 ];
 
+// Ensure mockUsersData is unique by ID after initial population
+const uniqueUsersMap = new Map<string, User>();
+mockUsersData.forEach(user => {
+    if (!uniqueUsersMap.has(user.id)) {
+        uniqueUsersMap.set(user.id, {
+            ...user, // Spread existing user properties
+            // Ensure all required fields from User interface are present with defaults if necessary
+            schoolName: user.schoolName ?? 'Sample Sr. Sec. School',
+            schoolAddress: user.schoolAddress ?? '456 School Road, Testville',
+            // profilePictureUrl: user.profilePictureUrl, // Already in sampleCredentials or above
+            // admissionNumber: user.admissionNumber, // Specific to students
+            // class: user.class, // Specific to students/teachers
+        });
+    }
+});
+mockUsersData = Array.from(uniqueUsersMap.values());
+console.log("[Service:users] Initialized unique mock users:", mockUsersData.length, mockUsersData.map(u => u.name));
 
-/**
- * Simulates fetching multiple users by their IDs.
- * @param userIds Array of user IDs to fetch.
- * @returns Promise resolving to an array of User objects found.
- */
+
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     console.log(`[Service:users] Simulating fetching users by IDs: ${userIds.join(', ')}`);
-    await new Promise(resolve => setTimeout(resolve, 200)); // Simulate short delay
-
+    await new Promise(resolve => setTimeout(resolve, 100));
     const users = mockUsersData.filter(user => userIds.includes(user.id));
     console.log(`[Service:users] Found ${users.length} users for IDs: ${userIds.join(', ')}`);
     return users;
 }
 
-/**
- * Simulates searching for users within a school, excluding certain IDs.
- * If searchTerm is empty, returns all eligible users.
- * Otherwise, searches by name or email (case-insensitive). Requires minimum 2 chars for filtering.
- * @param schoolCode The school code to filter users by.
- * @param searchTerm The string to search for in name or email (min 2 chars for filtering).
- * @param excludeIds An array of user IDs to exclude from the results.
- * @returns Promise resolving to an array of matching User objects.
- */
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
     console.log(`[Service:users] Simulating user search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
-    await new Promise(resolve => setTimeout(resolve, 400)); // Simulate search delay
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
-    const filterByTerm = lowerSearchTerm.length > 0; // Filter if term is not empty
-    // const filterByTerm = lowerSearchTerm.length >= 2; // Original: Filter only if term >= 2 chars
+    const filterByTerm = lowerSearchTerm.length > 0;
 
     const results = mockUsersData.filter(user => {
         const matchesSchool = user.schoolCode === schoolCode;
@@ -131,62 +74,85 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
         if (!matchesSchool || isExcluded) {
             return false;
         }
-
-        // If not filtering by term, include the user
         if (!filterByTerm) {
             return true;
         }
-
-        // If filtering, check name and email
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
         return matchesName || matchesEmail;
     });
-
-    console.log(`[Service:users] Found ${results.length} users matching criteria (filterByTerm: ${filterByTerm}).`);
+    console.log(`[Service:users] Found ${results.length} users matching criteria (filterByTerm: ${filterByTerm}). Results:`, results.map(u => u.name));
     return results;
 }
 
-
-// Function to add a new user (mainly for signup simulation if needed)
 export function addUser(user: User): void {
-    // Avoid adding duplicates if user already exists by ID
     if (!mockUsersData.some(existingUser => existingUser.id === user.id)) {
-        // Ensure school details are present, add defaults if missing
-        const userToAdd = {
+        const userToAdd: User = {
             ...user,
-            schoolName: user.schoolName ?? 'Unknown School',
-            schoolAddress: user.schoolAddress ?? 'N/A',
+            schoolName: user.schoolName ?? 'Sample Sr. Sec. School',
+            schoolAddress: user.schoolAddress ?? '456 School Road, Testville',
         };
         mockUsersData.push(userToAdd);
         console.log("[Service:users] Added mock user:", userToAdd);
     } else {
         console.log("[Service:users] User already exists, not adding:", user.id);
-        // Optionally update existing user?
     }
 }
 
-// Function to get all users (e.g., for admin management)
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      console.log(`[Service:users] Simulating fetching all users for school "${schoolCode}"`);
-     await new Promise(resolve => setTimeout(resolve, 300));
+     await new Promise(resolve => setTimeout(resolve, 150));
      const users = mockUsersData.filter(user => user.schoolCode === schoolCode);
      console.log(`[Service:users] Found ${users.length} users in school ${schoolCode}.`);
      return users;
 }
 
-// Ensure mockUsersData is unique by ID after initial population
-const uniqueUsersMap = new Map<string, User>();
-mockUsersData.forEach(user => {
-    if (!uniqueUsersMap.has(user.id)) {
-        // Ensure school details for existing users too
-        uniqueUsersMap.set(user.id, {
-            ...user,
-            schoolName: user.schoolName ?? 'Example High School', // Add default if missing
-            schoolAddress: user.schoolAddress ?? '123 Main St, Anytown', // Add default if missing
-        });
-    }
-});
-mockUsersData = Array.from(uniqueUsersMap.values());
-console.log("[Service:users] Initialized unique mock users:", mockUsersData.length);
+/**
+ * Simulates updating a user's profile details.
+ * @param userId The ID of the user to update.
+ * @param updates Partial user data with fields to update.
+ * @returns Promise resolving to the updated User object or null if not found/failed.
+ */
+export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
+    console.log(`[Service:users] Simulating update for user ${userId} with data:`, updates);
+    await new Promise(resolve => setTimeout(resolve, 200));
 
+    const userIndex = mockUsersData.findIndex(u => u.id === userId);
+    if (userIndex === -1) {
+        console.error(`[Service:users] User ${userId} not found for update.`);
+        return null;
+    }
+
+    // Create a new array and update the specific user
+    const updatedUsers = [...mockUsersData];
+    updatedUsers[userIndex] = { ...updatedUsers[userIndex], ...updates };
+    
+    // Persist the change to the main mock data store
+    mockUsersData = updatedUsers;
+
+    console.log("[Service:users] Updated user:", updatedUsers[userIndex]);
+    return { ...updatedUsers[userIndex] }; // Return a copy
+}
+
+/**
+ * Simulates deleting a user.
+ * @param userId The ID of the user to delete.
+ * @returns Promise resolving to true if successful, false otherwise.
+ */
+export async function deleteUser(userId: string): Promise<boolean> {
+    console.log(`[Service:users] Simulating deletion for user ${userId}`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    const initialLength = mockUsersData.length;
+    mockUsersData = mockUsersData.filter(u => u.id !== userId);
+
+    if (mockUsersData.length < initialLength) {
+        console.log(`[Service:users] User ${userId} deleted successfully.`);
+        // TODO: Also remove user from all groups they were part of
+        // This would involve iterating through mockGroupsData and updating teacherIds/studentIds
+        return true;
+    } else {
+        console.error(`[Service:users] User ${userId} not found for deletion.`);
+        return false;
+    }
+}

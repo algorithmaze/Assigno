@@ -14,8 +14,8 @@ body {
     --card-foreground: 0 0% 3.9%; /* Almost Black */
     --popover: 0 0% 100%; /* White */
     --popover-foreground: 0 0% 3.9%; /* Almost Black */
-    --primary: 0 0% 9%; /* Black */
-    --primary-foreground: 0 0% 98%; /* Almost White */
+    --primary: 0 0% 9%; /* Black - Default Primary */
+    --primary-foreground: 0 0% 98%; /* Almost White - Default Primary Foreground */
     --secondary: 0 0% 96.1%; /* Light Gray */
     --secondary-foreground: 0 0% 9%; /* Black */
     --muted: 0 0% 96.1%; /* Light Gray */
@@ -33,10 +33,12 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+
+    /* Default Sidebar (can be overridden by role themes) */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary: 240 5.9% 10%; /* Default Sidebar Primary - Dark Gray/Black */
+    --sidebar-primary-foreground: 0 0% 98%; /* Default Sidebar Primary FG - Almost White */
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
@@ -50,8 +52,8 @@ body {
     --card-foreground: 0 0% 98%; /* Almost White */
     --popover: 0 0% 3.9%; /* Almost Black */
     --popover-foreground: 0 0% 98%; /* Almost White */
-    --primary: 0 0% 98%; /* Almost White */
-    --primary-foreground: 0 0% 9%; /* Black */
+    --primary: 0 0% 98%; /* Almost White - Default Dark Primary */
+    --primary-foreground: 0 0% 9%; /* Black - Default Dark Primary Foreground */
     --secondary: 0 0% 14.9%; /* Dark Gray */
     --secondary-foreground: 0 0% 98%; /* Almost White */
     --muted: 0 0% 14.9%; /* Dark Gray */
@@ -68,102 +70,151 @@ body {
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+
+    /* Default Dark Sidebar (can be overridden by role themes) */
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: 224.3 76.3% 48%; /* Default Dark Sidebar Primary - Blueish */
+    --sidebar-primary-foreground: 0 0% 100%; /* Default Dark Sidebar Primary FG - White */
     --sidebar-accent: 240 3.7% 15.9%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  /* Admin Theme: Calming Blue (#3498db) -> hsl(207, 68%, 53%) */
   .theme-admin {
-    /* Primary: Blue (#3498db) -> hsl(207, 68%, 53%) */
-    --primary: 207 68% 53%;
+    --background: 207 60% 95%; /* Light blue background */
+    --foreground: 207 40% 20%; /* Dark blue text */
+    --primary: 207 68% 53%; /* Blue #3498db */
     --primary-foreground: 0 0% 100%; /* White */
     --accent: 28 80% 52%; /* Orange #e67e22 */
     --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 0 0% 100%; /* White cards */
+    --card-foreground: 207 40% 20%; /* Dark blue text on cards */
+    --border: 207 60% 85%; /* Lighter blue border */
+    --input: 207 60% 88%; /* Lighter blue input */
+    --ring: 207 68% 53%; /* Blue ring */
 
-    /* Sidebar specific adjustments for admin */
-    --sidebar-primary: 207 68% 43%; /* Darker blue */
-    --sidebar-accent: 207 68% 95%; /* Lighter blue */
-    --sidebar-accent-foreground: 207 68% 30%; /* Darker blue text on light */
+    --sidebar-background: 207 68% 25%; /* Darker Blue */
+    --sidebar-foreground: 207 60% 90%; /* Light Blue Text */
+    --sidebar-primary: 207 68% 53%; /* Main Blue for active items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
+    --sidebar-accent: 207 68% 35%; /* Slightly Lighter Dark Blue for hover */
+    --sidebar-accent-foreground: 207 60% 95%; /* Lighter text on hover */
+    --sidebar-border: 207 68% 20%;
   }
 
   .dark .theme-admin {
-    --primary: 207 68% 53%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 28 80% 52%;
-    --accent-foreground: 0 0% 98%;
-     /* Sidebar specific adjustments for dark admin */
-    --sidebar-background: 207 68% 10%; /* Dark blue background */
-    --sidebar-foreground: 207 68% 85%; /* Light blue text */
-    --sidebar-primary: 207 68% 53%; /* Main blue */
-    --sidebar-primary-foreground: 0 0% 100%; /* White */
-    --sidebar-accent: 207 68% 15%; /* Slightly lighter dark blue */
-    --sidebar-accent-foreground: 207 68% 90%; /* Lighter blue text */
-    --sidebar-border: 207 68% 20%; /* Darker border */
-    --sidebar-ring: 207 68% 60%;
-  }
-
-  .theme-teacher {
-    /* Primary: Green (#2ecc71) -> hsl(145, 63%, 49%) */
-    --primary: 145 63% 49%;
+    --background: 207 70% 10%; /* Dark Blue Background */
+    --foreground: 207 60% 90%; /* Light Blue Text */
+    --primary: 207 68% 53%; /* Blue #3498db */
     --primary-foreground: 0 0% 100%; /* White */
     --accent: 28 80% 52%; /* Orange #e67e22 */
     --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 207 70% 15%; /* Darker blue cards */
+    --card-foreground: 207 60% 90%; /* Light blue text on cards */
+    --border: 207 70% 25%; /* Medium blue border */
+    --input: 207 70% 20%; /* Medium blue input */
+    --ring: 207 68% 53%; /* Blue ring */
 
-    /* Sidebar specific adjustments for teacher */
-    --sidebar-primary: 145 63% 39%; /* Darker green */
-    --sidebar-accent: 145 63% 95%; /* Lighter green */
-    --sidebar-accent-foreground: 145 63% 25%; /* Darker green text on light */
+    --sidebar-background: 207 68% 10%;
+    --sidebar-foreground: 207 60% 85%;
+    --sidebar-primary: 207 68% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 68% 20%;
+    --sidebar-accent-foreground: 207 60% 90%;
+    --sidebar-border: 207 68% 15%;
+  }
+
+  /* Teacher Theme: Professional Green (#2ecc71) -> hsl(145, 63%, 49%) */
+  .theme-teacher {
+    --background: 145 50% 95%; /* Light green background */
+    --foreground: 145 40% 20%; /* Dark green text */
+    --primary: 145 63% 49%; /* Green #2ecc71 */
+    --primary-foreground: 0 0% 100%; /* White */
+    --accent: 28 80% 52%; /* Orange #e67e22 */
+    --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 0 0% 100%;
+    --card-foreground: 145 40% 20%;
+    --border: 145 50% 85%;
+    --input: 145 50% 88%;
+    --ring: 145 63% 49%;
+
+    --sidebar-background: 145 63% 20%; /* Darker Green */
+    --sidebar-foreground: 145 50% 90%; /* Light Green Text */
+    --sidebar-primary: 145 63% 49%; /* Main Green for active items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
+    --sidebar-accent: 145 63% 30%; /* Slightly Lighter Dark Green for hover */
+    --sidebar-accent-foreground: 145 50% 95%; /* Lighter text on hover */
+    --sidebar-border: 145 63% 15%;
   }
 
   .dark .theme-teacher {
-    --primary: 145 63% 49%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 28 80% 52%;
-    --accent-foreground: 0 0% 98%;
-     /* Sidebar specific adjustments for dark teacher */
-    --sidebar-background: 145 63% 10%; /* Dark green background */
-    --sidebar-foreground: 145 63% 85%; /* Light green text */
-    --sidebar-primary: 145 63% 49%; /* Main green */
-    --sidebar-primary-foreground: 0 0% 100%; /* White */
-    --sidebar-accent: 145 63% 15%; /* Slightly lighter dark green */
-    --sidebar-accent-foreground: 145 63% 90%; /* Lighter green text */
-    --sidebar-border: 145 63% 20%; /* Darker border */
-    --sidebar-ring: 145 63% 60%;
-  }
-
-  .theme-student {
-    /* Primary: Yellow (#f1c40f) -> hsl(48, 89%, 50%) */
-    --primary: 48 89% 50%;
-    --primary-foreground: 0 0% 15%; /* Dark Gray text for better contrast */
+    --background: 145 65% 10%; /* Dark Green Background */
+    --foreground: 145 50% 90%; /* Light Green Text */
+    --primary: 145 63% 49%; /* Green #2ecc71 */
+    --primary-foreground: 0 0% 100%; /* White */
     --accent: 28 80% 52%; /* Orange #e67e22 */
     --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 145 65% 15%;
+    --card-foreground: 145 50% 90%;
+    --border: 145 65% 25%;
+    --input: 145 65% 20%;
+    --ring: 145 63% 49%;
 
-     /* Sidebar specific adjustments for student */
-    --sidebar-primary: 48 89% 40%; /* Darker yellow */
-    --sidebar-primary-foreground: 0 0% 10%;
-    --sidebar-accent: 48 89% 95%; /* Lighter yellow */
-    --sidebar-accent-foreground: 48 89% 25%; /* Darker yellow text on light */
+    --sidebar-background: 145 63% 10%;
+    --sidebar-foreground: 145 50% 85%;
+    --sidebar-primary: 145 63% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 145 63% 20%;
+    --sidebar-accent-foreground: 145 50% 90%;
+    --sidebar-border: 145 63% 15%;
   }
 
-   .dark .theme-student {
-    --primary: 48 89% 50%;
-    --primary-foreground: 0 0% 15%;
-    --accent: 28 80% 52%;
-    --accent-foreground: 0 0% 98%;
-    /* Sidebar specific adjustments for dark student */
-    --sidebar-background: 48 89% 10%; /* Dark yellow/brown background */
-    --sidebar-foreground: 48 89% 85%; /* Light yellow text */
-    --sidebar-primary: 48 89% 50%; /* Main yellow */
-    --sidebar-primary-foreground: 0 0% 15%; /* Dark text */
-    --sidebar-accent: 48 89% 15%; /* Slightly lighter dark yellow */
-    --sidebar-accent-foreground: 48 89% 90%; /* Lighter yellow text */
-    --sidebar-border: 48 89% 20%; /* Darker border */
-    --sidebar-ring: 48 89% 60%;
+  /* Student Theme: Energetic Yellow (#f1c40f) -> hsl(48, 89%, 50%) */
+  .theme-student {
+    --background: 48 80% 95%; /* Light yellow background */
+    --foreground: 48 60% 20%; /* Dark brown/yellow text */
+    --primary: 48 89% 50%; /* Yellow #f1c40f */
+    --primary-foreground: 48 90% 15%; /* Dark text for yellow contrast */
+    --accent: 28 80% 52%; /* Orange #e67e22 */
+    --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 0 0% 100%;
+    --card-foreground: 48 60% 20%;
+    --border: 48 80% 85%;
+    --input: 48 80% 88%;
+    --ring: 48 89% 50%;
+
+    --sidebar-background: 48 89% 20%; /* Darker Yellow/Brown */
+    --sidebar-foreground: 48 80% 90%; /* Light Yellow Text */
+    --sidebar-primary: 48 89% 50%; /* Main Yellow for active items */
+    --sidebar-primary-foreground: 48 90% 15%; /* Dark text on active */
+    --sidebar-accent: 48 89% 30%; /* Slightly Lighter Dark Yellow for hover */
+    --sidebar-accent-foreground: 48 80% 95%; /* Lighter text on hover */
+    --sidebar-border: 48 89% 15%;
+  }
+
+  .dark .theme-student {
+    --background: 48 90% 10%; /* Dark Yellow/Brown Background */
+    --foreground: 48 80% 90%; /* Light Yellow Text */
+    --primary: 48 89% 50%; /* Yellow #f1c40f */
+    --primary-foreground: 48 90% 15%; /* Dark text for yellow contrast */
+    --accent: 28 80% 52%; /* Orange #e67e22 */
+    --accent-foreground: 0 0% 98%; /* Almost White */
+    --card: 48 90% 15%;
+    --card-foreground: 48 80% 90%;
+    --border: 48 90% 25%;
+    --input: 48 90% 20%;
+    --ring: 48 89% 50%;
+
+    --sidebar-background: 48 89% 10%;
+    --sidebar-foreground: 48 80% 85%;
+    --sidebar-primary: 48 89% 50%;
+    --sidebar-primary-foreground: 48 90% 15%;
+    --sidebar-accent: 48 89% 20%;
+    --sidebar-accent-foreground: 48 80% 90%;
+    --sidebar-border: 48 89% 15%;
   }
 }
 

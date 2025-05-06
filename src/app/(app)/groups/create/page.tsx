@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import * as React from 'react';
@@ -23,16 +21,12 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
-import { createGroup, type CreateGroupInput } from '@/services/groups'; // Import createGroup service
-// TODO: Import services to fetch teachers/students if implementing member selection here
+import { createGroup, type CreateGroupInput } from '@/services/groups';
 
 const createGroupSchema = z.object({
-  name: z.string().min(3, { message: 'Group name must be at least 3 characters' }),
-  description: z.string().optional(),
-  subject: z.string().optional(),
-  // TODO: Add fields for teachers and students if implementing member selection during creation
-  // teacherIds: z.array(z.string()).min(1, { message: 'At least one teacher must be selected' }),
-  // studentIds: z.array(z.string()).optional(),
+  name: z.string().min(3, { message: 'Group name must be at least 3 characters' }).max(100, { message: 'Group name too long' }),
+  description: z.string().max(250, { message: 'Description too long' }).optional(),
+  subject: z.string().max(50, { message: 'Subject too long' }).optional(),
 });
 
 type CreateGroupFormData = z.infer<typeof createGroupSchema>;
@@ -43,35 +37,24 @@ export default function CreateGroupPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // TODO: Fetch teachers and students if needed for selection
-  // const [teachers, setTeachers] = React.useState([]);
-  // const [students, setStudents] = React.useState([]);
-
-  // React.useEffect(() => {
-  //   // Fetch teachers/students logic
-  // }, []);
-
   const form = useForm<CreateGroupFormData>({
     resolver: zodResolver(createGroupSchema),
     defaultValues: {
       name: '',
       description: '',
       subject: '',
-      // teacherIds: [],
-      // studentIds: [],
     },
   });
 
-  // Redirect if user is not authorized
+  // Redirect if user is not authorized (Admin or Teacher)
   React.useEffect(() => {
-      // Allow Admin and Teacher roles
       if (user && user.role !== 'Admin' && user.role !== 'Teacher') {
           toast({
               title: 'Unauthorized',
               description: 'You do not have permission to create groups.',
               variant: 'destructive',
           });
-          router.replace('/groups'); // Redirect back to groups list
+          router.replace('/groups');
       }
   }, [user, router, toast]);
 
@@ -83,22 +66,19 @@ export default function CreateGroupPage() {
     }
     setIsLoading(true);
     try {
-      const groupInput: CreateGroupInput = {
-        ...data,
-        // Ensure required fields like teacherIds are included if schema changes
-      };
-      // Pass creator details to the service function
+      const groupInput: CreateGroupInput = { ...data };
       const newGroup = await createGroup(groupInput, user.id, user.role, user.schoolCode);
       toast({
         title: 'Group Created',
-        description: `Group "${newGroup.name}" has been successfully created.`,
+        description: `Group "${newGroup.name}" (Code: ${newGroup.groupCode}) has been successfully created.`,
       });
-      router.push('/groups'); // Redirect to the groups list page
-    } catch (error) {
+      // Redirect to the new group's detail page or the groups list
+      router.push(`/groups/${newGroup.id}`);
+    } catch (error: any) {
       console.error('Error creating group:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to create group. Please try again.',
+        title: 'Error Creating Group',
+        description: error.message || 'Failed to create group. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -106,10 +86,9 @@ export default function CreateGroupPage() {
     }
   };
 
-  // If user data is loading or user is not authorized yet, show loading or null
   if (!user || (user.role !== 'Admin' && user.role !== 'Teacher')) {
      return (
-        <div className="flex justify-center items-center h-full">
+        <div className="flex justify-center items-center h-[calc(100vh-theme(spacing.24))]">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
      );
@@ -119,9 +98,12 @@ export default function CreateGroupPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Create New Group</h1>
-      <Card>
+      <Card className="shadow-md">
         <CardHeader>
-          <CardTitle>Group Details</CardTitle>
+          <CardTitle>Enter Group Details</CardTitle>
+          <FormDescription>
+            Admins and Teachers can create groups. The creator will automatically be added as a teacher/manager.
+          </FormDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -133,7 +115,7 @@ export default function CreateGroupPage() {
                   <FormItem>
                     <FormLabel>Group Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Class 10 Maths, Science Club" {...field} />
+                      <Input placeholder="e.g., Class 10 Maths, Debate Club" {...field} />
                     </FormControl>
                     <FormDescription>
                       A descriptive name for the group.
@@ -147,9 +129,9 @@ export default function CreateGroupPage() {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description (Optional)</FormLabel>
+                    <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="Provide a brief description of the group's purpose." {...field} />
+                      <Textarea placeholder="Provide a brief description of the group's purpose (optional)." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -160,9 +142,9 @@ export default function CreateGroupPage() {
                 name="subject"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Subject (Optional)</FormLabel>
+                    <FormLabel>Subject</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Mathematics, Physics" {...field} />
+                      <Input placeholder="e.g., Mathematics, Physics (optional)" {...field} />
                     </FormControl>
                      <FormDescription>
                        Associate the group with a subject if applicable.
@@ -171,48 +153,11 @@ export default function CreateGroupPage() {
                   </FormItem>
                 )}
               />
-
-              {/* TODO: Add Teacher Selection Field */}
-              {/* Example using a multi-select component or checkboxes */}
-              {/* <FormField
-                  control={form.control}
-                  name="teacherIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teachers *</FormLabel>
-                      <FormControl>*/}
-                         {/* Replace with actual multi-select component */}
-                         {/*<Select multiple onValueChange={field.onChange} defaultValue={field.value}> ... </Select>
-                      </FormControl>
-                      <FormDescription>Select one or more teachers for this group.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                /> */}
-
-                 {/* TODO: Add Student Selection Field (Optional during creation) */}
-                {/* <FormField
-                  control={form.control}
-                  name="studentIds"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Students (Optional)</FormLabel>
-                       <FormControl> */}
-                          {/* Replace with actual multi-select component */}
-                          {/* <Select multiple onValueChange={field.onChange} defaultValue={field.value}> ... </Select>
-                       </FormControl>
-                      <FormDescription>You can add students now or later.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                /> */}
-
-
             </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-               <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
+            <CardFooter className="flex justify-end gap-2 border-t pt-6">
+               <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>Cancel</Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Group
               </Button>
             </CardFooter>
