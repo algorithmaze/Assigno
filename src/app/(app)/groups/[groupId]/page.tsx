@@ -8,7 +8,7 @@ import { ChatInterface } from "@/components/chat/chat-interface";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup, deleteGroup } from '@/services/groups';
-import { fetchUsersByIds, searchUsers } from '@/services/users';
+import { fetchUsersByIds, searchUsers, fetchAllUsers } from '@/services/users'; // Added fetchAllUsers
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
 import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle, Search as SearchIcon } from 'lucide-react';
@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from '@/components/ui/input'; // Added Input for search
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -107,15 +107,22 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     loadGroupAndMembers();
   }, [groupId, loadGroupAndMembers]);
 
-  // Fetch available users based on search term
+  // Fetch available users based on search term or all if term is empty
   const loadAvailableUsers = React.useCallback(async (searchTerm: string) => {
     if (!currentUser || !group || !currentUser.schoolCode) return;
     setIsSearchingAvailableUsers(true);
     try {
       const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id)];
-      if(currentUser.id) excludeIds.push(currentUser.id);
+      if(currentUser.id) excludeIds.push(currentUser.id); // Exclude current user as well
 
-      const searchedUsers = await searchUsers(currentUser.schoolCode, searchTerm, excludeIds);
+      let searchedUsers: User[];
+      if (searchTerm.trim() === '') {
+        // Fetch all users in the school, then filter
+        const allSchoolUsers = await fetchAllUsers(currentUser.schoolCode);
+        searchedUsers = allSchoolUsers.filter(u => !excludeIds.includes(u.id));
+      } else {
+         searchedUsers = await searchUsers(currentUser.schoolCode, searchTerm, excludeIds);
+      }
       setAvailableUsers(searchedUsers);
     } catch (err) {
       toast({ title: "Error", description: "Could not load available users.", variant: "destructive" });
@@ -125,13 +132,17 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     }
   }, [currentUser, group, members, membersToAdd, toast]);
 
-  // Effect to load users when dialog opens or search term changes (with debounce)
+  // Effect to load users when dialog opens or search term changes (with debounce if searching)
   React.useEffect(() => {
     if (isManageMembersOpen && group) {
-      const timerId = setTimeout(() => {
-        loadAvailableUsers(manageMembersSearchTerm);
-      }, 300); // Debounce search
-      return () => clearTimeout(timerId);
+      if (manageMembersSearchTerm.trim() !== '') { // Only debounce if there's a search term
+        const timerId = setTimeout(() => {
+            loadAvailableUsers(manageMembersSearchTerm);
+        }, 300);
+        return () => clearTimeout(timerId);
+      } else {
+        loadAvailableUsers(''); // Load all if no search term
+      }
     } else {
       setAvailableUsers([]); 
       setManageMembersSearchTerm(''); 
@@ -146,9 +157,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
     const removeMemberFromStaging = (userToRemove: User) => {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      // Add back to available users (if search term matches or no search term)
-      // For simplicity, just reload available users based on current search term
-      loadAvailableUsers(manageMembersSearchTerm);
+      // Add back to available users based on current search term
+      if (!manageMembersSearchTerm || 
+        userToRemove.name.toLowerCase().includes(manageMembersSearchTerm.toLowerCase()) || 
+        (userToRemove.email && userToRemove.email.toLowerCase().includes(manageMembersSearchTerm.toLowerCase()))) {
+        setAvailableUsers(prev => [...prev, userToRemove].sort((a, b) => a.name.localeCompare(b.name)));
+      }
     };
 
    const handleSaveMembers = async () => {
@@ -204,8 +218,15 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         setIsUpdatingMembers(false);
     };
 
-    const canManageGroup = currentUser && group && (currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id));
-    const isAdminUser = currentUser?.role === 'Admin';
+    const canManageGroup = React.useMemo(() => {
+        if (!currentUser || !group) return false;
+        return currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id);
+    }, [currentUser, group]);
+    
+    const isAdminUser = React.useMemo(() => {
+        return currentUser?.role === 'Admin';
+    }, [currentUser]);
+
 
     const handleDeleteGroup = async () => {
         if (!group || !currentUser || currentUser.role !== 'Admin') {
@@ -279,6 +300,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
       );
    }
 
+  const teacherAndAdminMembers = members.filter(member => member.role === 'Teacher' || member.role === 'Admin');
 
   return (
     <div className="flex h-[calc(100vh-theme(spacing.24))] flex-col">
@@ -381,7 +403,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                 <DialogHeader>
                                     <DialogTitle>Manage Members for "{group.name}"</DialogTitle>
                                     <DialogDescription>
-                                        Add or remove teachers and students.
+                                        Add or remove teachers and students. Use search to find specific users.
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-2 pt-4">
@@ -399,7 +421,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                     <ScrollArea className="h-[150px] border rounded-md">
                                         <div className="p-2 space-y-1">
                                             {isSearchingAvailableUsers && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Loading available users...</div>}
-                                            {!isSearchingAvailableUsers && availableUsers.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{manageMembersSearchTerm ? 'No users found matching your search.' : 'Type to search for users to add.'}</div>}
+                                            {!isSearchingAvailableUsers && availableUsers.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{manageMembersSearchTerm ? 'No users found matching your search.' : 'Listing all available users from your school. Use search to narrow down.'}</div>}
                                             {availableUsers.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
@@ -464,7 +486,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
           </CardHeader>
       </Card>
        <div className="flex-grow min-h-0">
-         <ChatInterface groupId={groupId} />
+         <ChatInterface groupId={groupId} groupSenders={teacherAndAdminMembers} />
        </div>
     </div>
   );

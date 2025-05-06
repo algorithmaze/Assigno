@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -7,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Paperclip, Smile, Send, MessageSquare as MessageSquareIcon, Loader2, Search, Filter } from 'lucide-react';
-import { useAuth, type User as AuthUserType } from '@/context/auth-context'; // Renamed User to AuthUserType
+import { useAuth, type User as AuthUserType } from '@/context/auth-context';
 import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -21,14 +22,16 @@ import { Label } from '@/components/ui/label';
 
 interface ChatInterfaceProps {
     groupId: string;
+    groupSenders: AuthUserType[]; // Teachers and Admins in the group
 }
 
 type MessageTypeFilter = Message['type'] | 'all';
-type SenderRoleFilter = AuthUserType['role'] | 'all'; // Use AuthUserType['role']
+// Sender filter will now be by user ID or 'all'
+type SenderIdFilter = AuthUserType['id'] | 'all'; 
 
 const POLLING_INTERVAL = 5000; // Poll every 5 seconds
 
-export function ChatInterface({ groupId }: ChatInterfaceProps) {
+export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [newMessage, setNewMessage] = React.useState('');
   const { user } = useAuth();
@@ -40,7 +43,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
 
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterMessageType, setFilterMessageType] = React.useState<MessageTypeFilter>('all');
-  const [filterSenderRole, setFilterSenderRole] = React.useState<SenderRoleFilter>('all');
+  const [filterSenderId, setFilterSenderId] = React.useState<SenderIdFilter>('all');
 
 
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
@@ -92,7 +95,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     if (!newMessage.trim() || !user) return;
 
     if (user.role === 'Student' && !groupSettings?.allowStudentPosts) {
-        toast({ title: "Restriction", description: "Students may not be allowed to send messages in this group.", variant: "default"});
+        toast({ title: "Restriction", description: "Students are not allowed to send messages in this group.", variant: "default"});
         return;
     }
 
@@ -123,7 +126,9 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
        }
     }, [messages, isLoadingMessages]); 
 
-    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); 
+    // Mock group settings for student posting
+    // In a real app, this would come from the group's details
+    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: false}); 
 
     const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
     const canUseSpecialFeatures = user?.role === 'Teacher' || user?.role === 'Admin';
@@ -132,15 +137,15 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     const filteredAndSearchedMessages = React.useMemo(() => {
         return messages.filter(msg => {
             const typeMatch = filterMessageType === 'all' || msg.type === filterMessageType;
-            const roleMatch = filterSenderRole === 'all' || msg.senderRole === filterSenderRole;
+            const senderMatch = filterSenderId === 'all' || msg.senderId === filterSenderId;
             const searchTermLower = searchTerm.toLowerCase();
             const contentMatch = msg.content.toLowerCase().includes(searchTermLower);
             const senderNameMatch = msg.senderName.toLowerCase().includes(searchTermLower);
             const searchMatch = searchTerm.trim() === '' || contentMatch || senderNameMatch;
 
-            return typeMatch && roleMatch && searchMatch;
+            return typeMatch && senderMatch && searchMatch;
         });
-    }, [messages, searchTerm, filterMessageType, filterSenderRole]);
+    }, [messages, searchTerm, filterMessageType, filterSenderId]);
 
 
   return (
@@ -175,15 +180,17 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
                 </div>
                 <div className="flex-1 sm:flex-initial">
                      <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
-                     <Select value={filterSenderRole} onValueChange={(value) => setFilterSenderRole(value as SenderRoleFilter)}>
+                     <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
                         <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
                             <SelectValue placeholder="Filter by Sender" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Senders</SelectItem>
-                            <SelectItem value="Teacher">Teachers</SelectItem>
-                            <SelectItem value="Admin">Admins</SelectItem>
-                            <SelectItem value="Student">Students</SelectItem>
+                            {groupSenders.map(sender => (
+                                <SelectItem key={sender.id} value={sender.id}>
+                                    {sender.name} ({sender.role})
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>
@@ -191,7 +198,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4 space-y-0" ref={scrollAreaRef}> {/* Removed space-y-4 from here */}
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         {isLoadingMessages && (
              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <Loader2 size={32} className="mb-2 animate-spin"/>
@@ -211,7 +218,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
         {!isLoadingMessages && filteredAndSearchedMessages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex items-end gap-2 mb-3 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`} // Added mb-3 for spacing
+            className={`flex items-end gap-2 mb-3 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
           >
              {msg.senderId !== user?.id && (
                 <Avatar className="h-8 w-8 self-start flex-shrink-0">
