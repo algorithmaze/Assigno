@@ -1,4 +1,5 @@
 
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs)
 // import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -14,20 +15,81 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v2'; // Incremented version
 
-let mockUsersData: User[] = globalThis.mockUsersData_assigno_users || [];
-let isMockDataInitialized = globalThis.mockUsersInitialized_assigno_users || false;
+function initializeGlobalUsersStore(): User[] {
+    if (typeof window === 'undefined') {
+        return []; // Server-side, return empty
+    }
+    if (globalThis.mockUsersData_assigno_users && globalThis.mockUsersInitialized_assigno_users) {
+        return globalThis.mockUsersData_assigno_users;
+    }
+    try {
+        const storedData = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedData) {
+            const users = JSON.parse(storedData) as User[];
+            globalThis.mockUsersData_assigno_users = users;
+            globalThis.mockUsersInitialized_assigno_users = true;
+            console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
+            return users;
+        }
+    } catch (error) {
+        console.error("[Service:users] Error reading users from localStorage during global init:", error);
+    }
 
-if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-    if (!globalThis.mockUsersData_assigno_users) {
-        globalThis.mockUsersData_assigno_users = [];
-    }
-    if (globalThis.mockUsersInitialized_assigno_users === undefined) {
-        globalThis.mockUsersInitialized_assigno_users = false;
-    }
-    mockUsersData = globalThis.mockUsersData_assigno_users;
-    isMockDataInitialized = globalThis.mockUsersInitialized_assigno_users;
+    // If no localStorage data or error, initialize with sampleCredentials
+    const initialUsers = Object.values(sampleCredentials).map(cred => ({
+        id: cred.id,
+        name: cred.name,
+        email: cred.email,
+        phoneNumber: cred.phoneNumber,
+        role: cred.role,
+        schoolCode: cred.schoolCode,
+        schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
+        schoolAddress: "456 School Road, Testville", // Default
+        profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
+        admissionNumber: cred.admissionNumber,
+        class: cred.class,
+        designation: cred.designation,
+    }));
+    
+    globalThis.mockUsersData_assigno_users = initialUsers;
+    globalThis.mockUsersInitialized_assigno_users = true;
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
+    console.log("[Service:users] Initialized new global users store with sample credentials and saved to localStorage.");
+    return initialUsers;
 }
+
+
+function getMockUsersData(): User[] {
+  if (typeof window === 'undefined') {
+    return []; // Server-side, return empty
+  }
+  if (!globalThis.mockUsersData_assigno_users || !globalThis.mockUsersInitialized_assigno_users) {
+    return initializeGlobalUsersStore();
+  }
+  return globalThis.mockUsersData_assigno_users;
+}
+
+function updateMockUsersData(newData: User[]): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  globalThis.mockUsersData_assigno_users = newData; // Update global store
+  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
+    console.log("[Service:users] Saved", newData.length, "users to localStorage.");
+  } catch (error) {
+    console.error("[Service:users] Error writing users to localStorage:", error);
+  }
+}
+
+// Initialize on load for client-side
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    initializeGlobalUsersStore();
+}
+
 
 // Define sampleCredentials and related constants directly in users.ts
 const SCHOOL_CODE = 'samp123';
@@ -134,56 +196,11 @@ export const sampleCredentials = {
     },
 };
 
-type SampleCredentialsType = typeof sampleCredentials;
-
-
-async function transformCredentialToUser(cred: SampleCredentialsType[keyof SampleCredentialsType]): Promise<User> {
-    const schoolDetails = await getSchoolDetails(cred.schoolCode);
-    return {
-        id: cred.id,
-        name: cred.name,
-        email: cred.email,
-        phoneNumber: cred.phoneNumber,
-        role: cred.role,
-        schoolCode: cred.schoolCode,
-        schoolName: schoolDetails?.schoolName,
-        schoolAddress: schoolDetails?.address,
-        profilePictureUrl: cred.profilePictureUrl || `https://picsum.photos/100/100?random=${cred.id}`,
-        admissionNumber: cred.admissionNumber,
-        class: cred.class,
-        designation: cred.designation,
-    };
-}
-
-// Self-initialization function for mock users
-async function selfInitializeMockUsers() {
-    if (isMockDataInitialized || process.env.NODE_ENV === 'production') return;
-
-    console.log("[Service:users] Self-initializing mock users from local credentials...");
-    const transformedUsers = await Promise.all(
-        Object.values(sampleCredentials).map(cred => transformCredentialToUser(cred))
-    );
-    
-    const uniqueUsersMap = new Map<string, User>();
-    transformedUsers.forEach(user => {
-        if (!uniqueUsersMap.has(user.id)) {
-            uniqueUsersMap.set(user.id, user);
+export async function ensureMockDataInitialized() {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+        if (!globalThis.mockUsersInitialized_assigno_users) {
+            initializeGlobalUsersStore(); // This will also populate from sampleCredentials if localStorage is empty
         }
-    });
-    
-    mockUsersData.splice(0, mockUsersData.length, ...Array.from(uniqueUsersMap.values())); // Replace current mock data
-    
-    isMockDataInitialized = true;
-    if (typeof window !== 'undefined') { // Ensure globalThis is only set client-side for dev
-        globalThis.mockUsersData_assigno_users = mockUsersData;
-        globalThis.mockUsersInitialized_assigno_users = isMockDataInitialized;
-    }
-    console.log("[Service:users] Self-initialized mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
-}
-
-async function ensureMockDataInitialized() {
-    if (!isMockDataInitialized && process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-        await selfInitializeMockUsers();
     }
 }
 
@@ -191,60 +208,35 @@ async function ensureMockDataInitialized() {
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
-    // TODO: Firebase - Replace with multiple getDoc calls or a more efficient Firestore query if possible (e.g., IN query for up to 30 IDs)
-    // const firestore = getFirestore();
-    // const usersPromises = userIds.map(id => getDoc(doc(firestore, 'users', id)));
-    // const userDocs = await Promise.all(usersPromises);
-    // const users = userDocs.filter(docSnap => docSnap.exists()).map(docSnap => ({ id: docSnap.id, ...docSnap.data() } as User));
-    // console.log(`[Service:users] Found ${users.length} users for IDs from Firestore: ${userIds.join(', ')}`);
-    // return users;
-
-    // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-    const users = mockUsersData.filter(user => userIds.includes(user.id));
+    
+    await new Promise(resolve => setTimeout(resolve, 10)); 
+    const users = getMockUsersData().filter(user => userIds.includes(user.id));
     console.log(`[Service:users] Found ${users.length} users for IDs (mock): ${userIds.join(', ')}`);
     return users.map(u => ({...u})); 
-    // --- End mock implementation ---
 }
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
-    // TODO: Firebase - Replace with Firestore query. This is complex to replicate exactly with client-side filtering.
-    // Firestore queries for searching parts of strings typically require a third-party search service like Algolia or Typesense,
-    // or careful data structuring (e.g., storing keywords in an array).
-    // A simple Firestore query might look like:
-    // const firestore = getFirestore();
-    // const usersCol = collection(firestore, 'users');
-    // let q = query(usersCol, where('schoolCode', '==', schoolCode));
-    // // Further filtering by searchTerm and excludeIds would be done client-side on the results, or by structuring data for search.
-    // const snapshot = await getDocs(q);
-    // let results = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as User));
-    // results = results.filter(user => !excludeIds.includes(user.id) && 
-    //    (user.name.toLowerCase().includes(lowerSearchTerm) || (user.email && user.email.toLowerCase().includes(lowerSearchTerm)))
-    // );
-
-    // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
+    
+    await new Promise(resolve => setTimeout(resolve, 10)); 
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
     const filterByTerm = lowerSearchTerm.length > 0;
-    const results = mockUsersData.filter(user => {
+    const results = getMockUsersData().filter(user => {
         const matchesSchool = user.schoolCode === schoolCode;
         const isExcluded = excludeIds.includes(user.id);
         if (!matchesSchool || isExcluded) {
             return false;
         }
-        if (!filterByTerm) { // If no search term, return all non-excluded users from the school
+        if (!filterByTerm) { 
              return true; 
         }
-        // If there is a search term, filter by it
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
         return matchesName || matchesEmail;
     });
     console.log(`[Service:users] Found ${results.length} users matching criteria (mock).`);
-    return results.map(u => ({...u}));
-    // --- End mock implementation ---
+    return results.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name));
 }
 
 export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & { id?: string }): Promise<User> {
@@ -269,121 +261,78 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
         designation: user.role === 'Teacher' ? user.designation : undefined,
     };
 
-    // TODO: Firebase - Replace with Firestore setDoc (if ID is known, e.g., auth UID) or addDoc
-    // const firestore = getFirestore();
-    // const userRef = doc(firestore, 'users', userToAdd.id); 
-    // await setDoc(userRef, userToAdd); 
-    // console.log("[Service:users] Added user to Firestore:", userToAdd.name);
-    // return userToAdd;
-
-    // --- Mock implementation ---
-    if (!mockUsersData.some(existingUser => existingUser.id === userToAdd.id)) {
-        mockUsersData.push(userToAdd);
-        if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-            globalThis.mockUsersData_assigno_users = mockUsersData;
-        }
+    const currentUsers = getMockUsersData();
+    if (!currentUsers.some(existingUser => existingUser.id === userToAdd.id)) {
+        const updatedUsers = [...currentUsers, userToAdd];
+        updateMockUsersData(updatedUsers);
         console.log("[Service:users] Added mock user:", userToAdd.name);
         return {...userToAdd};
     } else {
         console.log("[Service:users] User already exists, not adding (mock):", userToAdd.id);
-        // Optionally update existing user if ID was provided and matched
-        const existingUserIndex = mockUsersData.findIndex(u => u.id === userToAdd.id);
+        const existingUserIndex = currentUsers.findIndex(u => u.id === userToAdd.id);
         if (existingUserIndex !== -1) {
-            mockUsersData[existingUserIndex] = { ...mockUsersData[existingUserIndex], ...userToAdd };
-             if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-                globalThis.mockUsersData_assigno_users = mockUsersData;
-            }
+            currentUsers[existingUserIndex] = { ...currentUsers[existingUserIndex], ...userToAdd };
+            updateMockUsersData([...currentUsers]); // Ensure new array reference for reactivity
             console.log("[Service:users] Updated existing mock user:", userToAdd.name);
-            return {...mockUsersData[existingUserIndex]};
+            return {...currentUsers[existingUserIndex]};
         }
-        return mockUsersData.find(u => u.id === userToAdd.id)!; 
+        // This path should ideally not be hit if the some() check is correct
+        return currentUsers.find(u => u.id === userToAdd.id)!; 
     }
-    // --- End mock implementation ---
 }
 
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      await ensureMockDataInitialized();
      console.log(`[Service:users] Fetching all users for school "${schoolCode}"`);
-     // TODO: Firebase - Replace with Firestore query
-     // const firestore = getFirestore();
-     // const usersCol = collection(firestore, 'users');
-     // const q = query(usersCol, where('schoolCode', '==', schoolCode));
-     // const snapshot = await getDocs(q);
-     // const users = snapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as User));
-     // console.log(`[Service:users] Found ${users.length} users in school ${schoolCode} from Firestore.`);
-     // return users;
-
-     // --- Mock implementation ---
-     await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-     const users = mockUsersData.filter(user => user.schoolCode === schoolCode);
+     
+     await new Promise(resolve => setTimeout(resolve, 10)); 
+     const users = getMockUsersData().filter(user => user.schoolCode === schoolCode);
      console.log(`[Service:users] Found ${users.length} users in school ${schoolCode} (mock).`);
-     return users.map(u => ({...u}));
-     // --- End mock implementation ---
+     return users.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name));
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
-    // TODO: Firebase - Replace with Firestore updateDoc
-    // const firestore = getFirestore();
-    // const userRef = doc(firestore, 'users', userId);
-    // await updateDoc(userRef, updates);
-    // const updatedUserSnap = await getDoc(userRef);
-    // if (!updatedUserSnap.exists()) return null;
-    // const updatedUser = {id: updatedUserSnap.id, ...updatedUserSnap.data()} as User;
-    // console.log("[Service:users] Updated user in Firestore:", updatedUser.name);
-    // return updatedUser;
-
-    // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-    const userIndex = mockUsersData.findIndex(u => u.id === userId);
+    
+    await new Promise(resolve => setTimeout(resolve, 10)); 
+    const currentUsers = getMockUsersData();
+    const userIndex = currentUsers.findIndex(u => u.id === userId);
     if (userIndex === -1) {
         console.error(`[Service:users] User ${userId} not found for update (mock).`);
         return null;
     }
-    mockUsersData[userIndex] = { ...mockUsersData[userIndex], ...updates };
-    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-        globalThis.mockUsersData_assigno_users = mockUsersData;
-    }
-    console.log("[Service:users] Updated user (mock):", mockUsersData[userIndex].name);
-    return { ...mockUsersData[userIndex] }; 
-    // --- End mock implementation ---
+    currentUsers[userIndex] = { ...currentUsers[userIndex], ...updates };
+    updateMockUsersData([...currentUsers]); // Ensure new array reference
+    console.log("[Service:users] Updated user (mock):", currentUsers[userIndex].name);
+    return { ...currentUsers[userIndex] }; 
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Deleting user ${userId}`);
-    // TODO: Firebase - Replace with Firestore deleteDoc
-    // const firestore = getFirestore();
-    // const userRef = doc(firestore, 'users', userId);
-    // await deleteDoc(userRef);
-    // console.log(`[Service:users] User ${userId} deleted successfully from Firestore.`);
-    // // TODO: Firebase - Implement additional cleanup in Firestore (e.g., remove from groups' member arrays using batched writes or cloud functions)
-    // return true;
-
-    // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-    const initialLength = mockUsersData.length;
-    mockUsersData = mockUsersData.filter(u => u.id !== userId);
-    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-        globalThis.mockUsersData_assigno_users = mockUsersData;
-    }
-    if (mockUsersData.length < initialLength) {
+    
+    await new Promise(resolve => setTimeout(resolve, 10)); 
+    const currentUsers = getMockUsersData();
+    const initialLength = currentUsers.length;
+    const updatedUsers = currentUsers.filter(u => u.id !== userId);
+    
+    if (updatedUsers.length < initialLength) {
+        updateMockUsersData(updatedUsers);
         console.log(`[Service:users] User ${userId} deleted successfully (mock).`);
         return true;
     } else {
         console.error(`[Service:users] User ${userId} not found for deletion (mock).`);
         return false;
     }
-    // --- End mock implementation ---
 }
 
 export type ExcelUser = {
     Name: string;
-    'Email or Phone'?: string; // Optional, can be derived or explicitly provided
+    'Email or Phone'?: string; 
     Role: 'Student' | 'Teacher';
     'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher';
-    'Class Handling (Teacher Only)'?: string; // e.g., "10A, 9B"
+    'Class Handling (Teacher Only)'?: string; 
     'Admission Number (Student Only)'?: string;
     'Class (Student Only)'?: string;
 };
@@ -404,7 +353,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                     return;
                 }
                 const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0]; // Assuming data is in the first sheet
+                const sheetName = workbook.SheetNames[0]; 
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
 
@@ -418,7 +367,9 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                 const schoolDetails = await getSchoolDetails(schoolCode);
                 if (!schoolDetails) {
                      errors.push(`Invalid school code "${schoolCode}" provided for bulk import.`);
-                     errorCount = jsonData.length;
+                     errorCount = jsonData.length; // All rows will fail if school code is invalid
+                     // Add individual row errors for clarity
+                     jsonData.forEach(row => errors.push(`Skipping row for "${row.Name || 'N/A'}": Invalid school code.`));
                      resolve({ successCount, errorCount, errors });
                      return;
                 }
@@ -468,9 +419,6 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             baseUser.class = row['Class (Student Only)'];
                         }
 
-                        // TODO: Firebase - In a real scenario, you'd likely want to check if user already exists by email/phone
-                        // before creating a new one, or decide on an update strategy.
-                        // For mock, we just add.
                         await addUser(baseUser);
                         successCount++;
                     } catch (e: any) {
@@ -494,6 +442,5 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
 
 // Run self-initialization when the module is loaded (primarily for client-side dev)
 // Ensure this is called after sampleCredentials is defined
-if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
-    ensureMockDataInitialized();
-}
+// Moved to a callable ensureMockDataInitialized for better control
+

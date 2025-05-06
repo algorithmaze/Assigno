@@ -1,10 +1,11 @@
+
 'use client';
 
 import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { useAuth, type User as AuthUserType } from '@/context/auth-context'; // Renamed User to AuthUserType to avoid conflict
+import { useAuth, type User as AuthUserType } from '@/context/auth-context'; 
 import { fetchUserGroups, type Group, requestToJoinGroup, fetchGroupByCode, addMembersToGroup } from '@/services/groups';
 import { Loader2, LogIn, Copy, PlusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -33,53 +34,51 @@ export default function GroupsPage() {
   const [isJoinGroupOpen, setIsJoinGroupOpen] = React.useState(false);
   const [joinGroupCode, setJoinGroupCode] = React.useState('');
   const [isJoiningGroup, setIsJoiningGroup] = React.useState(false);
-  const isPollingRef = React.useRef(false);
+  const isPollingGroupsRef = React.useRef(false);
 
 
   const loadGroups = React.useCallback(async (isPoll: boolean = false) => {
-    if (user) {
-      if (!isPoll) setLoading(true); // Only set loading true for initial load or manual refresh
-      setError(null);
-      try {
-        const fetchedGroups = await fetchUserGroups(user.id, user.role);
-        // Only update state if data has actually changed to prevent unnecessary re-renders
-        setGroups(prevGroups => {
-            if (JSON.stringify(prevGroups) !== JSON.stringify(fetchedGroups)) {
-                return fetchedGroups;
-            }
-            return prevGroups;
-        });
-      } catch (err) {
-        console.error("Error fetching groups:", err);
-        if (!isPoll) setError('Failed to load groups.'); // Only show error prominently on initial load
-        else console.warn("Polling for groups failed, suppressing UI error.");
-      } finally {
-        if (!isPoll) setLoading(false);
-      }
-    } else {
+    if (!user) {
        setGroups([]);
        if (!isPoll) setLoading(false);
+       return;
+    }
+    if (!isPoll) setLoading(true); 
+    setError(null);
+    isPollingGroupsRef.current = true;
+    try {
+      const fetchedGroups = await fetchUserGroups(user.id, user.role);
+      const sortedGroups = fetchedGroups.sort((a, b) => a.name.localeCompare(b.name));
+      setGroups(prevGroups => {
+          if (JSON.stringify(prevGroups) !== JSON.stringify(sortedGroups)) {
+              return sortedGroups;
+          }
+          return prevGroups;
+      });
+    } catch (err) {
+      console.error("Error fetching groups:", err);
+      if (!isPoll) setError('Failed to load groups.'); 
+      else console.warn("Polling for groups failed, suppressing UI error.");
+    } finally {
+      if (!isPoll) setLoading(false);
+      isPollingGroupsRef.current = false;
     }
   }, [user]);
 
   React.useEffect(() => {
-    loadGroups(); // Initial load
+    loadGroups(); 
   }, [loadGroups]);
 
   React.useEffect(() => {
     if (!user) return;
 
     const intervalId = setInterval(async () => {
-      if (isPollingRef.current) return; // Skip if already polling
-      isPollingRef.current = true;
-      try {
-        console.log("Polling for groups...");
-        await loadGroups(true); // Pass true to indicate it's a poll
-      } catch (e) {
-        console.error("Error during groups poll:", e);
-      } finally {
-        isPollingRef.current = false;
+      if (isPollingGroupsRef.current) {
+        console.log("Groups polling skipped, already in progress.");
+        return;
       }
+      console.log("Polling for groups...");
+      await loadGroups(true); 
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
@@ -253,3 +252,4 @@ export default function GroupsPage() {
     </div>
   );
 }
+

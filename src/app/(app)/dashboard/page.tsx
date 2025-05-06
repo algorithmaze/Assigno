@@ -7,28 +7,67 @@ import { useAuth } from '@/context/auth-context';
 import { Loader2, Users } from 'lucide-react';
 import { getSchoolStats, type SchoolStats } from '@/services/groups';
 
+const POLLING_INTERVAL = 15000; // 15 seconds for stats, less frequent than messages/groups typically
+
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const [stats, setStats] = React.useState<SchoolStats | null>(null);
   const [statsLoading, setStatsLoading] = React.useState(false);
+  const isPollingStatsRef = React.useRef(false);
 
-  React.useEffect(() => {
-    if (user?.role === 'Admin' && user.schoolCode) {
-      const fetchStats = async () => {
-        setStatsLoading(true);
-        try {
-          const schoolStats = await getSchoolStats(user.schoolCode);
-          setStats(schoolStats);
-        } catch (error) {
-          console.error("Failed to fetch school stats:", error);
-          // Optionally set an error state to display to the user
-        } finally {
-          setStatsLoading(false);
+  const fetchStats = React.useCallback(async (isPoll: boolean = false) => {
+    if (!user || user.role !== 'Admin' || !user.schoolCode) return;
+
+    if (!isPoll) {
+      setStatsLoading(true);
+    }
+    isPollingStatsRef.current = true;
+
+    try {
+      const schoolStats = await getSchoolStats(user.schoolCode);
+      setStats(prevStats => {
+        // Basic check to avoid re-render if stats haven't changed
+        if (JSON.stringify(prevStats) !== JSON.stringify(schoolStats)) {
+          return schoolStats;
         }
-      };
-      fetchStats();
+        return prevStats;
+      });
+    } catch (error) {
+      console.error("Failed to fetch school stats:", error);
+      if (!isPoll) {
+        // Optionally set an error state to display to the user for initial load
+        setStats(null); // Clear stats on error during initial load
+      } else {
+        console.warn("Polling for school stats failed, suppressing UI error.");
+      }
+    } finally {
+      if (!isPoll) {
+        setStatsLoading(false);
+      }
+      isPollingStatsRef.current = false;
     }
   }, [user]);
+
+  React.useEffect(() => {
+    if (user?.role === 'Admin') {
+      fetchStats(); // Initial fetch
+    }
+  }, [user, fetchStats]); // user dependency ensures fetchStats is re-created if user changes
+
+  React.useEffect(() => {
+    if (user?.role !== 'Admin' || !user.schoolCode) return;
+
+    const intervalId = setInterval(async () => {
+      if (isPollingStatsRef.current) {
+        console.log("Stats polling skipped, already in progress.");
+        return;
+      }
+      console.log("Polling for school stats...");
+      await fetchStats(true); // Pass true to indicate it's a poll
+    }, POLLING_INTERVAL);
+
+    return () => clearInterval(intervalId);
+  }, [user, fetchStats]); // fetchStats dependency ensures interval is reset if it changes
 
   if (authLoading) {
     return (
@@ -136,5 +175,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 
 

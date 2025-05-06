@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -32,7 +33,7 @@ export default function TeacherJoinRequestsPage() {
   const [isProcessing, setIsProcessing] = React.useState<string | null>(null); // Stores "approve-userId-groupId" or "reject-userId-groupId"
   const { toast } = useToast();
   const router = useRouter();
-  const isPollingRef = React.useRef(false);
+  const isPollingJoinRequestsRef = React.useRef(false);
 
   // Redirect if not teacher
   React.useEffect(() => {
@@ -45,18 +46,17 @@ export default function TeacherJoinRequestsPage() {
   const loadJoinRequests = React.useCallback(async (isPoll: boolean = false) => {
     if (!teacherUser || (teacherUser.role !== 'Teacher' && teacherUser.role !== 'Admin')) return;
     if (!isPoll) setLoadingRequests(true);
+    isPollingJoinRequestsRef.current = true;
 
     try {
       const managedGroups: Group[] = await fetchUserGroups(teacherUser.id, teacherUser.role);
       let allRequests: JoinRequestWithGroupInfo[] = [];
 
       for (const group of managedGroups) {
-        // The fetchGroupJoinRequests function in groups.ts already handles fetching User objects.
-        // It internally uses fetchUsersByIds.
-        if (group.id) { // Ensure group ID is present
+        if (group.id) { 
             const requesters: AuthUserType[] = await fetchGroupJoinRequests(group.id, teacherUser.id);
             requesters.forEach(reqUser => {
-                if(reqUser) { // Check if reqUser is not null/undefined
+                if(reqUser) { 
                     allRequests.push({ user: reqUser, groupId: group.id, groupName: group.name });
                 }
             });
@@ -64,7 +64,7 @@ export default function TeacherJoinRequestsPage() {
       }
       setJoinRequests(prevRequests => {
           if (JSON.stringify(prevRequests) !== JSON.stringify(allRequests)) {
-              return allRequests;
+              return allRequests.sort((a,b) => a.groupName.localeCompare(b.groupName) || a.user.name.localeCompare(b.user.name));
           }
           return prevRequests;
       });
@@ -74,6 +74,7 @@ export default function TeacherJoinRequestsPage() {
       else console.warn("Polling for join requests failed, suppressing UI error.");
     } finally {
       if (!isPoll) setLoadingRequests(false);
+      isPollingJoinRequestsRef.current = false;
     }
   }, [teacherUser, toast]);
 
@@ -88,16 +89,12 @@ export default function TeacherJoinRequestsPage() {
     if (!teacherUser || (teacherUser.role !== 'Teacher' && teacherUser.role !== 'Admin')) return;
 
     const intervalId = setInterval(async () => {
-      if (isPollingRef.current) return;
-      isPollingRef.current = true;
-      try {
-        console.log("Polling for join requests...");
-        await loadJoinRequests(true);
-      } catch (e) {
-        console.error("Error during join requests poll:", e);
-      } finally {
-        isPollingRef.current = false;
+      if (isPollingJoinRequestsRef.current) {
+        console.log("Join requests polling skipped, already in progress.");
+        return;
       }
+      console.log("Polling for join requests...");
+      await loadJoinRequests(true);
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
@@ -237,3 +234,4 @@ export default function TeacherJoinRequestsPage() {
     </div>
   );
 }
+

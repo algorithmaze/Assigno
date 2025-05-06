@@ -1,3 +1,4 @@
+
 'use client';
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp)
 // import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -70,7 +71,7 @@ declare global {
   var mockMessagesInitialized_assigno_messages: boolean | undefined;
 }
 
-const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v6'; // Incremented version
+const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v7'; // Incremented version
 
 // Initialize from localStorage or create new if not present
 function initializeGlobalMessagesStore(): Map<string, Message[]> {
@@ -112,7 +113,7 @@ function initializeGlobalMessagesStore(): Map<string, Message[]> {
       }
       globalThis.mockMessagesData_assigno_messages = messagesMap;
       globalThis.mockMessagesInitialized_assigno_messages = true;
-      console.log("[Service:messages] Initialized global messages store from localStorage.");
+      console.log("[Service:messages] Initialized global messages store from localStorage. Groups with messages:", messagesMap.size);
       return messagesMap;
     }
   } catch (error) {
@@ -170,6 +171,7 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
       });
     });
     localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(objectToStore));
+    console.log("[Service:messages] Updated localStorage with messages for", newData.size, "groups.");
   } catch (error) {
     console.error("[Service:messages] Error writing messages to localStorage:", error);
   }
@@ -260,9 +262,11 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
 
   const currentMessages = store.get(groupId) || [];
   const updatedMessages = [...currentMessages, fullMessage];
-  store.set(groupId, updatedMessages);
+  
+  const newStore = new Map(store); // Create a new map for the overall store
+  newStore.set(groupId, updatedMessages);
 
-  updateMockMessagesData(store); 
+  updateMockMessagesData(newStore); 
 
   console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (global/localStorage mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
   return { ...fullMessage };
@@ -335,3 +339,4 @@ export async function publishPollResults(groupId: string, messageId: string, pub
   console.log(`[Service:messages] Poll ${messageId} results published. Correct Option: ${pollMessage.pollData.correctOptionId}`);
   return pollMessage;
 }
+

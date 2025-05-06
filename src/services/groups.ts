@@ -1,3 +1,4 @@
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch)
 // import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -30,80 +31,121 @@ export interface CreateGroupInput {
   subject?: string;
 }
 
-const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data';
 
-function getMockGroupsData(): Group[] {
+// Use a global variable for mock data in non-production environments
+declare global {
+  var mockGroupsData_assigno_groups: Map<string, Group> | undefined;
+  var mockGroupsInitialized_assigno_groups: boolean | undefined;
+}
+
+const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v3'; // Incremented version for potential structural changes
+
+// Initialize from localStorage or create new if not present
+function initializeGlobalGroupsStore(): Map<string, Group> {
   if (typeof window === 'undefined') {
-    return []; // No localStorage on server-side
+    return new Map<string, Group>();
   }
+
+  if (globalThis.mockGroupsData_assigno_groups && globalThis.mockGroupsInitialized_assigno_groups) {
+    return globalThis.mockGroupsData_assigno_groups;
+  }
+
   try {
     const storedData = localStorage.getItem(GROUPS_STORAGE_KEY);
     if (storedData) {
       // Deserialize date strings back to Date objects
-      return (JSON.parse(storedData) as Array<Omit<Group, 'createdAt'> & {createdAt: string}>).map(g => ({
+      const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt'> & {createdAt: string}>).map(g => ({
         ...g,
-        createdAt: new Date(g.createdAt) 
+        createdAt: new Date(g.createdAt)
       }));
+      const groupsMap = new Map<string, Group>(parsedArray.map(g => [g.id, g]));
+      globalThis.mockGroupsData_assigno_groups = groupsMap;
+      globalThis.mockGroupsInitialized_assigno_groups = true;
+      console.log("[Service:groups] Initialized global groups store from localStorage.", groupsMap.size, "groups loaded.");
+      return groupsMap;
     }
   } catch (error) {
-    console.error("[Service:groups] Error reading groups from localStorage:", error);
+    console.error("[Service:groups] Error reading groups from localStorage during global init:", error);
   }
-  return [];
+
+  const newStore = new Map<string, Group>();
+  globalThis.mockGroupsData_assigno_groups = newStore;
+  globalThis.mockGroupsInitialized_assigno_groups = true;
+  console.log("[Service:groups] Initialized new empty global groups store.");
+  return newStore;
 }
 
-function updateMockGroupsData(newData: Group[]): void {
+
+function getMockGroupsData(): Map<string, Group> {
   if (typeof window === 'undefined') {
-    return; // No localStorage on server-side
+    return new Map<string, Group>(); // Server-side, return empty
   }
+  if (!globalThis.mockGroupsData_assigno_groups || !globalThis.mockGroupsInitialized_assigno_groups) {
+    return initializeGlobalGroupsStore();
+  }
+  return globalThis.mockGroupsData_assigno_groups;
+}
+
+function updateMockGroupsData(newData: Map<string, Group>): void {
+  if (typeof window === 'undefined') {
+    return; 
+  }
+  globalThis.mockGroupsData_assigno_groups = newData; // Update global store
   try {
     // Serialize Date objects to ISO strings for storage
-    const serializableData = newData.map(g => ({
+    const serializableArray = Array.from(newData.values()).map(g => ({
       ...g,
       createdAt: g.createdAt.toISOString()
     }));
-    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(serializableData));
+    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(serializableArray));
+    console.log("[Service:groups] Saved", serializableArray.length, "groups to localStorage.");
   } catch (error) {
     console.error("[Service:groups] Error writing groups to localStorage:", error);
   }
 }
 
+// Initialize on load for client-side
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  initializeGlobalGroupsStore();
+}
 
-function generateGroupCodeInternal(schoolCode: string, existingGroups: Group[]): string {
+
+function generateGroupCodeInternal(schoolCode: string, existingGroupsMap: Map<string, Group>): string {
     let newCode;
     let attempts = 0;
     const normalizedSchoolCode = schoolCode.toUpperCase().slice(0,7).replace(/[^A-Z0-9]/g, '');
+    const existingCodes = new Set(Array.from(existingGroupsMap.values()).map(g => g.groupCode));
     do {
         newCode = `${normalizedSchoolCode}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         attempts++;
         if (attempts > 20) throw new Error("Failed to generate unique group code after multiple attempts.");
-    } while (existingGroups.some(g => g.groupCode === newCode));
+    } while (existingCodes.has(newCode));
     return newCode;
 }
 
 export async function createGroup(groupData: CreateGroupInput, creatorId: string, creatorRole: 'Admin' | 'Teacher', schoolCode: string): Promise<Group> {
     console.log("[Service:groups] Creating group:", groupData, "Creator:", creatorId, "School:", schoolCode);
     
-    const currentMockData = getMockGroupsData();
-    const newGroupData = {
+    const currentStore = getMockGroupsData();
+    const newGroupId = `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const newGroup: Group = {
+        id: newGroupId,
         name: groupData.name,
         description: groupData.description || '',
         subject: groupData.subject || '',
         teacherIds: (creatorRole === 'Admin' || creatorRole === 'Teacher') ? [creatorId] : [],
         studentIds: [],
         schoolCode: schoolCode,
-        groupCode: generateGroupCodeInternal(schoolCode, currentMockData),
+        groupCode: generateGroupCodeInternal(schoolCode, currentStore),
         createdAt: new Date(), // Store as Date object
         joinRequests: [],
     };
 
     await new Promise(resolve => setTimeout(resolve, 10));
-    const newGroup: Group = {
-        id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        ...newGroupData,
-    };
     
-    const updatedMockData = [...currentMockData, newGroup];
-    updateMockGroupsData(updatedMockData);
+    const updatedStore = new Map(currentStore);
+    updatedStore.set(newGroupId, newGroup);
+    updateMockGroupsData(updatedStore);
 
     console.log("[Service:groups] New group created (mock):", newGroup);
     return { ...newGroup };
@@ -121,7 +163,8 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     }
     const user = await usersModule.fetchUsersByIds([userId]).then(users => users[0]);
 
-    const currentMockData = getMockGroupsData();
+    const currentStore = getMockGroupsData();
+    const allGroups = Array.from(currentStore.values());
 
     if (!user) {
       console.warn(`[Service:groups] User not found for ID: ${userId} when fetching groups.`);
@@ -129,24 +172,24 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     }
     let filteredGroups: Group[];
     if (userRole === 'Admin') {
-        filteredGroups = currentMockData.filter(group => group.schoolCode === user.schoolCode);
+        filteredGroups = allGroups.filter(group => group.schoolCode === user.schoolCode);
     } else if (userRole === 'Teacher') {
-        filteredGroups = currentMockData.filter(group => group.teacherIds.includes(userId) && group.schoolCode === user.schoolCode);
+        filteredGroups = allGroups.filter(group => group.teacherIds.includes(userId) && group.schoolCode === user.schoolCode);
     } else if (userRole === 'Student') {
-        filteredGroups = currentMockData.filter(group => group.studentIds.includes(userId) && group.schoolCode === user.schoolCode);
+        filteredGroups = allGroups.filter(group => group.studentIds.includes(userId) && group.schoolCode === user.schoolCode);
     } else {
         filteredGroups = [];
     }
     console.log(`[Service:groups] Found ${filteredGroups.length} groups for user ${userId} (mock).`);
-    return filteredGroups.map(g => ({...g}));
+    return filteredGroups.map(g => ({...g})).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function fetchGroupDetails(groupId: string): Promise<Group | null> {
     console.log(`[Service:groups] Fetching details for group ${groupId}.`);
         
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const foundGroup = currentMockData.find(group => group.id === groupId);
+    const currentStore = getMockGroupsData();
+    const foundGroup = currentStore.get(groupId);
     if (foundGroup) {
       console.log(`[Service:groups] Group found (mock): ${foundGroup.name}`);
     } else {
@@ -159,8 +202,9 @@ export async function fetchGroupByCode(groupCode: string, schoolCode: string): P
     console.log(`[Service:groups] Fetching group by code ${groupCode} for school ${schoolCode}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const foundGroup = currentMockData.find(g => g.groupCode.toUpperCase() === groupCode.toUpperCase() && g.schoolCode === schoolCode);
+    const currentStore = getMockGroupsData();
+    const allGroups = Array.from(currentStore.values());
+    const foundGroup = allGroups.find(g => g.groupCode.toUpperCase() === groupCode.toUpperCase() && g.schoolCode === schoolCode);
     return foundGroup ? { ...foundGroup } : null;
 }
 
@@ -169,35 +213,38 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
     console.log(`[Service:groups] Adding ${membersToAdd.length} members to group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(group => group.id === groupId);
-    if (groupIndex === -1) {
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+
+    if (!groupToUpdate) {
       console.warn(`[Service:groups] Group ${groupId} not found for adding members (mock).`);
       return false;
     }
     
-    const updatedMockData = [...currentMockData]; // Create a new array to ensure state updates
-    const groupToUpdate = { ...updatedMockData[groupIndex] }; // Clone the group object
+    const clonedGroup = { ...groupToUpdate, teacherIds: [...groupToUpdate.teacherIds], studentIds: [...groupToUpdate.studentIds], joinRequests: [...(groupToUpdate.joinRequests || [])] };
     let changed = false;
+
     membersToAdd.forEach(member => {
         if (member.role === 'Teacher' || member.role === 'Admin') {
-            if (!groupToUpdate.teacherIds.includes(member.id)) {
-                groupToUpdate.teacherIds = [...groupToUpdate.teacherIds, member.id];
+            if (!clonedGroup.teacherIds.includes(member.id)) {
+                clonedGroup.teacherIds.push(member.id);
                 changed = true;
             }
         } else if (member.role === 'Student') {
-            if (!groupToUpdate.studentIds.includes(member.id)) {
-                groupToUpdate.studentIds = [...groupToUpdate.studentIds, member.id];
+            if (!clonedGroup.studentIds.includes(member.id)) {
+                clonedGroup.studentIds.push(member.id);
                 // Remove from join requests if they were there
-                groupToUpdate.joinRequests = groupToUpdate.joinRequests?.filter(id => id !== member.id);
+                clonedGroup.joinRequests = clonedGroup.joinRequests.filter(id => id !== member.id);
                 changed = true;
             }
         }
     });
+
     if (changed) {
-        updatedMockData[groupIndex] = groupToUpdate;
-        updateMockGroupsData(updatedMockData);
-        console.log("[Service:groups] Updated group members (mock):", groupToUpdate.name, "Teachers:", groupToUpdate.teacherIds.length, "Students:", groupToUpdate.studentIds.length);
+        const updatedStore = new Map(currentStore);
+        updatedStore.set(groupId, clonedGroup);
+        updateMockGroupsData(updatedStore);
+        console.log("[Service:groups] Updated group members (mock):", clonedGroup.name, "Teachers:", clonedGroup.teacherIds.length, "Students:", clonedGroup.studentIds.length);
     }
     return true;
 }
@@ -206,26 +253,26 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
     console.log(`[Service:groups] Removing member ${memberId} from group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(group => group.id === groupId);
-    if (groupIndex === -1) return false;
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+    if (!groupToUpdate) return false;
 
-    const updatedMockData = [...currentMockData];
-    const groupToUpdate = { ...updatedMockData[groupIndex] };
+    const clonedGroup = { ...groupToUpdate, teacherIds: [...groupToUpdate.teacherIds], studentIds: [...groupToUpdate.studentIds] };
     let changed = false;
     
-    const initialTeacherCount = groupToUpdate.teacherIds.length;
-    groupToUpdate.teacherIds = groupToUpdate.teacherIds.filter(id => id !== memberId);
-    if (groupToUpdate.teacherIds.length < initialTeacherCount) changed = true;
+    const initialTeacherCount = clonedGroup.teacherIds.length;
+    clonedGroup.teacherIds = clonedGroup.teacherIds.filter(id => id !== memberId);
+    if (clonedGroup.teacherIds.length < initialTeacherCount) changed = true;
     
-    const initialStudentCount = groupToUpdate.studentIds.length;
-    groupToUpdate.studentIds = groupToUpdate.studentIds.filter(id => id !== memberId);
-    if (groupToUpdate.studentIds.length < initialStudentCount) changed = true;
+    const initialStudentCount = clonedGroup.studentIds.length;
+    clonedGroup.studentIds = clonedGroup.studentIds.filter(id => id !== memberId);
+    if (clonedGroup.studentIds.length < initialStudentCount) changed = true;
 
     if (changed) {
-        updatedMockData[groupIndex] = groupToUpdate;
-        updateMockGroupsData(updatedMockData);
-        console.log("[Service:groups] Updated group after removal (mock):", groupToUpdate);
+        const updatedStore = new Map(currentStore);
+        updatedStore.set(groupId, clonedGroup);
+        updateMockGroupsData(updatedStore);
+        console.log("[Service:groups] Updated group after removal (mock):", clonedGroup);
     }
     return true;
 }
@@ -233,23 +280,21 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
-    // Firebase - Group deletion is disabled as per requirement
-    // To enable mock deletion by admin, uncomment the following block and remove the warning + return false.
-    /*
+    
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(g => g.id === groupId && g.schoolCode === schoolCode);
-    if (groupIndex === -1) {
+    const currentStore = getMockGroupsData();
+    const groupToDelete = currentStore.get(groupId);
+
+    if (!groupToDelete || groupToDelete.schoolCode !== schoolCode) {
       console.warn(`[Service:groups] Group ${groupId} not found or school code mismatch for deletion.`);
       return false;
     }
-    const updatedMockData = currentMockData.filter(g => g.id !== groupId);
-    updateMockGroupsData(updatedMockData);
+    
+    const updatedStore = new Map(currentStore);
+    updatedStore.delete(groupId);
+    updateMockGroupsData(updatedStore);
     console.log(`[Service:groups] Group ${groupId} deleted (mock).`);
     return true;
-    */
-    console.warn(`[Service:groups] Mock group deletion is currently UI-only. Group ID: ${groupId} not removed from localStorage.`);
-    return true; // Return true to allow UI to proceed with confirmations, but data is not actually deleted from mock store.
 }
 
 
@@ -257,22 +302,23 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
     console.log(`[Service:groups] Student ${studentId} requesting to join group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return false;
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+    if (!groupToUpdate) return false;
 
-    const updatedMockData = [...currentMockData];
-    const group = { ...updatedMockData[groupIndex] };
-    if (!group.joinRequests) group.joinRequests = [];
+    const clonedGroup = { ...groupToUpdate, joinRequests: [...(groupToUpdate.joinRequests || [])] };
+    if (!clonedGroup.joinRequests) clonedGroup.joinRequests = [];
 
-    if (group.studentIds.includes(studentId) || group.joinRequests.includes(studentId)) {
+    if (clonedGroup.studentIds.includes(studentId) || clonedGroup.joinRequests.includes(studentId)) {
         console.log(`[Service:groups] Student ${studentId} already in group or request pending (mock).`);
         return false;
     }
-    group.joinRequests.push(studentId);
-    updatedMockData[groupIndex] = group;
-    updateMockGroupsData(updatedMockData);
-    console.log(`[Service:groups] Group ${groupId} join requests (mock):`, group.joinRequests);
+    clonedGroup.joinRequests.push(studentId);
+    
+    const updatedStore = new Map(currentStore);
+    updatedStore.set(groupId, clonedGroup);
+    updateMockGroupsData(updatedStore);
+    console.log(`[Service:groups] Group ${groupId} join requests (mock):`, clonedGroup.joinRequests);
     return true;
 }
 
@@ -280,7 +326,7 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     console.log(`[Service:groups] Teacher ${teacherId} fetching join requests for group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
+    const currentStore = getMockGroupsData();
     const usersModule = await import('./users');
     
     if (!usersModule) {
@@ -294,12 +340,12 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
         return [];
     }
 
-    const group = currentMockData.find(g =>
-        g.id === groupId &&
-        (g.teacherIds.includes(teacherId) || (teacherUser.role === 'Admin' && g.schoolCode === teacherUser.schoolCode))
-    );
+    const group = currentStore.get(groupId);
 
-    if (!group || !group.joinRequests || group.joinRequests.length === 0) return [];
+    if (!group || !(group.teacherIds.includes(teacherId) || (teacherUser.role === 'Admin' && group.schoolCode === teacherUser.schoolCode))) {
+        return [];
+    }
+    if (!group.joinRequests || group.joinRequests.length === 0) return [];
 
     return usersModule.fetchUsersByIds(group.joinRequests);
 }
@@ -308,32 +354,35 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
     console.log(`[Service:groups] Approver ${approverId} approving join request for student ${studentId} in group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return false;
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+    if (!groupToUpdate) return false;
 
-    const updatedMockData = [...currentMockData];
-    const group = { ...updatedMockData[groupIndex] };
     const usersModule = await import('./users');
-
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in approveJoinRequest.");
         return false;
     }
     const approverUser = await usersModule.fetchUsersByIds([approverId]).then(users => users[0]);
-
     if (!approverUser) return false;
-    const isTeacherInGroup = group.teacherIds.includes(approverId);
-    const isAdminOfSchool = approverUser.role === 'Admin' && approverUser.schoolCode === group.schoolCode;
 
+    const isTeacherInGroup = groupToUpdate.teacherIds.includes(approverId);
+    const isAdminOfSchool = approverUser.role === 'Admin' && approverUser.schoolCode === groupToUpdate.schoolCode;
     if (!isTeacherInGroup && !isAdminOfSchool) return false;
 
-    if (!group.joinRequests?.includes(studentId)) return false;
-    group.studentIds = [...group.studentIds, studentId];
-    group.joinRequests = group.joinRequests.filter(id => id !== studentId);
-    updatedMockData[groupIndex] = group;
-    updateMockGroupsData(updatedMockData);
-    console.log(`[Service:groups] Student ${studentId} approved for group ${groupId} (mock). Students: ${group.studentIds.length}, Requests: ${group.joinRequests.length}`);
+    if (!groupToUpdate.joinRequests?.includes(studentId)) return false;
+    
+    const clonedGroup = { 
+        ...groupToUpdate, 
+        studentIds: [...groupToUpdate.studentIds, studentId],
+        joinRequests: (groupToUpdate.joinRequests || []).filter(id => id !== studentId)
+    };
+    
+    const updatedStore = new Map(currentStore);
+    updatedStore.set(groupId, clonedGroup);
+    updateMockGroupsData(updatedStore);
+
+    console.log(`[Service:groups] Student ${studentId} approved for group ${groupId} (mock). Students: ${clonedGroup.studentIds.length}, Requests: ${clonedGroup.joinRequests.length}`);
     return true;
 }
 
@@ -341,30 +390,32 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
     console.log(`[Service:groups] Rejector ${rejectorId} rejecting join request for student ${studentId} in group ${groupId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) return false;
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+    if (!groupToUpdate) return false;
 
-    const updatedMockData = [...currentMockData];
-    const group = { ...updatedMockData[groupIndex] };
     const usersModule = await import('./users');
-
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in rejectJoinRequest.");
         return false;
     }
     const rejectorUser = await usersModule.fetchUsersByIds([rejectorId]).then(users => users[0]);
-
     if(!rejectorUser) return false;
-    const isTeacherInGroup = group.teacherIds.includes(rejectorId);
-    const isAdminOfSchool = rejectorUser.role === 'Admin' && rejectorUser.schoolCode === group.schoolCode;
 
+    const isTeacherInGroup = groupToUpdate.teacherIds.includes(rejectorId);
+    const isAdminOfSchool = rejectorUser.role === 'Admin' && rejectorUser.schoolCode === groupToUpdate.schoolCode;
     if (!isTeacherInGroup && !isAdminOfSchool) return false;
 
-    if (!group.joinRequests?.includes(studentId)) return false;
-    group.joinRequests = group.joinRequests.filter(id => id !== studentId);
-    updatedMockData[groupIndex] = group;
-    updateMockGroupsData(updatedMockData);
+    if (!groupToUpdate.joinRequests?.includes(studentId)) return false;
+
+    const clonedGroup = { 
+        ...groupToUpdate, 
+        joinRequests: (groupToUpdate.joinRequests || []).filter(id => id !== studentId)
+    };
+    
+    const updatedStore = new Map(currentStore);
+    updatedStore.set(groupId, clonedGroup);
+    updateMockGroupsData(updatedStore);
     return true;
 }
 
@@ -383,25 +434,23 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     console.log(`[Service:groups] Calculating stats for school ${schoolCode}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
+    const currentStore = getMockGroupsData();
+    const allGroups = Array.from(currentStore.values());
     const usersModule = await import('./users');
 
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in getSchoolStats.");
-        // Return a default/empty stats object or throw an error
         return {
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
-    // Ensure users module is initialized before fetching all users
     if (typeof usersModule.ensureMockDataInitialized === 'function') { 
         await usersModule.ensureMockDataInitialized();
     }
 
-
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
-    const schoolGroups = currentMockData.filter(g => g.schoolCode === schoolCode);
+    const schoolGroups = allGroups.filter(g => g.schoolCode === schoolCode);
     const schoolStudents = allSchoolUsers.filter(u => u.role === 'Student');
     const schoolTeachersAndAdmins = allSchoolUsers.filter(u => u.role === 'Teacher' || u.role === 'Admin');
     const studentIdsInAnyGroup = new Set<string>();
@@ -413,7 +462,7 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
         groupName: g.name,
         studentCount: g.studentIds.length,
         teacherCount: g.teacherIds.length,
-    }));
+    })).sort((a,b) => a.groupName.localeCompare(b.groupName));
     return {
         totalGroups: schoolGroups.length,
         totalStudents: schoolStudents.length,
@@ -430,16 +479,15 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Updating settings for group ${groupId} by user ${currentUserId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
-    const currentMockData = getMockGroupsData();
-    const groupIndex = currentMockData.findIndex(g => g.id === groupId);
-    if (groupIndex === -1) {
+    const currentStore = getMockGroupsData();
+    const groupToUpdate = currentStore.get(groupId);
+
+    if (!groupToUpdate) {
       console.warn(`[Service:groups] Group ${groupId} not found for settings update (mock).`);
       return null;
     }
-    const updatedMockData = [...currentMockData];
-    const group = { ...updatedMockData[groupIndex] }; // Clone before modifying
+    
     const usersModule = await import('./users');
-
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in updateGroupSettings.");
         return null;
@@ -449,14 +497,20 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
         console.warn(`[Service:groups] User ${currentUserId} not found, cannot update group settings (mock).`);
         return null;
     }
-    const isAdminOfSchool = user.role === 'Admin' && user.schoolCode === group.schoolCode;
-    const isTeacherInGroup = (user.role === 'Teacher' || user.role === 'Admin') && group.teacherIds.includes(user.id);
+
+    const isAdminOfSchool = user.role === 'Admin' && user.schoolCode === groupToUpdate.schoolCode;
+    const isTeacherInGroup = (user.role === 'Teacher' || user.role === 'Admin') && groupToUpdate.teacherIds.includes(user.id);
     if (!isAdminOfSchool && !isTeacherInGroup) {
         console.warn(`[Service:groups] User ${currentUserId} (Role: ${user.role}) lacks permission to update group ${groupId} (mock).`);
         return null;
     }
-    updatedMockData[groupIndex] = { ...group, ...settings };
-    updateMockGroupsData(updatedMockData);
-    console.log(`[Service:groups] Group settings for "${group.name}" updated (mock).`);
-    return { ...updatedMockData[groupIndex] };
+    
+    const updatedGroup = { ...groupToUpdate, ...settings };
+    
+    const updatedStore = new Map(currentStore);
+    updatedStore.set(groupId, updatedGroup);
+    updateMockGroupsData(updatedStore);
+
+    console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock).`);
+    return { ...updatedGroup };
 }

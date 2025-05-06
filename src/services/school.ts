@@ -1,3 +1,4 @@
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, getDoc, setDoc)
 // import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -10,42 +11,79 @@ export interface SchoolDetails {
 
 declare global {
   var mockSchoolDetails_assigno_school: SchoolDetails | undefined;
+  var mockSchoolInitialized_assigno_school: boolean | undefined;
 }
+
+const SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v1';
 
 // Initialize mockSchoolDetails_assigno_school on globalThis if it doesn't exist (for dev environment)
-if (process.env.NODE_ENV !== 'production') {
-  if (!globalThis.mockSchoolDetails_assigno_school) {
-    globalThis.mockSchoolDetails_assigno_school = {
+function initializeGlobalSchoolStore(): SchoolDetails {
+   if (typeof window === 'undefined') {
+    // Default for server-side or if no window context, though primarily client-side logic
+    return {
       schoolCode: 'samp123',
       schoolName: 'Sample Sr. Sec. School',
       address: '456 School Road, Testville',
     };
-    console.log("[Service:school] Initialized global mockSchoolDetails_assigno_school.");
   }
+
+  if (globalThis.mockSchoolDetails_assigno_school && globalThis.mockSchoolInitialized_assigno_school) {
+    return globalThis.mockSchoolDetails_assigno_school;
+  }
+
+  try {
+    const storedData = localStorage.getItem(SCHOOL_STORAGE_KEY);
+    if (storedData) {
+      const schoolDetails = JSON.parse(storedData) as SchoolDetails;
+      globalThis.mockSchoolDetails_assigno_school = schoolDetails;
+      globalThis.mockSchoolInitialized_assigno_school = true;
+      console.log("[Service:school] Initialized global school store from localStorage.");
+      return schoolDetails;
+    }
+  } catch (error) {
+    console.error("[Service:school] Error reading school details from localStorage during global init:", error);
+  }
+  
+  const defaultSchoolDetails: SchoolDetails = {
+    schoolCode: 'samp123',
+    schoolName: 'Sample Sr. Sec. School',
+    address: '456 School Road, Testville',
+  };
+  globalThis.mockSchoolDetails_assigno_school = defaultSchoolDetails;
+  globalThis.mockSchoolInitialized_assigno_school = true;
+  localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(defaultSchoolDetails));
+  console.log("[Service:school] Initialized new global school store and saved to localStorage.");
+  return defaultSchoolDetails;
 }
 
-function getMockSchoolDetails(): SchoolDetails | null {
-  if (process.env.NODE_ENV === 'production') {
-    // In production, this would interact with a database. For now, return null.
-    return null;
-  }
-  // Ensure globalThis.mockSchoolDetails_assigno_school is initialized
-  if (!globalThis.mockSchoolDetails_assigno_school) {
-    // This case should ideally not be hit if top-level initialization worked,
-    // but as a fallback:
-    globalThis.mockSchoolDetails_assigno_school = {
+
+function getMockSchoolDetails(): SchoolDetails {
+   if (typeof window === 'undefined') {
+     // Return a default or throw, as this should ideally be client-side for mock
+     return {
       schoolCode: 'samp123',
       schoolName: 'Sample Sr. Sec. School',
       address: '456 School Road, Testville',
     };
+   }
+  if (!globalThis.mockSchoolDetails_assigno_school || !globalThis.mockSchoolInitialized_assigno_school) {
+    return initializeGlobalSchoolStore();
   }
   return globalThis.mockSchoolDetails_assigno_school;
 }
 
 function updateMockSchoolDetails(details: SchoolDetails): void {
-  if (process.env.NODE_ENV !== 'production') {
+  if (typeof window !== 'undefined') {
     globalThis.mockSchoolDetails_assigno_school = details;
+    globalThis.mockSchoolInitialized_assigno_school = true; // Ensure initialized flag is set
+    localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(details));
+    console.log("[Service:school] Updated school details in global store and localStorage:", details);
   }
+}
+
+// Initialize on load for client-side
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  initializeGlobalSchoolStore();
 }
 
 
@@ -62,7 +100,7 @@ export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetail
 
   // --- Mock implementation ---
   await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-  const currentSchoolData = getMockSchoolDetails();
+  const currentSchoolData = getMockSchoolDetails(); // This now ensures initialization
   if (currentSchoolData && currentSchoolData.schoolCode.toLowerCase() === schoolCode.toLowerCase()) {
     return { ...currentSchoolData };
   }
@@ -72,11 +110,7 @@ export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetail
 
 
 export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>): Promise<SchoolDetails | null> {
-  const currentSchoolData = getMockSchoolDetails();
-  if (!currentSchoolData) {
-    console.error("[Service:school] Cannot update, mock school details not found.");
-    return null;
-  }
+  const currentSchoolData = getMockSchoolDetails(); // Ensures initialized
   
   console.log(`[Service:school] Updating school: ${currentSchoolData.schoolCode}`);
     // TODO: Firebase - Replace with Firestore setDoc or updateDoc
@@ -101,15 +135,12 @@ export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>
         newDetails.address = updatedDetails.address;
     }
     // schoolCode itself is typically not updated this way, it's an identifier.
-    // If updatedDetails.schoolCode is provided and different, it implies changing the key,
-    // which is a more complex operation (delete old, create new).
-    // For simplicity, we assume schoolCode in updatedDetails matches currentSchoolData.schoolCode if provided for update.
     if (updatedDetails.schoolCode && updatedDetails.schoolCode !== newDetails.schoolCode) {
         console.warn(`[Service:school] Attempting to change schoolCode from "${newDetails.schoolCode}" to "${updatedDetails.schoolCode}" is not supported in this mock update. Sticking to original schoolCode.`);
     }
 
-    updateMockSchoolDetails(newDetails);
-    console.log("[Service:school] Updated school details (mock):", newDetails);
+    updateMockSchoolDetails(newDetails); // This function now also saves to localStorage
     return { ...newDetails };
     // --- End mock implementation ---
 }
+
