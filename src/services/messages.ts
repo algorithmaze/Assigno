@@ -16,6 +16,7 @@ export interface PollData {
   options?: PollOption[]; // Optional for short answer
   studentAnswersHidden: boolean; // If true, students don't see MCQ results until published, or other students' short answers
   resultsPublished: boolean; // True if teacher published MCQ results or short answer summary
+  correctOptionId?: string; // For MCQ, the ID of the correct option
   // For MCQ: results map optionId to vote count
   // For Short Answer: results map userId to their answer string (teachers view this)
   results?: Record<string, number>; 
@@ -57,13 +58,13 @@ export interface Message {
 // Type for messages stored in localStorage (with timestamp as string)
 type StoredMessage = Omit<Message, 'timestamp' | 'pollData' | 'eventData' | 'fileData'> & { 
   timestamp: string;
-  pollData?: PollData;
+  pollData?: PollData; // PollData will be stored as is, including correctOptionId
   eventData?: EventData & { dateTime: string }; 
   fileData?: FileData;
 };
 
 
-const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v4'; // Incremented version for new structure
+const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v5'; // Incremented version for new structure
 
 function getMockMessagesData(): Map<string, Message[]> {
   if (typeof window === 'undefined') {
@@ -83,9 +84,10 @@ function getMockMessagesData(): Map<string, Message[]> {
               timestamp: new Date(msg.timestamp), 
               pollData: msg.pollData ? {
                 ...msg.pollData,
-                options: msg.pollData.options || (msg.pollData.pollType === 'mcq' ? [] : undefined), // Ensure options for mcq
-                results: msg.pollData.results || (msg.pollData.pollType === 'mcq' ? {} : undefined), // results for mcq
-                voters: msg.pollData.voters || {} // voters for both
+                options: msg.pollData.options || (msg.pollData.pollType === 'mcq' ? [] : undefined),
+                results: msg.pollData.results || (msg.pollData.pollType === 'mcq' ? {} : undefined),
+                voters: msg.pollData.voters || {},
+                correctOptionId: msg.pollData.correctOptionId, // Ensure this is loaded
               } : undefined,
               eventData: msg.eventData ? {
                 ...msg.eventData,
@@ -124,11 +126,8 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
           type: msg.type,
         };
         if (msg.pollData) {
-          storedMsg.pollData = { 
-            ...msg.pollData,
-            options: msg.pollData.options,
-            results: msg.pollData.results, 
-            voters: msg.pollData.voters
+          storedMsg.pollData = { // Store PollData as is
+            ...msg.pollData
           };
         }
         if (msg.eventData) {
@@ -169,7 +168,7 @@ export interface NewFileMessageInput extends NewMessageBaseInput {
 }
 export interface NewPollMessageInput extends NewMessageBaseInput {
   type: 'poll';
-  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'>; 
+  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished' | 'correctOptionId'>; 
 }
 export interface NewEventMessageInput extends NewMessageBaseInput {
   type: 'event';
@@ -202,9 +201,10 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     specificData = { 
         pollData: { 
             ...messageInput.pollData, 
-            results: messageInput.pollData.pollType === 'mcq' ? {} : undefined, // MCQ has results object, short answer may not initially
+            results: messageInput.pollData.pollType === 'mcq' ? {} : undefined, 
             voters: {}, 
-            resultsPublished: false 
+            resultsPublished: false,
+            correctOptionId: undefined, // Initialize as undefined
         } 
     };
   } else if (messageInput.type === 'event') {
@@ -259,8 +259,6 @@ export async function voteOnPoll(groupId: string, messageId: string, submission:
       pollMessage.pollData.voters[userId] = optionId;
       console.log(`[Service:messages] MCQ Poll ${messageId} updated. New results:`, pollMessage.pollData.results);
   } else if (pollMessage.pollData.pollType === 'shortAnswer') {
-      // For short answer, submission is the text answer.
-      // 'voters' record stores the answer directly. 'results' might not be used for student view.
       pollMessage.pollData.voters[userId] = submission; 
       console.log(`[Service:messages] Short Answer Poll ${messageId} submission from ${userId} recorded.`);
   }
@@ -272,8 +270,8 @@ export async function voteOnPoll(groupId: string, messageId: string, submission:
   return pollMessage;
 }
 
-export async function publishPollResults(groupId: string, messageId: string, publisherId: string): Promise<Message | null> {
-  console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}`);
+export async function publishPollResults(groupId: string, messageId: string, publisherId: string, correctOptionId?: string): Promise<Message | null> {
+  console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}. Correct option ID (if any): ${correctOptionId}`);
   const store = getMockMessagesData();
   const groupMessages = store.get(groupId);
   if (!groupMessages) return null;
@@ -285,14 +283,17 @@ export async function publishPollResults(groupId: string, messageId: string, pub
   if (!pollMessage.pollData) return null;
 
   // TODO: Add permission check: Only sender (teacher/admin) or another admin can publish.
-  // For now, allowing any action for mock.
   
-  pollMessage.pollData = { ...pollMessage.pollData, resultsPublished: true };
+  pollMessage.pollData = { 
+    ...pollMessage.pollData, 
+    resultsPublished: true,
+    ...(pollMessage.pollData.pollType === 'mcq' && correctOptionId && { correctOptionId: correctOptionId })
+  };
   
   groupMessages[messageIndex] = pollMessage;
   store.set(groupId, groupMessages);
   updateMockMessagesData(store);
 
-  console.log(`[Service:messages] Poll ${messageId} results published.`);
+  console.log(`[Service:messages] Poll ${messageId} results published. Correct Option: ${pollMessage.pollData.correctOptionId}`);
   return pollMessage;
 }

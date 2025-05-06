@@ -24,6 +24,8 @@ body {
     --accent-foreground: 0 0% 98%; /* Almost White */
     --destructive: 0 84.2% 60.2%; /* Red */
     --destructive-foreground: 0 0% 98%; /* Almost White */
+    --success: 145 63% 49%; /* Green - for correct answers */
+    --success-foreground: 0 0% 100%; /* White - for text on success background */
     --border: 0 0% 89.8%; /* Gray */
     --input: 0 0% 89.8%; /* Gray */
     --ring: 0 0% 3.9%; /* Almost Black */
@@ -62,6 +64,8 @@ body {
     --accent-foreground: 0 0% 98%; /* Almost White */
     --destructive: 0 62.8% 30.6%; /* Dark Red */
     --destructive-foreground: 0 0% 98%; /* Almost White */
+    --success: 145 63% 39%; /* Darker Green for dark mode */
+    --success-foreground: 0 0% 98%; /* Almost White for text on dark success */
     --border: 0 0% 14.9%; /* Dark Gray */
     --input: 0 0% 14.9%; /* Dark Gray */
     --ring: 0 0% 83.1%; /* Light Gray */
@@ -140,6 +144,9 @@ body {
     --border: 145 50% 85%;
     --input: 145 50% 88%;
     --ring: 145 63% 49%;
+    --success: 145 63% 49%; /* Teacher theme success matches primary */
+    --success-foreground: 0 0% 100%;
+
 
     --sidebar-background: 145 63% 20%; /* Darker Green */
     --sidebar-foreground: 145 50% 90%; /* Light Green Text */
@@ -162,6 +169,8 @@ body {
     --border: 145 65% 25%;
     --input: 145 65% 20%;
     --ring: 145 63% 49%;
+    --success: 145 63% 39%; /* Teacher dark theme success */
+    --success-foreground: 0 0% 98%;
 
     --sidebar-background: 145 63% 10%;
     --sidebar-foreground: 145 50% 85%;
@@ -185,6 +194,9 @@ body {
     --border: 48 80% 85%;
     --input: 48 80% 88%;
     --ring: 48 89% 50%;
+    --success: 120 60% 45%; /* A distinct green for student theme success */
+    --success-foreground: 0 0% 100%;
+
 
     --sidebar-background: 48 89% 20%; /* Darker Yellow/Brown */
     --sidebar-foreground: 48 80% 90%; /* Light Yellow Text */
@@ -207,6 +219,8 @@ body {
     --border: 48 90% 25%;
     --input: 48 90% 20%;
     --ring: 48 89% 50%;
+    --success: 120 60% 35%; /* Darker distinct green for student dark theme success */
+    --success-foreground: 0 0% 98%;
 
     --sidebar-background: 48 89% 10%;
     --sidebar-foreground: 48 80% 85%;

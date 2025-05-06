@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, MessageSquare as MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
 import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
@@ -62,6 +62,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [shortAnswerSubmissions, setShortAnswerSubmissions] = React.useState<Record<string, string>>({});
+  const [pollToPublish, setPollToPublish] = React.useState<Message | null>(null);
 
 
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
@@ -182,11 +183,20 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     }
   };
 
-  const handlePublishResults = async (messageId: string) => {
+  const handleOpenPublishDialog = (message: Message) => {
+    if (message.type === 'poll' && message.pollData?.pollType === 'mcq') {
+        setPollToPublish(message);
+    } else if (message.type === 'poll' && message.pollData?.pollType === 'shortAnswer') {
+        // For short answers, publish directly without marking correct option
+        handleConfirmPublishResults(message.id);
+    }
+  };
+
+  const handleConfirmPublishResults = async (messageId: string, correctOptionId?: string) => {
     if(!user || (user.role !== 'Teacher' && user.role !== 'Admin')) return;
     setIsSending(true);
     try {
-        const updatedPollMessage = await publishPollResults(groupId, messageId, user.id);
+        const updatedPollMessage = await publishPollResults(groupId, messageId, user.id, correctOptionId);
         if (updatedPollMessage) {
             setMessages(prev => prev.map(msg => msg.id === messageId ? updatedPollMessage : msg));
             toast({ title: "Results Published", description: "Poll results are now visible to students."});
@@ -197,6 +207,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         toast({ title: "Error", description: "An error occurred while publishing results.", variant: "destructive"});
     } finally {
         setIsSending(false);
+        setPollToPublish(null); // Close the dialog
     }
   };
 
@@ -292,7 +303,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
       </div>
 
       <ScrollArea className="flex-1" ref={scrollAreaRef}>
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-6">
             {isLoadingMessages && (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                     <Loader2 size={32} className="mb-2 animate-spin"/>
@@ -350,21 +361,29 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                 value={msg.pollData.voters?.[user?.id || ''] || ''}
                                 onValueChange={(optionId) => handleVoteOrSubmitAnswer(msg.id, optionId)}
                                 className="space-y-1.5"
-                                disabled={isSending || !!msg.pollData.voters?.[user?.id || '']}
+                                disabled={isSending || !!msg.pollData.voters?.[user?.id || ''] || msg.pollData.resultsPublished}
                             >
                                 {msg.pollData.options.map(option => {
-                                    const canViewResults = user?.role !== 'Student' || !msg.pollData?.studentAnswersHidden || msg.pollData?.resultsPublished;
+                                    const canViewIndividualResults = user?.role !== 'Student' || !msg.pollData?.studentAnswersHidden || msg.pollData?.resultsPublished;
                                     const totalVotes = Object.values(msg.pollData?.results || {}).reduce((sum, count) => sum + count, 0);
                                     const optionVotes = msg.pollData?.results?.[option.id] || 0;
                                     const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
+                                    const isCorrect = msg.pollData?.resultsPublished && msg.pollData.correctOptionId === option.id;
+                                    const isIncorrect = msg.pollData?.resultsPublished && msg.pollData.correctOptionId && msg.pollData.correctOptionId !== option.id;
+                                    
+                                    let optionStyle = {};
+                                    if(isCorrect) optionStyle = { backgroundColor: 'hsl(var(--success))', color: 'hsl(var(--success-foreground))' };
+                                    if(isIncorrect) optionStyle = { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))' };
+
+
                                     return (
-                                        <div key={option.id}>
+                                        <div key={option.id} className="p-1.5 rounded-md" style={optionStyle}>
                                             <div className="flex items-center space-x-2 mb-0.5">
-                                                <RadioGroupItem value={option.id} id={`${msg.id}-${option.id}`} disabled={isSending || !!msg.pollData?.voters?.[user?.id || '']}/>
+                                                <RadioGroupItem value={option.id} id={`${msg.id}-${option.id}`} disabled={isSending || !!msg.pollData?.voters?.[user?.id || ''] || msg.pollData.resultsPublished}/>
                                                 <Label htmlFor={`${msg.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
-                                                {canViewResults && <span className="text-xs text-muted-foreground/80">{optionVotes} vote(s)</span>}
+                                                {canViewIndividualResults && <span className="text-xs opacity-80">{optionVotes} vote(s)</span>}
                                             </div>
-                                            {canViewResults && <Progress value={percentage} className="h-1.5"/>}
+                                            {canViewIndividualResults && <Progress value={percentage} className="h-1.5"/>}
                                         </div>
                                     );
                                 })}
@@ -402,8 +421,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                     {Object.keys(msg.pollData.voters || {}).length > 0 ? (
                                         <ul className="list-disc list-inside pl-2 mt-1 max-h-32 overflow-y-auto text-xs space-y-0.5">
                                             {Object.entries(msg.pollData.voters || {}).map(([voterId, answer]) => {
-                                                const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || // Try to find sender from other messages
-                                                                 groupSenders.find(s => s.id === voterId); // Or from group senders (if teacher responded)
+                                                const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || 
+                                                                 groupSenders.find(s => s.id === voterId); 
                                                 const voterName = voterUser ? voterUser.name : (messages.find(m => m.senderId === voterId)?.senderName || `User ${voterId.substring(0,5)}`);
                                                 return (
                                                     <li key={voterId}><strong>{voterName}:</strong> "{answer}"</li>
@@ -416,16 +435,14 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                             )
                         )}
                         
-                        {canUseSpecialFeatures && msg.pollData.pollType === 'mcq' && msg.pollData.studentAnswersHidden && !msg.pollData.resultsPublished && (
-                            <Button size="sm" variant="secondary" className="mt-2 h-7 text-xs" onClick={() => handlePublishResults(msg.id)} disabled={isSending}>
+                        {canUseSpecialFeatures && msg.pollData.studentAnswersHidden && !msg.pollData.resultsPublished && (
+                            <Button size="sm" variant="secondary" className="mt-2 h-7 text-xs" onClick={() => handleOpenPublishDialog(msg)} disabled={isSending}>
                                 {isSending ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Eye className="h-3 w-3 mr-1"/> } Publish Results
                             </Button>
                         )}
-                        {canUseSpecialFeatures && msg.pollData.pollType === 'mcq' && msg.pollData.resultsPublished && (
-                            <p className="text-xs mt-2 text-green-600 flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Results Published</p>
+                        {canUseSpecialFeatures && msg.pollData.resultsPublished && (
+                             <p className="text-xs mt-2 text-green-600 dark:text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Results Published</p>
                         )}
-
-
                     </div>
                 )}
 
@@ -494,6 +511,16 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             Students can only view messages in this group.
         </div>
       )}
+
+      {pollToPublish && (
+        <PublishPollResultDialog
+            pollMessage={pollToPublish}
+            isOpen={!!pollToPublish}
+            onClose={() => setPollToPublish(null)}
+            onConfirmPublish={handleConfirmPublishResults}
+            isPublishing={isSending}
+        />
+      )}
     </div>
   );
 }
@@ -526,7 +553,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
       return;
     }
 
-    const pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'> = {
+    const pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished' | 'correctOptionId'> = {
         question,
         pollType,
         studentAnswersHidden,
@@ -696,4 +723,73 @@ function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
       </DialogContent>
     </Dialog>
   );
+}
+
+interface PublishPollResultDialogProps {
+    pollMessage: Message;
+    isOpen: boolean;
+    onClose: () => void;
+    onConfirmPublish: (messageId: string, correctOptionId?: string) => void;
+    isPublishing: boolean;
+}
+
+function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
+    const [selectedCorrectOptionId, setSelectedCorrectOptionId] = React.useState<string | undefined>(pollMessage.pollData?.correctOptionId);
+
+    React.useEffect(() => { // Reset selected option if dialog reopens for a different poll or same poll
+        setSelectedCorrectOptionId(pollMessage.pollData?.correctOptionId);
+    }, [isOpen, pollMessage.pollData?.correctOptionId]);
+
+
+    if (pollMessage.type !== 'poll' || !pollMessage.pollData || pollMessage.pollData.pollType !== 'mcq') {
+        return null; // Should not happen if called correctly
+    }
+
+    const { question, options = [] } = pollMessage.pollData;
+
+    const handleConfirm = () => {
+        if (!selectedCorrectOptionId) {
+            toast({title: "Selection Required", description: "Please select the correct answer before publishing.", variant: "destructive"});
+            return;
+        }
+        onConfirmPublish(pollMessage.id, selectedCorrectOptionId);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Publish Poll Results &amp; Mark Correct Answer</DialogTitle>
+                    <DialogDescription>
+                        Select the correct answer for the poll: "{question}". This will be highlighted for students.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-3">
+                    <Label>Select Correct Option:</Label>
+                    <RadioGroup
+                        value={selectedCorrectOptionId}
+                        onValueChange={setSelectedCorrectOptionId}
+                        className="space-y-1.5"
+                    >
+                        {options.map(option => (
+                            <div key={option.id} className="flex items-center space-x-2">
+                                <RadioGroupItem value={option.id} id={`publish-correct-${option.id}`} />
+                                <Label htmlFor={`publish-correct-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
+                            </div>
+                        ))}
+                    </RadioGroup>
+                     {!selectedCorrectOptionId && (
+                        <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Please select an option as correct.</p>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={onClose} disabled={isPublishing}>Cancel</Button>
+                    <Button type="button" onClick={handleConfirm} disabled={isPublishing || !selectedCorrectOptionId}>
+                        {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Confirm &amp; Publish
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
 }
