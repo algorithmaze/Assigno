@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -12,11 +13,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
+  FormDescription, // This is from '@/components/ui/form'
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription as ShadcnCardDescription } from '@/components/ui/card'; // Imported CardDescription as ShadcnCardDescription
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -101,9 +102,10 @@ export default function CreateGroupPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Enter Group Details</CardTitle>
-          <FormDescription>
+          {/* Use ShadcnCardDescription (from ui/card) here as it's outside the Form context */}
+          <ShadcnCardDescription>
             Admins and Teachers can create groups. The creator will automatically be added as a teacher/manager.
-          </FormDescription>
+          </ShadcnCardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -117,6 +119,7 @@ export default function CreateGroupPage() {
                     <FormControl>
                       <Input placeholder="e.g., Class 10 Maths, Debate Club" {...field} />
                     </FormControl>
+                    {/* This FormDescription (from ui/form) is correctly placed inside a FormField */}
                     <FormDescription>
                       A descriptive name for the group.
                     </FormDescription>
@@ -167,3 +170,4 @@ export default function CreateGroupPage() {
     </div>
   );
 }
+
