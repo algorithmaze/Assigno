@@ -1,4 +1,3 @@
-
 'use client';
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp)
 // import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -13,10 +12,15 @@ export interface PollOption {
 
 export interface PollData {
   question: string;
-  options: PollOption[];
-  // Results: key is option id, value is count of votes
+  pollType: 'mcq' | 'shortAnswer';
+  options?: PollOption[]; // Optional for short answer
+  studentAnswersHidden: boolean; // If true, students don't see MCQ results until published, or other students' short answers
+  resultsPublished: boolean; // True if teacher published MCQ results or short answer summary
+  // For MCQ: results map optionId to vote count
+  // For Short Answer: results map userId to their answer string (teachers view this)
   results?: Record<string, number>; 
-  // Voters: key is userId, value is optionId voted for
+  // For MCQ: voters map userId to optionId
+  // For Short Answer: voters map userId to their answer string (this is what students submit)
   voters?: Record<string, string>; 
 }
 
@@ -53,17 +57,17 @@ export interface Message {
 // Type for messages stored in localStorage (with timestamp as string)
 type StoredMessage = Omit<Message, 'timestamp' | 'pollData' | 'eventData' | 'fileData'> & { 
   timestamp: string;
-  pollData?: Omit<PollData, 'results' | 'voters'> & { results?: Record<string, number>, voters?: Record<string, string> }; // Results and voters are optional
-  eventData?: EventData & { dateTime: string }; // Ensure dateTime is string
+  pollData?: PollData;
+  eventData?: EventData & { dateTime: string }; 
   fileData?: FileData;
 };
 
 
-const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v3'; // Incremented version for new structure
+const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v4'; // Incremented version for new structure
 
 function getMockMessagesData(): Map<string, Message[]> {
   if (typeof window === 'undefined') {
-    return new Map<string, Message[]>(); // No localStorage on server-side
+    return new Map<string, Message[]>();
   }
   try {
     const storedData = localStorage.getItem(MESSAGES_STORAGE_KEY);
@@ -76,19 +80,19 @@ function getMockMessagesData(): Map<string, Message[]> {
             groupId,
             parsedObject[groupId].map(msg => ({
               ...msg,
-              timestamp: new Date(msg.timestamp), // Deserialize date string
-              // Ensure pollData results and voters are initialized if not present
+              timestamp: new Date(msg.timestamp), 
               pollData: msg.pollData ? {
                 ...msg.pollData,
-                results: msg.pollData.results || {},
-                voters: msg.pollData.voters || {}
+                options: msg.pollData.options || (msg.pollData.pollType === 'mcq' ? [] : undefined), // Ensure options for mcq
+                results: msg.pollData.results || (msg.pollData.pollType === 'mcq' ? {} : undefined), // results for mcq
+                voters: msg.pollData.voters || {} // voters for both
               } : undefined,
               eventData: msg.eventData ? {
                 ...msg.eventData,
-                dateTime: msg.eventData.dateTime // Already string
+                dateTime: msg.eventData.dateTime 
               } : undefined,
               fileData: msg.fileData
-            } as Message)) // Cast to Message to satisfy type, assuming structure is correct
+            } as Message)) 
           );
         }
       }
@@ -102,7 +106,7 @@ function getMockMessagesData(): Map<string, Message[]> {
 
 function updateMockMessagesData(newData: Map<string, Message[]>): void {
   if (typeof window === 'undefined') {
-    return; // No localStorage on server-side
+    return; 
   }
   try {
     const objectToStore: Record<string, StoredMessage[]> = {};
@@ -116,14 +120,15 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
           senderRole: msg.senderRole,
           senderAvatar: msg.senderAvatar,
           content: msg.content,
-          timestamp: msg.timestamp.toISOString(), // Serialize Date object
+          timestamp: msg.timestamp.toISOString(), 
           type: msg.type,
         };
         if (msg.pollData) {
           storedMsg.pollData = { 
-            ...msg.pollData, 
-            results: msg.pollData.results || {}, 
-            voters: msg.pollData.voters || {}
+            ...msg.pollData,
+            options: msg.pollData.options,
+            results: msg.pollData.results, 
+            voters: msg.pollData.voters
           };
         }
         if (msg.eventData) {
@@ -141,20 +146,18 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
   }
 }
 
-
-// TODO: Firebase - Consider using onSnapshot for real-time updates in getGroupMessages
 export async function getGroupMessages(groupId: string): Promise<Message[]> {
   console.log(`[Service:messages] Fetching messages for group ${groupId}`);
   
   await new Promise(resolve => setTimeout(resolve, 10)); 
-  const store = getMockMessagesData(); // Use localStorage based function
+  const store = getMockMessagesData(); 
   const messages = store.get(groupId) || [];
   console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (localStorage mock).`);
   return [...messages].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
 }
 
 export interface NewMessageBaseInput {
-  content: string; // For text, poll question, event title, file name
+  content: string; 
   type: 'text' | 'file' | 'poll' | 'event';
 }
 export interface NewTextMessageInput extends NewMessageBaseInput {
@@ -166,7 +169,7 @@ export interface NewFileMessageInput extends NewMessageBaseInput {
 }
 export interface NewPollMessageInput extends NewMessageBaseInput {
   type: 'poll';
-  pollData: Omit<PollData, 'results' | 'voters'>; // Results and voters initialized by service
+  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'>; 
 }
 export interface NewEventMessageInput extends NewMessageBaseInput {
   type: 'event';
@@ -185,18 +188,25 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
   
   const baseMessageData = {
     groupId: groupId,
-    timestamp: new Date(), // Current timestamp as Date object
+    timestamp: new Date(), 
     senderId: sender.id,
     senderName: sender.name,
     senderRole: sender.role,
     senderAvatar: sender.profilePictureUrl || `https://picsum.photos/40/40?random=${sender.id.replace('-','')}`, 
-    content: messageInput.content, // Generic content field
+    content: messageInput.content, 
     type: messageInput.type,
   };
   
   let specificData = {};
   if (messageInput.type === 'poll') {
-    specificData = { pollData: { ...messageInput.pollData, results: {}, voters: {} } };
+    specificData = { 
+        pollData: { 
+            ...messageInput.pollData, 
+            results: messageInput.pollData.pollType === 'mcq' ? {} : undefined, // MCQ has results object, short answer may not initially
+            voters: {}, 
+            resultsPublished: false 
+        } 
+    };
   } else if (messageInput.type === 'event') {
     specificData = { eventData: messageInput.eventData };
   } else if (messageInput.type === 'file') {
@@ -207,23 +217,23 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     ...baseMessageData,
     ...specificData,
     id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  } as Message; // Assert type after merging
+  } as Message; 
   
   await new Promise(resolve => setTimeout(resolve, 10));
-  const store = getMockMessagesData(); // Use localStorage based function
+  const store = getMockMessagesData();
 
   const currentMessages = store.get(groupId) || [];
   const updatedMessages = [...currentMessages, fullMessage];
   store.set(groupId, updatedMessages);
 
-  updateMockMessagesData(store); // Save updated store to localStorage
+  updateMockMessagesData(store); 
 
   console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (localStorage mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
   return { ...fullMessage };
 }
 
-export async function voteOnPoll(groupId: string, messageId: string, optionId: string, userId: string): Promise<Message | null> {
-  console.log(`[Service:messages] User ${userId} voting for option ${optionId} on poll ${messageId} in group ${groupId}`);
+export async function voteOnPoll(groupId: string, messageId: string, submission: string, userId: string): Promise<Message | null> {
+  console.log(`[Service:messages] User ${userId} submitting for poll ${messageId} in group ${groupId}. Submission: ${submission}`);
   
   const store = getMockMessagesData();
   const groupMessages = store.get(groupId);
@@ -232,29 +242,57 @@ export async function voteOnPoll(groupId: string, messageId: string, optionId: s
   const messageIndex = groupMessages.findIndex(msg => msg.id === messageId && msg.type === 'poll');
   if (messageIndex === -1) return null;
 
-  const pollMessage = { ...groupMessages[messageIndex] }; // Clone message
+  const pollMessage = { ...groupMessages[messageIndex] }; 
   if (!pollMessage.pollData) return null;
 
-  pollMessage.pollData = { ...pollMessage.pollData }; // Clone pollData
-  pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
+  pollMessage.pollData = { ...pollMessage.pollData }; 
   pollMessage.pollData.voters = { ...(pollMessage.pollData.voters || {}) };
-
-
-  // If user has already voted, remove their previous vote
-  const previousVoteOptionId = pollMessage.pollData.voters[userId];
-  if (previousVoteOptionId) {
-    pollMessage.pollData.results[previousVoteOptionId] = (pollMessage.pollData.results[previousVoteOptionId] || 1) -1;
-    if(pollMessage.pollData.results[previousVoteOptionId] < 0) pollMessage.pollData.results[previousVoteOptionId] = 0;
-  }
   
-  // Add new vote
-  pollMessage.pollData.results[optionId] = (pollMessage.pollData.results[optionId] || 0) + 1;
-  pollMessage.pollData.voters[userId] = optionId;
+  if (pollMessage.pollData.pollType === 'mcq') {
+      pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
+      const optionId = submission; // For MCQ, submission is the optionId
+      const previousVoteOptionId = pollMessage.pollData.voters[userId];
+      if (previousVoteOptionId && pollMessage.pollData.results[previousVoteOptionId]) {
+        pollMessage.pollData.results[previousVoteOptionId] = Math.max(0, (pollMessage.pollData.results[previousVoteOptionId] || 1) - 1);
+      }
+      pollMessage.pollData.results[optionId] = (pollMessage.pollData.results[optionId] || 0) + 1;
+      pollMessage.pollData.voters[userId] = optionId;
+      console.log(`[Service:messages] MCQ Poll ${messageId} updated. New results:`, pollMessage.pollData.results);
+  } else if (pollMessage.pollData.pollType === 'shortAnswer') {
+      // For short answer, submission is the text answer.
+      // 'voters' record stores the answer directly. 'results' might not be used for student view.
+      pollMessage.pollData.voters[userId] = submission; 
+      console.log(`[Service:messages] Short Answer Poll ${messageId} submission from ${userId} recorded.`);
+  }
   
   groupMessages[messageIndex] = pollMessage;
   store.set(groupId, groupMessages);
   updateMockMessagesData(store);
 
-  console.log(`[Service:messages] Poll ${messageId} updated with vote from ${userId}. New results:`, pollMessage.pollData.results);
+  return pollMessage;
+}
+
+export async function publishPollResults(groupId: string, messageId: string, publisherId: string): Promise<Message | null> {
+  console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}`);
+  const store = getMockMessagesData();
+  const groupMessages = store.get(groupId);
+  if (!groupMessages) return null;
+
+  const messageIndex = groupMessages.findIndex(msg => msg.id === messageId && msg.type === 'poll');
+  if (messageIndex === -1) return null;
+
+  const pollMessage = { ...groupMessages[messageIndex] };
+  if (!pollMessage.pollData) return null;
+
+  // TODO: Add permission check: Only sender (teacher/admin) or another admin can publish.
+  // For now, allowing any action for mock.
+  
+  pollMessage.pollData = { ...pollMessage.pollData, resultsPublished: true };
+  
+  groupMessages[messageIndex] = pollMessage;
+  store.set(groupId, groupMessages);
+  updateMockMessagesData(store);
+
+  console.log(`[Service:messages] Poll ${messageId} results published.`);
   return pollMessage;
 }
