@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, MessageSquare as MessageSquareIcon, Loader2, Search, Filter } from 'lucide-react';
+import { Paperclip, Smile, Send, MessageSquare as MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle } from 'lucide-react';
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput } from '@/services/messages';
+import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -19,6 +19,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogTrigger,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from '@/components/ui/progress';
+
 
 interface ChatInterfaceProps {
     groupId: string;
@@ -44,6 +61,10 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterMessageType, setFilterMessageType] = React.useState<MessageTypeFilter>('all');
   const [filterSenderId, setFilterSenderId] = React.useState<SenderIdFilter>('all');
+
+  const [isCreatePollOpen, setIsCreatePollOpen] = React.useState(false);
+  const [isCreateEventOpen, setIsCreateEventOpen] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
 
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
@@ -90,9 +111,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   }, [groupId, fetchAndSetMessages]);
 
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!newMessage.trim() || !user) return;
+  const handleSendMessage = async (input: NewMessageInput) => {
+    if (!user) return;
 
     if (user.role === 'Student' && !groupSettings?.allowStudentPosts) {
         toast({ title: "Restriction", description: "Students are not allowed to send messages in this group.", variant: "default"});
@@ -100,15 +120,10 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     }
 
     setIsSending(true);
-    const messageInput: NewMessageInput = {
-      content: newMessage,
-      type: 'text', 
-    };
-
     try {
-      const sentMessage = await addMessageToGroup(groupId, messageInput, user);
+      const sentMessage = await addMessageToGroup(groupId, input, user);
       setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
-      setNewMessage('');
+      if (input.type === 'text') setNewMessage(''); // Clear text input only for text messages
     } catch (error) {
         console.error("Failed to send message:", error);
         toast({ title: "Error", description: "Could not send message.", variant: "destructive" });
@@ -116,6 +131,59 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         setIsSending(false);
     }
   };
+
+  const handleTextSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!newMessage.trim()) return;
+    handleSendMessage({ type: 'text', content: newMessage });
+  };
+
+  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // For mock, we'll simulate upload and use a data URL or just filename
+    // In a real app, upload to Firebase Storage or other service
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const fileData: FileData = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        url: e.target?.result as string, // Mock: using data URL as the 'download' url
+      };
+      const messageInput: NewFileMessageInput = {
+        type: 'file',
+        content: file.name, // Display filename as content
+        fileData: fileData,
+      };
+      handleSendMessage(messageInput);
+    };
+    reader.readAsDataURL(file); // For mock, reading as data URL
+
+     if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Reset file input
+    }
+  };
+
+  const handleVote = async (messageId: string, optionId: string) => {
+    if (!user) return;
+    setIsSending(true); // Use general sending state for poll interactions
+    try {
+      const updatedPollMessage = await voteOnPoll(groupId, messageId, optionId, user.id);
+      if (updatedPollMessage) {
+        setMessages(prev => prev.map(msg => msg.id === messageId ? updatedPollMessage : msg));
+        toast({ title: "Vote Cast", description: "Your vote has been recorded." });
+      } else {
+        toast({ title: "Error", description: "Failed to record vote.", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "An error occurred while voting.", variant: "destructive" });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
 
     React.useEffect(() => {
        if(scrollAreaRef.current && !isLoadingMessages){ 
@@ -126,8 +194,6 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
        }
     }, [messages, isLoadingMessages]); 
 
-    // Mock group settings for student posting
-    // In a real app, this would come from the group's details
     const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: false}); 
 
     const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
@@ -139,7 +205,14 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             const typeMatch = filterMessageType === 'all' || msg.type === filterMessageType;
             const senderMatch = filterSenderId === 'all' || msg.senderId === filterSenderId;
             const searchTermLower = searchTerm.toLowerCase();
-            const contentMatch = msg.content.toLowerCase().includes(searchTermLower);
+            
+            let contentToSearch = '';
+            if (msg.type === 'text') contentToSearch = msg.content;
+            else if (msg.type === 'file' && msg.fileData) contentToSearch = msg.fileData.name;
+            else if (msg.type === 'poll' && msg.pollData) contentToSearch = msg.pollData.question;
+            else if (msg.type === 'event' && msg.eventData) contentToSearch = msg.eventData.title;
+
+            const contentMatch = contentToSearch.toLowerCase().includes(searchTermLower);
             const senderNameMatch = msg.senderName.toLowerCase().includes(searchTermLower);
             const searchMatch = searchTerm.trim() === '' || contentMatch || senderNameMatch;
 
@@ -218,7 +291,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         {!isLoadingMessages && filteredAndSearchedMessages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex items-end gap-2 mb-3 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-end gap-2 mb-4 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
           >
              {msg.senderId !== user?.id && (
                 <Avatar className="h-8 w-8 self-start flex-shrink-0">
@@ -234,10 +307,66 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
               }`}
             >
               {msg.senderId !== user?.id && <p className="text-xs font-semibold mb-0.5">{msg.senderName} <span className="text-xs opacity-70">({msg.senderRole})</span></p>}
+              
               {msg.type === 'text' && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
-              {msg.type === 'file' && <p className="text-sm">[File: {msg.content}]</p>}
-              {msg.type === 'poll' && <p className="text-sm">[Poll: {msg.content}]</p>}
-              {msg.type === 'event' && <p className="text-sm">[Event: {msg.content}]</p>}
+              
+              {msg.type === 'file' && msg.fileData && (
+                <div className="space-y-1">
+                    <p className="text-sm font-medium flex items-center gap-1.5"><FileText className="h-4 w-4"/> {msg.fileData.name}</p>
+                    <p className="text-xs text-muted-foreground/80">{msg.fileData.type} - {(msg.fileData.size || 0 / 1024).toFixed(2)} KB</p>
+                    {/* In a real app, this would be a download link */}
+                    <Button size="sm" variant={msg.senderId === user?.id ? "secondary" : "outline"} className="mt-1 h-7 text-xs" asChild>
+                        <a href={msg.fileData.url} download={msg.fileData.name} target="_blank" rel="noopener noreferrer">Download</a>
+                    </Button>
+                </div>
+              )}
+
+              {msg.type === 'poll' && msg.pollData && (
+                <div className="space-y-2">
+                    <p className="text-sm font-semibold">{msg.pollData.question}</p>
+                    <RadioGroup
+                        value={msg.pollData.voters?.[user?.id || ''] || ''}
+                        onValueChange={(optionId) => handleVote(msg.id, optionId)}
+                        className="space-y-1.5"
+                        disabled={isSending}
+                    >
+                        {msg.pollData.options.map(option => {
+                            const totalVotes = Object.values(msg.pollData?.results || {}).reduce((sum, count) => sum + count, 0);
+                            const optionVotes = msg.pollData?.results?.[option.id] || 0;
+                            const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
+                            return (
+                                <div key={option.id}>
+                                    <div className="flex items-center space-x-2 mb-0.5">
+                                        <RadioGroupItem value={option.id} id={`${msg.id}-${option.id}`} disabled={isSending}/>
+                                        <Label htmlFor={`${msg.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
+                                        <span className="text-xs text-muted-foreground/80">{optionVotes} vote(s)</span>
+                                    </div>
+                                    <Progress value={percentage} className="h-1.5"/>
+                                </div>
+                            );
+                        })}
+                    </RadioGroup>
+                </div>
+              )}
+
+              {msg.type === 'event' && msg.eventData && (
+                <div className="space-y-1">
+                    <p className="text-sm font-semibold flex items-center gap-1.5"><CalendarDays className="h-4 w-4"/> {msg.eventData.title}</p>
+                    {msg.eventData.description && <p className="text-xs text-muted-foreground/80">{msg.eventData.description}</p>}
+                    <p className="text-xs">Date: {format(new Date(msg.eventData.dateTime), "PPP p")}</p>
+                    {msg.eventData.location && <p className="text-xs">Location: {msg.eventData.location}</p>}
+                    {/* Button to add to Google Calendar (complex, requires API or well-formed link) */}
+                    <Button size="sm" variant={msg.senderId === user?.id ? "secondary" : "outline"} className="mt-1 h-7 text-xs" 
+                        onClick={() => {
+                             const gCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(msg.eventData?.title || '')}&dates=${new Date(msg.eventData?.dateTime || '').toISOString().replace(/-|:|\.\d{3}/g, '')}/${new Date(new Date(msg.eventData?.dateTime || '').getTime() + 60 * 60 * 1000).toISOString().replace(/-|:|\.\d{3}/g, '')}&details=${encodeURIComponent(msg.eventData?.description || '')}&location=${encodeURIComponent(msg.eventData?.location || '')}`;
+                             window.open(gCalUrl, '_blank');
+                        }}
+                    >
+                        Add to Calendar
+                    </Button>
+                </div>
+              )}
+              
               <p className={`mt-1 text-xs ${msg.senderId === user?.id ? 'text-primary-foreground/70' : 'text-muted-foreground/80'} text-right`}>
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
@@ -254,10 +383,14 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
 
       {canPostMessages ? (
         <div className="border-t p-2 sm:p-4 bg-background">
-            <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
                 {canUseSpecialFeatures && (
                     <>
-                        <Button type="button" variant="ghost" size="icon" aria-label="Attach file" disabled><Paperclip className="h-5 w-5" /></Button>
+                        <Input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain"/>
+                        <Button type="button" variant="ghost" size="icon" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={isSending}><Paperclip className="h-5 w-5" /></Button>
+                        
+                        <CreatePollDialog onSendPoll={handleSendMessage} disabled={isSending} />
+                        <CreateEventDialog onSendEvent={handleSendMessage} disabled={isSending} />
                     </>
                 )}
                 <Input
@@ -285,3 +418,164 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   );
 }
 
+
+// Create Poll Dialog Component
+interface CreatePollDialogProps {
+  onSendPoll: (input: NewPollMessageInput) => void;
+  disabled?: boolean;
+}
+function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [question, setQuestion] = React.useState('');
+  const [options, setOptions] = React.useState<PollOption[]>([{ id: `opt-${Date.now()}`, text: '' }]);
+
+  const handleAddOption = () => setOptions([...options, { id: `opt-${Date.now()}-${options.length}`, text: '' }]);
+  const handleRemoveOption = (id: string) => setOptions(options.filter(opt => opt.id !== id));
+  const handleOptionChange = (id: string, text: string) => {
+    setOptions(options.map(opt => opt.id === id ? { ...opt, text } : opt));
+  };
+
+  const handleSubmit = () => {
+    if (!question.trim() || options.some(opt => !opt.text.trim()) || options.length < 2) {
+      toast({ title: "Invalid Poll", description: "Question and at least two options are required.", variant: "destructive" });
+      return;
+    }
+    onSendPoll({
+      type: 'poll',
+      content: question, // Main content is the question
+      pollData: { question, options: options.filter(opt => opt.text.trim()) },
+    });
+    setIsOpen(false);
+    setQuestion('');
+    setOptions([{ id: `opt-${Date.now()}`, text: '' }]);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" aria-label="Create poll" disabled={disabled}><ListChecks className="h-5 w-5" /></Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create New Poll</DialogTitle>
+          <DialogDescription>Ask a question and provide options for members to vote.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="poll-question" className="text-right col-span-1">Question</Label>
+            <Input id="poll-question" value={question} onChange={(e) => setQuestion(e.target.value)} className="col-span-3" placeholder="What's your question?"/>
+          </div>
+          {options.map((option, index) => (
+            <div key={option.id} className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor={`poll-option-${index}`} className="text-right col-span-1">Option {index + 1}</Label>
+              <Input id={`poll-option-${index}`} value={option.text} onChange={(e) => handleOptionChange(option.id, e.target.value)} className="col-span-2" placeholder={`Option ${index+1}`}/>
+              {options.length > 1 && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveOption(option.id)} className="col-span-1 justify-self-start" aria-label="Remove option">
+                    <Trash2 className="h-4 w-4"/>
+                </Button>
+              )}
+            </div>
+          ))}
+           <Button type="button" variant="outline" onClick={handleAddOption} className="mt-2 justify-self-start ml-auto mr-auto w-full sm:w-auto col-span-4 sm:col-start-2">
+            <PlusCircle className="mr-2 h-4 w-4"/> Add Option
+          </Button>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+          <Button type="button" onClick={handleSubmit}>Create Poll</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Create Event Dialog Component
+interface CreateEventDialogProps {
+  onSendEvent: (input: NewEventMessageInput) => void;
+  disabled?: boolean;
+}
+function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [title, setTitle] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [dateTime, setDateTime] = React.useState<Date | undefined>();
+  const [location, setLocation] = React.useState('');
+
+  const handleSubmit = () => {
+    if (!title.trim() || !dateTime) {
+        toast({ title: "Invalid Event", description: "Event title and date/time are required.", variant: "destructive" });
+        return;
+    }
+    onSendEvent({
+      type: 'event',
+      content: title, // Main content is the title
+      eventData: { title, description, dateTime: dateTime.toISOString(), location },
+    });
+    setIsOpen(false);
+    setTitle(''); setDescription(''); setDateTime(undefined); setLocation('');
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" aria-label="Create event" disabled={disabled}><CalendarDays className="h-5 w-5" /></Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create New Event</DialogTitle>
+          <DialogDescription>Share an event with the group and set a reminder.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="event-title" className="text-right">Title</Label>
+            <Input id="event-title" value={title} onChange={(e) => setTitle(e.target.value)} className="col-span-3" placeholder="Event name"/>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="event-description" className="text-right">Description</Label>
+            <Textarea id="event-description" value={description} onChange={(e) => setDescription(e.target.value)} className="col-span-3" placeholder="Details about the event (optional)"/>
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="event-datetime" className="text-right">Date & Time</Label>
+             <Popover>
+                <PopoverTrigger asChild>
+                    <Button
+                    variant={"outline"}
+                    className={`col-span-3 justify-start text-left font-normal ${!dateTime && "text-muted-foreground"}`}
+                    >
+                    <CalendarDays className="mr-2 h-4 w-4" />
+                    {dateTime ? format(dateTime, "PPP p") : <span>Pick a date and time</span>}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                    <Calendar
+                        mode="single"
+                        selected={dateTime}
+                        onSelect={setDateTime}
+                        initialFocus
+                    />
+                    {/* Basic time picker - replace with a better one if needed */}
+                    <div className="p-2 border-t">
+                        <Input type="time" defaultValue={dateTime ? format(dateTime, "HH:mm") : "12:00"} onChange={(e) => {
+                            const [hours, minutes] = e.target.value.split(':').map(Number);
+                            const newDate = dateTime ? new Date(dateTime) : new Date();
+                            newDate.setHours(hours);
+                            newDate.setMinutes(minutes);
+                            setDateTime(newDate);
+                        }}/>
+                    </div>
+                </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="event-location" className="text-right">Location</Label>
+            <Input id="event-location" value={location} onChange={(e) => setLocation(e.target.value)} className="col-span-3" placeholder="e.g., School Auditorium (optional)"/>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+          <Button type="button" onClick={handleSubmit}>Create Event</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
