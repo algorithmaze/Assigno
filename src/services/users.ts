@@ -9,89 +9,7 @@ import { getSchoolDetails } from './school';
 import * as XLSX from 'xlsx';
 
 
-// Use a global variable for mock data in non-production environments
-declare global {
-  var mockUsersData_assigno_users: User[] | undefined;
-  var mockUsersInitialized_assigno_users: boolean | undefined;
-}
-
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v2'; // Incremented version
-
-function initializeGlobalUsersStore(): User[] {
-    if (typeof window === 'undefined') {
-        return []; // Server-side, return empty
-    }
-    if (globalThis.mockUsersData_assigno_users && globalThis.mockUsersInitialized_assigno_users) {
-        return globalThis.mockUsersData_assigno_users;
-    }
-    try {
-        const storedData = localStorage.getItem(USERS_STORAGE_KEY);
-        if (storedData) {
-            const users = JSON.parse(storedData) as User[];
-            globalThis.mockUsersData_assigno_users = users;
-            globalThis.mockUsersInitialized_assigno_users = true;
-            console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
-            return users;
-        }
-    } catch (error) {
-        console.error("[Service:users] Error reading users from localStorage during global init:", error);
-    }
-
-    // If no localStorage data or error, initialize with sampleCredentials
-    const initialUsers = Object.values(sampleCredentials).map(cred => ({
-        id: cred.id,
-        name: cred.name,
-        email: cred.email,
-        phoneNumber: cred.phoneNumber,
-        role: cred.role,
-        schoolCode: cred.schoolCode,
-        schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
-        schoolAddress: "456 School Road, Testville", // Default
-        profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
-        admissionNumber: cred.admissionNumber,
-        class: cred.class,
-        designation: cred.designation,
-    }));
-    
-    globalThis.mockUsersData_assigno_users = initialUsers;
-    globalThis.mockUsersInitialized_assigno_users = true;
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
-    console.log("[Service:users] Initialized new global users store with sample credentials and saved to localStorage.");
-    return initialUsers;
-}
-
-
-function getMockUsersData(): User[] {
-  if (typeof window === 'undefined') {
-    return []; // Server-side, return empty
-  }
-  if (!globalThis.mockUsersData_assigno_users || !globalThis.mockUsersInitialized_assigno_users) {
-    return initializeGlobalUsersStore();
-  }
-  return globalThis.mockUsersData_assigno_users;
-}
-
-function updateMockUsersData(newData: User[]): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  globalThis.mockUsersData_assigno_users = newData; // Update global store
-  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
-  try {
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
-    console.log("[Service:users] Saved", newData.length, "users to localStorage.");
-  } catch (error) {
-    console.error("[Service:users] Error writing users to localStorage:", error);
-  }
-}
-
-// Initialize on load for client-side
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-    initializeGlobalUsersStore();
-}
-
-
-// Define sampleCredentials and related constants directly in users.ts
+// Define sampleCredentials and related constants first
 const SCHOOL_CODE = 'samp123';
 const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
 
@@ -195,6 +113,89 @@ export const sampleCredentials = {
         designation: undefined,
     },
 };
+
+
+// Use a global variable for mock data in non-production environments
+declare global {
+  var mockUsersData_assigno_users: User[] | undefined;
+  var mockUsersInitialized_assigno_users: boolean | undefined;
+}
+
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v2'; // Incremented version
+
+function initializeGlobalUsersStore(): User[] {
+    if (typeof window === 'undefined') {
+        return []; // Server-side, return empty
+    }
+    if (globalThis.mockUsersData_assigno_users && globalThis.mockUsersInitialized_assigno_users) {
+        return globalThis.mockUsersData_assigno_users;
+    }
+    try {
+        const storedData = localStorage.getItem(USERS_STORAGE_KEY);
+        if (storedData) {
+            const users = JSON.parse(storedData) as User[];
+            globalThis.mockUsersData_assigno_users = users;
+            globalThis.mockUsersInitialized_assigno_users = true;
+            console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
+            return users;
+        }
+    } catch (error) {
+        console.error("[Service:users] Error reading users from localStorage during global init:", error);
+    }
+
+    // If no localStorage data or error, initialize with sampleCredentials
+    const initialUsers = Object.values(sampleCredentials).map(cred => ({
+        id: cred.id,
+        name: cred.name,
+        email: cred.email,
+        phoneNumber: cred.phoneNumber,
+        role: cred.role,
+        schoolCode: cred.schoolCode,
+        schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
+        schoolAddress: "456 School Road, Testville", // Default
+        profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
+        admissionNumber: cred.admissionNumber,
+        class: cred.class,
+        designation: cred.designation,
+    }));
+    
+    globalThis.mockUsersData_assigno_users = initialUsers;
+    globalThis.mockUsersInitialized_assigno_users = true;
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
+    console.log("[Service:users] Initialized new global users store with sample credentials and saved to localStorage.");
+    return initialUsers;
+}
+
+
+function getMockUsersData(): User[] {
+  if (typeof window === 'undefined') {
+    return []; // Server-side, return empty
+  }
+  if (!globalThis.mockUsersData_assigno_users || !globalThis.mockUsersInitialized_assigno_users) {
+    return initializeGlobalUsersStore();
+  }
+  return globalThis.mockUsersData_assigno_users;
+}
+
+function updateMockUsersData(newData: User[]): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  globalThis.mockUsersData_assigno_users = newData; // Update global store
+  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
+  try {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
+    console.log("[Service:users] Saved", newData.length, "users to localStorage.");
+  } catch (error) {
+    console.error("[Service:users] Error writing users to localStorage:", error);
+  }
+}
+
+// Initialize on load for client-side
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    initializeGlobalUsersStore();
+}
+
 
 export async function ensureMockDataInitialized() {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
@@ -443,4 +444,5 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
 // Run self-initialization when the module is loaded (primarily for client-side dev)
 // Ensure this is called after sampleCredentials is defined
 // Moved to a callable ensureMockDataInitialized for better control
+
 

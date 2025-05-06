@@ -1,4 +1,5 @@
 
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc, getDoc)
 // import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -36,7 +37,7 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   console.log(`Verifying OTP ${otp} for ${identifier}`);
   const usersModule = await import('./users'); // Import dynamically
   if (typeof usersModule.ensureMockDataInitialized === 'function') {
-    await usersModule.ensureMockDataInitialized();
+    await usersModule.ensureMockDataInitialized(); // Make sure data is loaded before accessing sampleCredentials
   }
   // TODO: Firebase - OTP verification itself is usually handled by Firebase Auth.
   // If using a custom OTP system, you'd check against a temporary code stored (e.g., in Firestore or Redis).
@@ -138,4 +139,5 @@ if (process.env.NODE_ENV === 'development') {
 
 // The initialization of mock users will now be handled within users.ts itself.
 // No longer need to call initializeMockUsersWithCredentials from here.
+
 
