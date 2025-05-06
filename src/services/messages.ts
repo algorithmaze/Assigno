@@ -28,11 +28,11 @@ if (process.env.NODE_ENV === 'production') {
   groupMessagesStore = new Map<string, Message[]>();
   // TODO: Firebase - In production, this Map would not be used. Data comes from Firestore.
 } else {
-  if (!global.groupMessagesStore_assigno) {
-    global.groupMessagesStore_assigno = new Map<string, Message[]>();
+  if (!(globalThis as any).groupMessagesStore_assigno) {
+    (globalThis as any).groupMessagesStore_assigno = new Map<string, Message[]>();
     console.log("[Service:messages] Initialized global groupMessagesStore_assigno.");
   }
-  groupMessagesStore = global.groupMessagesStore_assigno;
+  groupMessagesStore = (globalThis as any).groupMessagesStore_assigno;
 }
 
 // TODO: Firebase - Consider using onSnapshot for real-time updates in getGroupMessages
@@ -91,3 +91,4 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
   return { ...fullMessage }; 
   // --- End mock implementation ---
 }
+

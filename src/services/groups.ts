@@ -40,13 +40,13 @@ if (process.env.NODE_ENV === 'production') {
   mockGroupsData = []; 
   // TODO: Firebase - In production, this array would not be used. Data comes from Firestore.
 } else {
-  if (!global.mockGroupsData_assigno) {
-    global.mockGroupsData_assigno = [
+  if (!(globalThis as any).mockGroupsData_assigno) {
+    (globalThis as any).mockGroupsData_assigno = [
      
     ];
     console.log("[Service:groups] Initialized global mockGroupsData_assigno (empty).");
   }
-  mockGroupsData = global.mockGroupsData_assigno;
+  mockGroupsData = (globalThis as any).mockGroupsData_assigno;
 }
 
 
@@ -266,6 +266,11 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
+    // Firebase - Group deletion is disabled
+    console.warn(`[Service:groups] Group deletion is currently disabled. Group ID: ${groupId}`);
+    return false;
+
+
     // TODO: Firebase - Replace with Firestore deleteDoc
     // const firestore = getFirestore();
     // const groupRef = doc(firestore, 'groups', groupId);
@@ -279,35 +284,35 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
     // // TODO: Firebase - Delete associated messages subcollection (e.g. using a Cloud Function)
     // return true;
 
-    // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const groupToDelete = mockGroupsData.find(g => g.id === groupId);
-    if (!groupToDelete) {
-        console.warn(`[Service:groups] Group ${groupId} not found for deletion (mock).`);
-        return false;
-    }
-    if (groupToDelete.schoolCode !== schoolCode) {
-        console.warn(`[Service:groups] Admin ${adminId} from school ${schoolCode} cannot delete group ${groupId} from school ${groupToDelete.schoolCode} (mock).`);
-        return false;
-    }
-    const initialLength = mockGroupsData.length;
-    mockGroupsData = mockGroupsData.filter(group => group.id !== groupId);
+    // --- Mock implementation (commented out as deletion is disabled) ---
+    // await new Promise(resolve => setTimeout(resolve, 200));
+    // const groupToDelete = mockGroupsData.find(g => g.id === groupId);
+    // if (!groupToDelete) {
+    //     console.warn(`[Service:groups] Group ${groupId} not found for deletion (mock).`);
+    //     return false;
+    // }
+    // if (groupToDelete.schoolCode !== schoolCode) {
+    //     console.warn(`[Service:groups] Admin ${adminId} from school ${schoolCode} cannot delete group ${groupId} from school ${groupToDelete.schoolCode} (mock).`);
+    //     return false;
+    // }
+    // const initialLength = mockGroupsData.length;
+    // mockGroupsData = mockGroupsData.filter(group => group.id !== groupId);
 
-    // Also remove messages associated with this group from the mock message store
-    const messagesModule = await import('./messages');
-    if (messagesModule.groupMessagesStore_assigno) { // Check if mock store is defined
-      messagesModule.groupMessagesStore_assigno.delete(groupId);
-      console.log(`[Service:groups] Deleted messages for group ${groupId} from mock store.`);
-    }
+    // // Also remove messages associated with this group from the mock message store
+    // const messagesModule = await import('./messages');
+    // if (messagesModule.groupMessagesStore_assigno) { // Check if mock store is defined
+    //   messagesModule.groupMessagesStore_assigno.delete(groupId);
+    //   console.log(`[Service:groups] Deleted messages for group ${groupId} from mock store.`);
+    // }
 
 
-    const success = mockGroupsData.length < initialLength;
-    if (success) {
-      console.log(`[Service:groups] Group "${groupToDelete.name}" (ID: ${groupId}) deleted successfully (mock).`);
-    } else {
-      console.error(`[Service:groups] Failed to delete group ${groupId} (mock).`);
-    }
-    return success;
+    // const success = mockGroupsData.length < initialLength;
+    // if (success) {
+    //   console.log(`[Service:groups] Group "${groupToDelete.name}" (ID: ${groupId}) deleted successfully (mock).`);
+    // } else {
+    //   console.error(`[Service:groups] Failed to delete group ${groupId} (mock).`);
+    // }
+    // return success;
     // --- End mock implementation ---
 }
 
@@ -529,4 +534,5 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     return { ...mockGroupsData[groupIndex] };
     // --- End mock implementation ---
 }
+
 
