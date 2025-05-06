@@ -7,7 +7,7 @@ import { useAuth } from '@/context/auth-context';
 import { Loader2, Users } from 'lucide-react';
 import { getSchoolStats, type SchoolStats } from '@/services/groups';
 
-const POLLING_INTERVAL = 15000; // 15 seconds for stats, less frequent than messages/groups typically
+const POLLING_INTERVAL = 7000; // Changed from 15000 to 7000 (7 seconds)
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -26,7 +26,6 @@ export default function DashboardPage() {
     try {
       const schoolStats = await getSchoolStats(user.schoolCode);
       setStats(prevStats => {
-        // Basic check to avoid re-render if stats haven't changed
         if (JSON.stringify(prevStats) !== JSON.stringify(schoolStats)) {
           return schoolStats;
         }
@@ -35,8 +34,7 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Failed to fetch school stats:", error);
       if (!isPoll) {
-        // Optionally set an error state to display to the user for initial load
-        setStats(null); // Clear stats on error during initial load
+        setStats(null); 
       } else {
         console.warn("Polling for school stats failed, suppressing UI error.");
       }
@@ -50,9 +48,9 @@ export default function DashboardPage() {
 
   React.useEffect(() => {
     if (user?.role === 'Admin') {
-      fetchStats(); // Initial fetch
+      fetchStats(); 
     }
-  }, [user, fetchStats]); // user dependency ensures fetchStats is re-created if user changes
+  }, [user, fetchStats]); 
 
   React.useEffect(() => {
     if (user?.role !== 'Admin' || !user.schoolCode) return;
@@ -63,11 +61,11 @@ export default function DashboardPage() {
         return;
       }
       console.log("Polling for school stats...");
-      await fetchStats(true); // Pass true to indicate it's a poll
+      await fetchStats(true); 
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
-  }, [user, fetchStats]); // fetchStats dependency ensures interval is reset if it changes
+  }, [user, fetchStats]); 
 
   if (authLoading) {
     return (
@@ -175,6 +173,7 @@ export default function DashboardPage() {
     </div>
   );
 }
+
 
 
 

@@ -45,7 +45,7 @@ interface ChatInterfaceProps {
 type MessageTypeFilter = Message['type'] | 'all';
 type SenderIdFilter = AuthUserType['id'] | 'all'; 
 
-const POLLING_INTERVAL = 5000; 
+const POLLING_INTERVAL = 3000; // Changed from 5000 to 3000 (3 seconds)
 
 export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -69,6 +69,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
     if (!groupId) return;
     if (!isPoll) setIsLoadingMessages(true);
+    isPollingRef.current = true; // Set polling flag before fetching
     try {
       const fetchedMessages = await getGroupMessages(groupId);
       setMessages(prevMessages => {
@@ -83,6 +84,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         else console.warn("Polling for messages failed, suppressing UI error.");
     } finally {
         if (!isPoll) setIsLoadingMessages(false);
+        isPollingRef.current = false; // Clear polling flag after fetching
     }
   }, [groupId, toast]);
 
@@ -94,15 +96,12 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     if (!groupId) return; 
     
     const intervalId = setInterval(async () => {
-        if (isPollingRef.current) return; 
-        isPollingRef.current = true;
-        try {
-            await fetchAndSetMessages(true);
-        } catch (e) {
-            console.error("Error during messages poll:", e);
-        } finally {
-            isPollingRef.current = false;
+        if (isPollingRef.current) {
+          console.log("Message polling skipped, already in progress.");
+          return; 
         }
+        console.log("Polling for messages...");
+        await fetchAndSetMessages(true);
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
@@ -122,6 +121,15 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
       const sentMessage = await addMessageToGroup(groupId, input, user);
       setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
       if (input.type === 'text') setNewMessage(''); 
+      // Scroll to bottom after sending new message
+      setTimeout(() => {
+         if(scrollAreaRef.current){ 
+            const scrollViewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+             if(scrollViewport){
+                 scrollViewport.scrollTop = scrollViewport.scrollHeight;
+             }
+         }
+      }, 0);
     } catch (error) {
         console.error("Failed to send message:", error);
         toast({ title: "Error", description: "Could not send message.", variant: "destructive" });
@@ -172,7 +180,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         const pollType = updatedPollMessage.pollData?.pollType;
         toast({ title: pollType === 'mcq' ? "Vote Cast" : "Answer Submitted", description: `Your ${pollType === 'mcq' ? 'vote' : 'answer'} has been recorded.` });
         if (pollType === 'shortAnswer') {
-            setShortAnswerSubmissions(prev => ({...prev, [messageId]: ''})); // Clear input after submission
+            setShortAnswerSubmissions(prev => ({...prev, [messageId]: ''})); 
         }
       } else {
         toast({ title: "Error", description: "Failed to record submission.", variant: "destructive" });
@@ -188,7 +196,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     if (message.type === 'poll' && message.pollData?.pollType === 'mcq') {
         setPollToPublish(message);
     } else if (message.type === 'poll' && message.pollData?.pollType === 'shortAnswer') {
-        // For short answers, publish directly without marking correct option
+        
         handleConfirmPublishResults(message.id);
     }
   };
@@ -208,7 +216,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         toast({ title: "Error", description: "An error occurred while publishing results.", variant: "destructive"});
     } finally {
         setIsSending(false);
-        setPollToPublish(null); // Close the dialog
+        setPollToPublish(null); 
     }
   };
 
@@ -222,7 +230,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
        }
     }, [messages, isLoadingMessages]); 
 
-    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); // Default to true for testing, change as needed
+    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); 
 
     const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
     const canUseSpecialFeatures = user?.role === 'Teacher' || user?.role === 'Admin';
@@ -245,7 +253,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             const searchMatch = searchTerm.trim() === '' || contentMatch || senderNameMatch;
 
             return typeMatch && senderMatch && searchMatch;
-        }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); // Ensure messages are sorted chronologically
+        }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
     }, [messages, searchTerm, filterMessageType, filterSenderId]);
 
     const handleShortAnswerChange = (messageId: string, value: string) => {
@@ -291,7 +299,9 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">All Senders</SelectItem>
-                            {groupSenders.map(sender => (
+                            {groupSenders
+                                .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') // Only show teachers/admins in filter
+                                .map(sender => (
                                 <SelectItem key={sender.id} value={sender.id}>
                                     {sender.name} ({sender.role})
                                 </SelectItem>
@@ -376,7 +386,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                     let optionStyleClasses = "p-1.5 rounded-md";
                                     if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
                                     else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
-                                    else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; // For selected but not correct/incorrect (when another option is correct)
+                                    else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; 
 
 
                                     return (
@@ -418,7 +428,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                         </Button>
                                     </div>
                                 )
-                            ) : ( // Teacher/Admin view for short answers
+                            ) : ( 
                                 <div className="text-sm">
                                     <p className="font-medium">Student Responses:</p>
                                     {Object.keys(msg.pollData.voters || {}).length > 0 ? (
@@ -539,7 +549,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
   const [pollType, setPollType] = React.useState<'mcq' | 'shortAnswer'>('mcq');
   const [options, setOptions] = React.useState<PollOption[]>([{ id: `opt-${Date.now()}`, text: '' }]);
   const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(false);
-  const { toast } = useToast(); // Moved useToast hook here
+  const { toast } = useToast(); 
 
   const handleAddOption = () => setOptions([...options, { id: `opt-${Date.now()}-${options.length}`, text: '' }]);
   const handleRemoveOption = (id: string) => setOptions(options.filter(opt => opt.id !== id));
@@ -650,7 +660,7 @@ function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
   const [description, setDescription] = React.useState('');
   const [dateTime, setDateTime] = React.useState<Date | undefined>();
   const [location, setLocation] = React.useState('');
-  const { toast } = useToast(); // Moved useToast hook here
+  const { toast } = useToast(); 
 
   const handleSubmit = () => {
     if (!title.trim() || !dateTime) {
@@ -740,16 +750,16 @@ interface PublishPollResultDialogProps {
 
 function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
     const [selectedCorrectOptionId, setSelectedCorrectOptionId] = React.useState<string | undefined>(pollMessage.pollData?.correctOptionId);
-    const { toast } = useToast(); // Moved useToast hook here
+    const { toast } = useToast(); 
 
 
-    React.useEffect(() => { // Reset selected option if dialog reopens for a different poll or same poll
+    React.useEffect(() => { 
         setSelectedCorrectOptionId(pollMessage.pollData?.correctOptionId);
     }, [isOpen, pollMessage.pollData?.correctOptionId]);
 
 
     if (pollMessage.type !== 'poll' || !pollMessage.pollData || pollMessage.pollData.pollType !== 'mcq') {
-        return null; // Should not happen if called correctly
+        return null; 
     }
 
     const { question, options = [] } = pollMessage.pollData;

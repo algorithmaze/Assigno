@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, UserCheck, UserX, Inbox, User as UserIcon } from "lucide-react";
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import { fetchUserGroups, fetchGroupJoinRequests, approveJoinRequest, rejectJoinRequest, type Group } from '@/services/groups'; // Added Group type
-import { fetchUsersByIds } from '@/services/users'; // To get user details
+import { fetchUserGroups, fetchGroupJoinRequests, approveJoinRequest, rejectJoinRequest, type Group } from '@/services/groups'; 
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import {
@@ -24,20 +23,20 @@ interface JoinRequestWithGroupInfo {
     groupName: string;
 }
 
-const POLLING_INTERVAL = 10000; // 10 seconds
+const POLLING_INTERVAL = 7000; // Changed from 10000 to 7000 (7 seconds)
 
 export default function TeacherJoinRequestsPage() {
   const { user: teacherUser, loading: authLoading } = useAuth();
   const [joinRequests, setJoinRequests] = React.useState<JoinRequestWithGroupInfo[]>([]);
   const [loadingRequests, setLoadingRequests] = React.useState(true);
-  const [isProcessing, setIsProcessing] = React.useState<string | null>(null); // Stores "approve-userId-groupId" or "reject-userId-groupId"
+  const [isProcessing, setIsProcessing] = React.useState<string | null>(null); 
   const { toast } = useToast();
   const router = useRouter();
   const isPollingJoinRequestsRef = React.useRef(false);
 
-  // Redirect if not teacher
+  
   React.useEffect(() => {
-    if (!authLoading && teacherUser?.role !== 'Teacher' && teacherUser?.role !== 'Admin') { // Admins can also see this
+    if (!authLoading && teacherUser?.role !== 'Teacher' && teacherUser?.role !== 'Admin') { 
       toast({ title: "Unauthorized", description: "You do not have permission to access this page.", variant: "destructive" });
       router.replace('/dashboard');
     }
@@ -80,7 +79,7 @@ export default function TeacherJoinRequestsPage() {
 
   React.useEffect(() => {
     if (teacherUser && (teacherUser.role === 'Teacher' || teacherUser.role === 'Admin')) {
-      loadJoinRequests(); // Initial load
+      loadJoinRequests(); 
     }
   }, [teacherUser, loadJoinRequests]);
 
@@ -108,7 +107,7 @@ export default function TeacherJoinRequestsPage() {
       const success = await approveJoinRequest(groupId, studentId, teacherUser.id);
       if (success) {
         toast({ title: "Request Approved", description: `${studentName} has been added to ${groupName}.` });
-        loadJoinRequests(); // Refresh the list
+        loadJoinRequests(); 
       } else {
         toast({ title: "Approval Failed", description: `Could not approve ${studentName}. Might have already been processed.`, variant: "destructive" });
       }
@@ -126,7 +125,7 @@ export default function TeacherJoinRequestsPage() {
       const success = await rejectJoinRequest(groupId, studentId, teacherUser.id);
       if (success) {
         toast({ title: "Request Rejected", description: `Join request for ${studentName} has been rejected.` });
-        loadJoinRequests(); // Refresh the list
+        loadJoinRequests(); 
       } else {
         toast({ title: "Rejection Failed", description: `Could not reject ${studentName}. Might have already been processed.`, variant: "destructive" });
       }
@@ -146,7 +145,7 @@ export default function TeacherJoinRequestsPage() {
     );
   }
 
-  // Group requests by group for better UI
+  
   const requestsByGroup = joinRequests.reduce((acc, req) => {
     if (!acc[req.groupId]) {
       acc[req.groupId] = { groupName: req.groupName, requests: [] };
@@ -234,4 +233,5 @@ export default function TeacherJoinRequestsPage() {
     </div>
   );
 }
+
 

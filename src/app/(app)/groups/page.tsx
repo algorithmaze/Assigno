@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 
-const POLLING_INTERVAL = 10000; // 10 seconds
+const POLLING_INTERVAL = 7000; // Changed from 10000 to 7000 (7 seconds)
 
 export default function GroupsPage() {
   const { user } = useAuth();
@@ -114,7 +114,12 @@ export default function GroupsPage() {
             email: user.email,
             phoneNumber: user.phoneNumber,
             schoolCode: user.schoolCode,
-            // Add other necessary fields from 'user' if your addMembersToGroup expects a fuller User object
+            schoolName: user.schoolName,
+            schoolAddress: user.schoolAddress,
+            designation: user.designation,
+            class: user.class,
+            profilePictureUrl: user.profilePictureUrl,
+            admissionNumber: user.admissionNumber
         };
         success = await addMembersToGroup(groupToJoin.id, [memberToAdd]);
       }
@@ -129,7 +134,7 @@ export default function GroupsPage() {
         });
         setIsJoinGroupOpen(false);
         setJoinGroupCode('');
-        if (user.role === 'Teacher' || user.role === 'Admin') loadGroups(); // Refresh groups if teacher/admin joined
+        if (user.role === 'Teacher' || user.role === 'Admin') loadGroups(); 
       } else {
         toast({ title: "Action Failed", description: "Could not process your request. You might have already requested or joined, or an error occurred.", variant: "destructive" });
       }
@@ -151,7 +156,7 @@ export default function GroupsPage() {
   };
 
 
-  const canCreateGroup = user?.role === 'Admin';
+  const canCreateGroup = user?.role === 'Admin' || user?.role === 'Teacher';
 
   return (
     <div className="space-y-6">
@@ -184,7 +189,7 @@ export default function GroupsPage() {
           {!loading && !error && groups.length === 0 && (
              <p className="text-muted-foreground text-center py-4">
                 {user?.role === 'Student' ? 'You are not currently a member of any groups. Request to join one!' : 
-                 user?.role === 'Teacher' ? 'You are not part of any groups yet. Join one or wait for an admin to add you.' : 
+                 user?.role === 'Teacher' ? 'You are not part of any groups yet. Join one or create one to get started.' : 
                  (user?.role === 'Admin' && !canCreateGroup) ? 'No groups found. You can manage groups once created.' :
                  (user?.role === 'Admin' && canCreateGroup) ? 'No groups found yet. Click "Create Group" to get started.' :
                  'No groups to display yet.'}
@@ -213,7 +218,7 @@ export default function GroupsPage() {
              </div>
           )}
 
-            {(user?.role === 'Student' || user?.role === 'Teacher' || user?.role === 'Admin') && ( // Admins might also join groups by code
+            {(user?.role === 'Student' || user?.role === 'Teacher' || user?.role === 'Admin') && ( 
                 <div className="mt-8 border-t pt-6">
                     <h3 className="text-xl font-semibold mb-3">Join a Group</h3>
                      <Dialog open={isJoinGroupOpen} onOpenChange={setIsJoinGroupOpen}>
@@ -252,4 +257,5 @@ export default function GroupsPage() {
     </div>
   );
 }
+
 
