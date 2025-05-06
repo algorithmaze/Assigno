@@ -3,13 +3,13 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { ChatInterface } from "@/components/chat/chat-interface";
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup, deleteGroup } from '@/services/groups';
 import { fetchUsersByIds, searchUsers } from '@/services/users';
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, Search, X, Settings, Copy, MessageSquare as MessageSquareIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -44,7 +44,11 @@ interface GroupDetailPageProps {
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const groupId = params.groupId;
+  // Unwrap params using React.use() if params itself is a Promise
+  // or if Next.js requires this for accessing param properties in certain components.
+  const resolvedParams = React.use(params);
+  const groupId = resolvedParams.groupId;
+
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
@@ -69,7 +73,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
          const fetchedGroup = await fetchGroupDetails(groupId);
          if (fetchedGroup) {
              setGroup(fetchedGroup);
-             const memberIds = [...new Set([...fetchedGroup.teacherIds, ...fetchedGroup.studentIds])]; // Use Set to ensure unique IDs
+             const memberIds = [...new Set([...fetchedGroup.teacherIds, ...fetchedGroup.studentIds])];
              if (memberIds.length > 0) {
                 const fetchedMembers = await fetchUsersByIds(memberIds);
                 setMembers(fetchedMembers);
@@ -77,6 +81,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                  setMembers([]);
              }
          } else {
+             console.error(`[GroupDetail] Group not found for ID: ${groupId}`);
              setError('Group not found.');
              setGroup(null);
              setMembers([]);
@@ -99,11 +104,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   }, [groupId, loadGroupAndMembers]);
 
   const handleSearchUsers = React.useCallback(async (currentSearchTerm: string) => {
-     if (!currentUser || !group) return;
+     if (!currentUser || !group || !currentUser.schoolCode) return;
      setIsSearching(true);
      try {
+       // Exclude current members, members staged to be added, and the current user themselves.
        const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
-       const results = await searchUsers(group.schoolCode, currentSearchTerm, excludeIds);
+       const results = await searchUsers(currentUser.schoolCode, currentSearchTerm, excludeIds);
        setSearchResults(results);
      } catch (err) {
        toast({ title: "Search Error", description: "Could not search for users.", variant: "destructive" });
@@ -115,13 +121,18 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
    React.useEffect(() => {
      if (!isManageMembersOpen) {
         setSearchResults([]);
+        setSearchTerm(''); // Clear search term when dialog closes
         return;
      }
+     // Trigger search immediately if dialog opens with empty search term (to show initial list)
+     // or debounce if user is typing.
      const debounceTimer = setTimeout(() => {
         handleSearchUsers(searchTerm);
-     }, searchTerm.trim().length === 0 ? 0 : 500);
+     }, searchTerm.trim().length === 0 && !isSearching ? 0 : 500); // No delay for initial load
+
      return () => clearTimeout(debounceTimer);
-   }, [searchTerm, isManageMembersOpen, handleSearchUsers]);
+   }, [searchTerm, isManageMembersOpen, handleSearchUsers, isSearching]);
+
 
    const addMemberToStaging = (userToAdd: User) => {
      setMembersToAdd(prev => [...prev, userToAdd]);
@@ -130,12 +141,15 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
     const removeMemberFromStaging = (userToRemove: User) => {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      const currentSearchTerm = searchTerm.trim().toLowerCase();
-      const shouldAddBack = currentSearchTerm.length === 0 ||
-                             (userToRemove.name.toLowerCase().includes(currentSearchTerm) ||
-                               userToRemove.email?.toLowerCase().includes(currentSearchTerm));
-      if (shouldAddBack && !searchResults.some(u => u.id === userToRemove.id)) {
-          setSearchResults(prev => [userToRemove, ...prev]);
+      // Re-add to search results only if they match the current search term or if search is empty
+      const currentSearchTermLower = searchTerm.trim().toLowerCase();
+      const nameMatches = userToRemove.name.toLowerCase().includes(currentSearchTermLower);
+      const emailMatches = userToRemove.email?.toLowerCase().includes(currentSearchTermLower) ?? false;
+
+      if (currentSearchTermLower === '' || nameMatches || emailMatches) {
+          if (!searchResults.some(u => u.id === userToRemove.id)) {
+            setSearchResults(prev => [userToRemove, ...prev].sort((a, b) => a.name.localeCompare(b.name)));
+          }
       }
     };
 
@@ -159,12 +173,23 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
     const handleRemoveMember = async (memberIdToRemove: string) => {
         if (!group) return;
-        setIsUpdatingMembers(true);
+        // Prevent removing the last teacher/admin if they are the only one
+        const memberToRemove = members.find(m => m.id === memberIdToRemove);
+        if (memberToRemove && (memberToRemove.role === 'Teacher' || memberToRemove.role === 'Admin')) {
+            const teachersInGroup = members.filter(m => m.role === 'Teacher' || m.role === 'Admin');
+            if (teachersInGroup.length === 1 && teachersInGroup[0].id === memberIdToRemove) {
+                toast({ title: "Cannot Remove", description: "Cannot remove the last teacher/admin from the group.", variant: "destructive"});
+                return;
+            }
+        }
+
+        setIsUpdatingMembers(true); // Use a general updating state or a specific one
         try {
             const success = await removeMemberFromGroup(groupId, memberIdToRemove);
             if (success) {
                 toast({ title: "Member Removed", description: `Member removed successfully.` });
-                await loadGroupAndMembers();
+                await loadGroupAndMembers(); // Reload group and its members
+                 // Refresh search results if the removed member was in staging or could appear in search
                 setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
                 handleSearchUsers(searchTerm);
             } else { throw new Error("Failed to remove member via service."); }
@@ -183,7 +208,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         setIsUpdatingMembers(false);
     };
 
-    const canManageMembers = currentUser && group && (currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id));
+    const canManageGroup = currentUser && group && (currentUser.role === 'Admin' || group.teacherIds.includes(currentUser.id));
     const isAdminUser = currentUser?.role === 'Admin';
 
     const handleDeleteGroup = async () => {
@@ -193,7 +218,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
         }
         setIsDeletingGroup(true);
         try {
-            const success = await deleteGroup(group.id, currentUser.id);
+            // Pass schoolCode for potential backend validation if needed, although adminId implies school context
+            const success = await deleteGroup(group.id, currentUser.id, group.schoolCode);
             if (success) {
                 toast({ title: "Group Deleted", description: `Group "${group.name}" has been deleted.` });
                 router.push('/groups');
@@ -227,17 +253,32 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
   if (error) {
      return (
-        <div className="flex justify-center items-center h-[calc(100vh-theme(spacing.24))]">
-            <Card className="p-6 bg-destructive/10 border-destructive shadow-lg">
-                <CardTitle className="text-destructive">{error}</CardTitle>
-                <CardContent className="mt-2"><p>Please check the group ID or try again later.</p></CardContent>
+        <div className="flex flex-col justify-center items-center h-[calc(100vh-theme(spacing.24))] space-y-4">
+            <Card className="p-6 bg-destructive/10 border-destructive shadow-lg max-w-md w-full">
+                <CardHeader className="p-0 mb-2">
+                   <CardTitle className="text-destructive text-center">{error}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 text-center">
+                    <p>Please check the group ID or try again later.</p>
+                    <Button onClick={() => router.push('/groups')} className="mt-4">Go to Groups</Button>
+                </CardContent>
             </Card>
         </div>
      );
   }
 
    if (!group) {
-      return <div className="text-center mt-10 text-muted-foreground">Group data could not be loaded or does not exist.</div>;
+      return (
+        <div className="flex flex-col justify-center items-center h-[calc(100vh-theme(spacing.24))] space-y-4">
+           <Card className="p-6 shadow-lg max-w-md w-full">
+             <CardHeader className="p-0 mb-2"><CardTitle className="text-center">Group Not Found</CardTitle></CardHeader>
+             <CardContent className="p-0 text-center">
+               <p className="text-muted-foreground">The group data could not be loaded or it does not exist.</p>
+               <Button onClick={() => router.push('/groups')} className="mt-4">Go to Groups</Button>
+             </CardContent>
+           </Card>
+        </div>
+      );
    }
 
 
@@ -263,12 +304,12 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                     )}
                  </div>
                  <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-                    {canManageMembers && (
+                    {canManageGroup && (
                         <Link href={`/groups/${groupId}/settings`}>
                             <Button variant="outline" size="sm"><Settings className="mr-2 h-4 w-4" /> Group Settings</Button>
                         </Link>
                     )}
-                    {isAdminUser && (
+                    {isAdminUser && ( // Only school admin can delete group
                          <AlertDialog>
                             <AlertDialogTrigger asChild>
                                 <Button variant="destructive" size="sm" disabled={isDeletingGroup}>
@@ -293,11 +334,11 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                             </AlertDialogContent>
                         </AlertDialog>
                     )}
-                    {canManageMembers && (
+                    {canManageGroup && ( // Group managers (teachers/admins in group) can manage members
                         <Dialog open={isManageMembersOpen} onOpenChange={(open) => {
                             setIsManageMembersOpen(open);
                             if (!open) resetManageMembersDialog();
-                            else handleSearchUsers('');
+                            else handleSearchUsers(''); // Load initial users when dialog opens
                         }}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4" /> Manage Members</Button>
@@ -323,7 +364,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                     <ScrollArea className="h-[150px] border rounded-md">
                                         <div className="p-2 space-y-1">
                                             {isSearching && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Searching...</div>}
-                                            {!isSearching && searchResults.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{searchTerm.trim() ? `No users found matching "${searchTerm}".` : "No other users available or type to search."}</div>}
+                                            {!isSearching && searchResults.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{searchTerm.trim() ? `No users found matching "${searchTerm}".` : "No other users available in this school or type to search."}</div>}
                                             {searchResults.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
@@ -337,7 +378,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                     </ScrollArea>
                                     {membersToAdd.length > 0 && (
                                         <div className="space-y-1 pt-2">
-                                            <h4 className="text-xs font-medium text-muted-foreground">To Add:</h4>
+                                            <h4 className="text-xs font-medium text-muted-foreground">To Add ({membersToAdd.length}):</h4>
                                             <div className="flex flex-wrap gap-1">
                                                 {membersToAdd.map(userToAdd => (
                                                     <Badge key={userToAdd.id} variant="secondary" className="flex items-center gap-1">
@@ -359,10 +400,16 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                                     <div className="flex items-center gap-2">
                                                         <Avatar className="h-6 w-6"><AvatarImage src={member.profilePictureUrl} data-ai-hint="member avatar"/><AvatarFallback>{member.name.charAt(0)}</AvatarFallback></Avatar>
                                                         <span>{member.name} ({member.role})</span>
-                                                        {group.teacherIds.includes(member.id) && <Badge variant="outline" size="sm" className="text-xs">{member.role === 'Admin' ? 'Admin Lead' : 'Teacher'}</Badge>}
+                                                        {(member.role === 'Teacher' || member.role === 'Admin') && <Badge variant="outline" size="sm" className="text-xs">{member.role === 'Admin' && group.teacherIds.includes(member.id) ? 'Admin Lead' : 'Teacher'}</Badge>}
                                                     </div>
-                                                    {currentUser?.id !== member.id && !(group.teacherIds.includes(member.id) && group.teacherIds.length === 1 && (member.role === 'Admin' || member.role === 'Teacher')) && (
-                                                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveMember(member.id)}><Trash2 className="h-4 w-4" /></Button>
+                                                    {/* Prevent removing oneself or the last teacher/admin */}
+                                                    {currentUser?.id !== member.id &&
+                                                     !((member.role === 'Teacher' || member.role === 'Admin') && members.filter(m => m.role === 'Teacher' || m.role === 'Admin').length === 1 && group.teacherIds.includes(member.id)) &&
+                                                      (
+                                                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveMember(member.id)} disabled={isUpdatingMembers}>
+                                                            {isUpdatingMembers && <Loader2 className="h-4 w-4 animate-spin"/>}
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
                                                     )}
                                                 </div>
                                             ))}
@@ -370,7 +417,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                     </ScrollArea>
                                 </div>
                                 <DialogFooter className="pt-4">
-                                    <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
+                                    <DialogClose asChild><Button type="button" variant="outline" onClick={resetManageMembersDialog}>Cancel</Button></DialogClose>
                                     <Button type="button" onClick={handleSaveMembers} disabled={isUpdatingMembers || membersToAdd.length === 0}>
                                         {isUpdatingMembers && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Add {membersToAdd.length} Member(s)
                                     </Button>

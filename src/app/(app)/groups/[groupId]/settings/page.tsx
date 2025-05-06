@@ -16,9 +16,9 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription as ShadcnCardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { fetchGroupDetails, updateGroupSettings, type Group } from '@/services/groups';
@@ -37,7 +37,10 @@ interface GroupSettingsPageProps {
 }
 
 export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
-  const { groupId } = params;
+  // Unwrap params using React.use()
+  const resolvedParams = React.use(params);
+  const groupId = resolvedParams.groupId;
+
   const [isLoading, setIsLoading] = React.useState(false);
   const [isFetchingGroup, setIsFetchingGroup] = React.useState(true);
   const [group, setGroup] = React.useState<Group | null>(null);
@@ -56,12 +59,18 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
 
   React.useEffect(() => {
     const loadGroup = async () => {
-      if (!groupId || !user) return;
+      if (!groupId || !user) { // Ensure user is available before fetching
+        setIsFetchingGroup(false); // Stop loading if no user/groupId
+        if (!user && groupId) { // Only show error if groupId is present but user is not
+            toast({ title: "Authentication Error", description: "User data not available. Please re-login.", variant: "destructive"});
+            router.replace('/login');
+        }
+        return;
+      }
       setIsFetchingGroup(true);
       try {
         const fetchedGroup = await fetchGroupDetails(groupId);
         if (fetchedGroup) {
-          // Permission check: Only admins or teachers in the group can edit settings
           const canEdit = user.role === 'Admin' || fetchedGroup.teacherIds.includes(user.id);
           if (!canEdit) {
             toast({ title: "Unauthorized", description: "You don't have permission to edit this group's settings.", variant: "destructive" });
@@ -85,7 +94,14 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
         setIsFetchingGroup(false);
       }
     };
-    loadGroup();
+    // Check if user is loaded before calling loadGroup
+    if (user) {
+        loadGroup();
+    } else if (!user && groupId) { // If groupId known but user still loading/null
+        setIsFetchingGroup(true); // Keep loading state until user is checked
+    } else {
+        setIsFetchingGroup(false); // If no groupId, nothing to fetch
+    }
   }, [groupId, user, router, toast, form]);
 
   const onSubmit = async (data: GroupSettingsFormData) => {
@@ -98,8 +114,9 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
           title: 'Settings Updated',
           description: `Group "${updatedGroup.name}" settings saved.`,
         });
-        // Optionally, refresh group data or navigate back
-        router.refresh(); // Refreshes server components on the current route
+        setGroup(updatedGroup); // Update local state with new details
+        form.reset(updatedGroup); // Reset form with updated values
+        router.refresh();
       } else {
         toast({ title: "Update Failed", description: "Could not save group settings.", variant: "destructive" });
       }
@@ -124,20 +141,29 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
   }
 
   if (!group) {
-    // This case should be handled by useEffect redirect, but as a fallback:
-    return <div className="text-center mt-10 text-muted-foreground">Group not found or access denied.</div>;
+    return (
+        <div className="flex flex-col justify-center items-center h-[calc(100vh-theme(spacing.24))] space-y-4">
+           <Card className="p-6 shadow-lg max-w-md w-full">
+             <CardHeader className="p-0 mb-2"><CardTitle className="text-center">Group Not Found</CardTitle></CardHeader>
+             <CardContent className="p-0 text-center">
+               <p className="text-muted-foreground">The group settings could not be loaded or access was denied.</p>
+               <Button onClick={() => router.push('/groups')} className="mt-4">Go to Groups</Button>
+             </CardContent>
+           </Card>
+        </div>
+      );
   }
 
   return (
     <div className="space-y-6">
-      <Button variant="outline" onClick={() => router.back()} className="mb-4">
+      <Button variant="outline" onClick={() => router.back()} className="mb-4 print:hidden">
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Group
       </Button>
       <h1 className="text-3xl font-bold">Group Settings: {group.name}</h1>
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>Edit Group Information</CardTitle>
-          <CardDescription>Modify the details for this group. Current Group Code: <strong>{group.groupCode}</strong></CardDescription>
+          <ShadcnCardDescription>Modify the details for this group. Current Group Code: <strong>{group.groupCode}</strong></ShadcnCardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -182,33 +208,13 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
                 )}
               />
               {/* TODO: Add other settings like student posting permissions */}
-              {/* <FormField
-                control={form.control}
-                name="studentPostPermission"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                    <div className="space-y-0.5">
-                      <FormLabel>Allow Student Posts</FormLabel>
-                      <FormDescription>
-                        Can students post messages in this group?
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                       <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              /> */}
             </CardContent>
             <CardFooter className="flex justify-end gap-2 border-t pt-6">
               <Button type="button" variant="outline" onClick={() => form.reset({name: group.name, description: group.description || '', subject: group.subject || ''})} disabled={isLoading}>
                 Reset
               </Button>
               <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Settings
               </Button>
             </CardFooter>
