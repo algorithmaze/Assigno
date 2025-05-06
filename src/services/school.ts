@@ -8,13 +8,45 @@ export interface SchoolDetails {
   address: string;
 }
 
-// TODO: Firebase - This in-memory store would be replaced by Firestore documents.
-// Typically, you might have a 'schools' collection where each document ID is the schoolCode.
-let currentSchoolDetails: SchoolDetails = {
-  schoolCode: 'samp123',
-  schoolName: 'Sample Sr. Sec. School',
-  address: '456 School Road, Testville',
-};
+declare global {
+  var mockSchoolDetails_assigno_school: SchoolDetails | undefined;
+}
+
+// Initialize mockSchoolDetails_assigno_school on globalThis if it doesn't exist (for dev environment)
+if (process.env.NODE_ENV !== 'production') {
+  if (!globalThis.mockSchoolDetails_assigno_school) {
+    globalThis.mockSchoolDetails_assigno_school = {
+      schoolCode: 'samp123',
+      schoolName: 'Sample Sr. Sec. School',
+      address: '456 School Road, Testville',
+    };
+    console.log("[Service:school] Initialized global mockSchoolDetails_assigno_school.");
+  }
+}
+
+function getMockSchoolDetails(): SchoolDetails | null {
+  if (process.env.NODE_ENV === 'production') {
+    // In production, this would interact with a database. For now, return null.
+    return null;
+  }
+  // Ensure globalThis.mockSchoolDetails_assigno_school is initialized
+  if (!globalThis.mockSchoolDetails_assigno_school) {
+    // This case should ideally not be hit if top-level initialization worked,
+    // but as a fallback:
+    globalThis.mockSchoolDetails_assigno_school = {
+      schoolCode: 'samp123',
+      schoolName: 'Sample Sr. Sec. School',
+      address: '456 School Road, Testville',
+    };
+  }
+  return globalThis.mockSchoolDetails_assigno_school;
+}
+
+function updateMockSchoolDetails(details: SchoolDetails): void {
+  if (process.env.NODE_ENV !== 'production') {
+    globalThis.mockSchoolDetails_assigno_school = details;
+  }
+}
 
 
 export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetails | null> {
@@ -30,8 +62,9 @@ export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetail
 
   // --- Mock implementation ---
   await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-  if (currentSchoolDetails.schoolCode.toLowerCase() === schoolCode.toLowerCase()) {
-    return { ...currentSchoolDetails }; 
+  const currentSchoolData = getMockSchoolDetails();
+  if (currentSchoolData && currentSchoolData.schoolCode.toLowerCase() === schoolCode.toLowerCase()) {
+    return { ...currentSchoolData };
   }
   return null;
   // --- End mock implementation ---
@@ -39,7 +72,13 @@ export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetail
 
 
 export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>): Promise<SchoolDetails | null> {
-    console.log(`[Service:school] Updating school: ${currentSchoolDetails.schoolCode}`);
+  const currentSchoolData = getMockSchoolDetails();
+  if (!currentSchoolData) {
+    console.error("[Service:school] Cannot update, mock school details not found.");
+    return null;
+  }
+  
+  console.log(`[Service:school] Updating school: ${currentSchoolData.schoolCode}`);
     // TODO: Firebase - Replace with Firestore setDoc or updateDoc
     // const firestore = getFirestore();
     // if (!updatedDetails.schoolCode) { // Assume schoolCode is key and not updatable this way
@@ -53,14 +92,24 @@ export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>
 
     // --- Mock implementation ---
     await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
+    
+    const newDetails = { ...currentSchoolData };
     if (updatedDetails.schoolName) {
-        currentSchoolDetails.schoolName = updatedDetails.schoolName;
+        newDetails.schoolName = updatedDetails.schoolName;
     }
     if (updatedDetails.address) {
-        currentSchoolDetails.address = updatedDetails.address;
+        newDetails.address = updatedDetails.address;
     }
-    console.log("[Service:school] Updated school details (mock):", currentSchoolDetails);
-    return { ...currentSchoolDetails }; 
+    // schoolCode itself is typically not updated this way, it's an identifier.
+    // If updatedDetails.schoolCode is provided and different, it implies changing the key,
+    // which is a more complex operation (delete old, create new).
+    // For simplicity, we assume schoolCode in updatedDetails matches currentSchoolData.schoolCode if provided for update.
+    if (updatedDetails.schoolCode && updatedDetails.schoolCode !== newDetails.schoolCode) {
+        console.warn(`[Service:school] Attempting to change schoolCode from "${newDetails.schoolCode}" to "${updatedDetails.schoolCode}" is not supported in this mock update. Sticking to original schoolCode.`);
+    }
+
+    updateMockSchoolDetails(newDetails);
+    console.log("[Service:school] Updated school details (mock):", newDetails);
+    return { ...newDetails };
     // --- End mock implementation ---
 }
-
