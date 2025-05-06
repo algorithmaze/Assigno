@@ -11,7 +11,7 @@ import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup
 import { fetchUsersByIds, searchUsers } from '@/services/users';
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle, Search as SearchIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-// Removed Input import as it's no longer used for search
+import { Input } from '@/components/ui/input'; // Added Input for search
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -59,11 +59,11 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   const [error, setError] = React.useState<string | null>(null);
 
   const [isManageMembersOpen, setIsManageMembersOpen] = React.useState(false);
-  // Removed searchTerm and isSearching states
+  const [manageMembersSearchTerm, setManageMembersSearchTerm] = React.useState('');
+  const [isSearchingAvailableUsers, setIsSearchingAvailableUsers] = React.useState(false);
   const [availableUsers, setAvailableUsers] = React.useState<User[]>([]);
   const [membersToAdd, setMembersToAdd] = React.useState<User[]>([]);
   const [isUpdatingMembers, setIsUpdatingMembers] = React.useState(false);
-  const [isLoadingAvailableUsers, setIsLoadingAvailableUsers] = React.useState(false);
   
   const [isDeleteConfirm1Open, setIsDeleteConfirm1Open] = React.useState(false);
   const [isDeleteConfirm2Open, setIsDeleteConfirm2Open] = React.useState(false);
@@ -107,46 +107,48 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     loadGroupAndMembers();
   }, [groupId, loadGroupAndMembers]);
 
-  // Fetch available users when dialog opens
-  const loadAvailableUsers = React.useCallback(async () => {
+  // Fetch available users based on search term
+  const loadAvailableUsers = React.useCallback(async (searchTerm: string) => {
     if (!currentUser || !group || !currentUser.schoolCode) return;
-    setIsLoadingAvailableUsers(true);
+    setIsSearchingAvailableUsers(true);
     try {
-      // Fetch all users from the school and filter out existing members and users already staged for adding
-      const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id), currentUser.id];
-      // Using searchUsers with an empty term effectively fetches all users, then we filter client-side.
-      // Or, ideally, have a dedicated `fetchAllUsersInSchool` or similar service function.
-      const allSchoolUsers = await searchUsers(currentUser.schoolCode, '', []); // Empty search term
-      const filteredUsers = allSchoolUsers.filter(u => !excludeIds.includes(u.id));
-      setAvailableUsers(filteredUsers);
+      const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id)];
+      if(currentUser.id) excludeIds.push(currentUser.id);
+
+      const searchedUsers = await searchUsers(currentUser.schoolCode, searchTerm, excludeIds);
+      setAvailableUsers(searchedUsers);
     } catch (err) {
       toast({ title: "Error", description: "Could not load available users.", variant: "destructive" });
       setAvailableUsers([]);
     } finally {
-      setIsLoadingAvailableUsers(false);
+      setIsSearchingAvailableUsers(false);
     }
   }, [currentUser, group, members, membersToAdd, toast]);
 
+  // Effect to load users when dialog opens or search term changes (with debounce)
   React.useEffect(() => {
     if (isManageMembersOpen && group) {
-      loadAvailableUsers();
+      const timerId = setTimeout(() => {
+        loadAvailableUsers(manageMembersSearchTerm);
+      }, 300); // Debounce search
+      return () => clearTimeout(timerId);
     } else {
-      setAvailableUsers([]); // Clear when dialog is closed
+      setAvailableUsers([]); 
+      setManageMembersSearchTerm(''); 
     }
-  }, [isManageMembersOpen, group, loadAvailableUsers]);
+  }, [isManageMembersOpen, group, manageMembersSearchTerm, loadAvailableUsers]);
 
 
    const addMemberToStaging = (userToAdd: User) => {
      setMembersToAdd(prev => [...prev, userToAdd]);
-     setAvailableUsers(prev => prev.filter(u => u.id !== userToAdd.id)); // Remove from available list
+     setAvailableUsers(prev => prev.filter(u => u.id !== userToAdd.id)); 
    };
 
     const removeMemberFromStaging = (userToRemove: User) => {
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      // Add back to available users if not already there (idempotency)
-      if (!availableUsers.some(u => u.id === userToRemove.id)) {
-        setAvailableUsers(prev => [...prev, userToRemove].sort((a, b) => a.name.localeCompare(b.name)));
-      }
+      // Add back to available users (if search term matches or no search term)
+      // For simplicity, just reload available users based on current search term
+      loadAvailableUsers(manageMembersSearchTerm);
     };
 
    const handleSaveMembers = async () => {
@@ -183,9 +185,9 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
             const success = await removeMemberFromGroup(groupId, memberIdToRemove);
             if (success) {
                 toast({ title: "Member Removed", description: `Member removed successfully.` });
-                await loadGroupAndMembers();
-                setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
-                if(isManageMembersOpen) loadAvailableUsers(); // Refresh available users list
+                await loadGroupAndMembers(); // Refresh current members
+                setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove)); // Remove from staging if present
+                if(isManageMembersOpen) loadAvailableUsers(manageMembersSearchTerm); // Refresh available users list based on search
             } else { throw new Error("Failed to remove member via service."); }
         } catch (error) {
             toast({ title: "Error", description: "Failed to remove member.", variant: "destructive" });
@@ -197,7 +199,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     const resetManageMembersDialog = () => {
         setAvailableUsers([]);
         setMembersToAdd([]);
-        setIsLoadingAvailableUsers(false);
+        setManageMembersSearchTerm('');
+        setIsSearchingAvailableUsers(false);
         setIsUpdatingMembers(false);
     };
 
@@ -383,11 +386,20 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                 </DialogHeader>
                                 <div className="space-y-2 pt-4">
                                     <h3 className="text-sm font-medium">Add New Members</h3>
-                                    {/* Search Input Removed */}
+                                     <div className="relative">
+                                        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                        type="search"
+                                        placeholder="Search users by name or email..."
+                                        value={manageMembersSearchTerm}
+                                        onChange={(e) => setManageMembersSearchTerm(e.target.value)}
+                                        className="pl-8 w-full"
+                                        />
+                                    </div>
                                     <ScrollArea className="h-[150px] border rounded-md">
                                         <div className="p-2 space-y-1">
-                                            {isLoadingAvailableUsers && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Loading available users...</div>}
-                                            {!isLoadingAvailableUsers && availableUsers.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">No other users available to add from this school.</div>}
+                                            {isSearchingAvailableUsers && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Loading available users...</div>}
+                                            {!isSearchingAvailableUsers && availableUsers.length === 0 && <div className="text-center text-muted-foreground p-2 text-sm">{manageMembersSearchTerm ? 'No users found matching your search.' : 'Type to search for users to add.'}</div>}
                                             {availableUsers.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
