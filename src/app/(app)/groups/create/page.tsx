@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -63,6 +64,7 @@ export default function CreateGroupPage() {
 
   // Redirect if user is not authorized
   React.useEffect(() => {
+      // Allow Admin and Teacher roles
       if (user && user.role !== 'Admin' && user.role !== 'Teacher') {
           toast({
               title: 'Unauthorized',
@@ -75,13 +77,18 @@ export default function CreateGroupPage() {
 
 
   const onSubmit = async (data: CreateGroupFormData) => {
+    if (!user || (user.role !== 'Admin' && user.role !== 'Teacher')) {
+        toast({ title: 'Error', description: 'Unauthorized action.', variant: 'destructive'});
+        return;
+    }
     setIsLoading(true);
     try {
       const groupInput: CreateGroupInput = {
         ...data,
         // Ensure required fields like teacherIds are included if schema changes
       };
-      const newGroup = await createGroup(groupInput); // Call the service function
+      // Pass creator details to the service function
+      const newGroup = await createGroup(groupInput, user.id, user.role, user.schoolCode);
       toast({
         title: 'Group Created',
         description: `Group "${newGroup.name}" has been successfully created.`,
