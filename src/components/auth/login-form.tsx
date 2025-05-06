@@ -71,7 +71,7 @@ export function LoginForm() {
       setOtpSent(true); // Ensure OTP screen is shown/remains
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (For demo, use '000000' to log in as sample users).`,
+        description: `An OTP has been sent to ${data.identifier}. (For demo, use OTP from console or specific user's magic OTP).`,
       });
       // Clear previous OTP errors if any
       otpForm.clearErrors('otp');
@@ -111,7 +111,9 @@ export function LoginForm() {
                   email: identifierValue.includes('@') ? identifierValue : undefined,
                   phoneNumber: !identifierValue.includes('@') ? identifierValue : undefined,
                   role: 'Student', // Default role or determine based on identifier pattern
-                  schoolCode: 'UNKNOWN', // Indicate unknown school
+                  schoolCode: 'samp123',
+                  schoolName: 'Sample Sr. Sec. School',
+                  schoolAddress: '456 School Road, Testville',
               };
               await login(genericUser);
               toast({
@@ -142,8 +144,33 @@ export function LoginForm() {
   };
 
   // Function to quickly fill form for sample users
-  const fillSampleUser = (role: keyof typeof sampleCredentials) => {
-     loginForm.setValue('identifier', sampleCredentials[role].identifier);
+  const fillSampleUser = (role: 'student' | 'teacher' | 'admin') => {
+    let targetIdentifier: string | undefined;
+    switch (role) {
+      case 'admin':
+        targetIdentifier = sampleCredentials.adminAntony.identifier;
+        break;
+      case 'teacher':
+        // You can pick one, e.g., Zara. Or add more buttons if needed.
+        targetIdentifier = sampleCredentials.teacherZara.identifier;
+        break;
+      case 'student':
+        // You can pick one, e.g., Mia.
+        targetIdentifier = sampleCredentials.studentMia.identifier;
+        break;
+      default:
+        console.warn(`No specific sample credential logic for role: ${role}`);
+    }
+
+    if (targetIdentifier) {
+      loginForm.setValue('identifier', targetIdentifier);
+    } else {
+      toast({
+        title: "Sample User Not Configured",
+        description: `Quick login for '${role}' role is not set up for a specific user.`,
+        variant: "destructive"
+      });
+    }
   }
 
   return (
@@ -162,7 +189,7 @@ export function LoginForm() {
                         <Input placeholder="e.g., student@school.com or +1234567890" {...field} />
                     </FormControl>
                     <FormDescription>
-                        Use a sample email below or your own (requires backend integration).
+                        Use a sample email below or your own. OTP for samples is in console/user details.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -178,10 +205,13 @@ export function LoginForm() {
             <div className="mt-4 space-y-2 text-center">
                 <p className="text-sm text-muted-foreground">Quick Login (Demo):</p>
                 <div className="flex justify-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('student')}>Student</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('teacher')}>Teacher</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('admin')}>Admin</Button>
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('student')}>Student (Mia)</Button>
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('teacher')}>Teacher (Zara)</Button>
+                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('admin')}>Admin (Antony)</Button>
                 </div>
+                 <p className="text-xs text-accent">
+                    (Uses magic OTP: <strong>{sampleCredentials.adminAntony.otp}</strong> for above sample users)
+                 </p>
             </div>
          </>
       ) : (
@@ -191,7 +221,7 @@ export function LoginForm() {
               Enter the 6-digit OTP sent to <strong>{identifierValue}</strong>.
              </p>
               <p className="text-xs text-center text-accent">
-                 (For demo, use OTP: <strong>{sampleCredentials.admin.otp}</strong>)
+                 (For demo sample users, use OTP: <strong>{sampleCredentials.adminAntony.otp}</strong>)
               </p>
             <FormField
               control={otpForm.control}
