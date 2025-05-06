@@ -58,18 +58,30 @@ export interface Message {
 // Type for messages stored in localStorage (with timestamp as string)
 type StoredMessage = Omit<Message, 'timestamp' | 'pollData' | 'eventData' | 'fileData'> & { 
   timestamp: string;
-  pollData?: PollData; // PollData will be stored as is, including correctOptionId
+  pollData?: PollData; 
   eventData?: EventData & { dateTime: string }; 
   fileData?: FileData;
 };
 
 
-const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v5'; // Incremented version for new structure
+// Use a global variable for mock data in non-production environments
+declare global {
+  var mockMessagesData_assigno_messages: Map<string, Message[]> | undefined;
+  var mockMessagesInitialized_assigno_messages: boolean | undefined;
+}
 
-function getMockMessagesData(): Map<string, Message[]> {
+const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v6'; // Incremented version
+
+// Initialize from localStorage or create new if not present
+function initializeGlobalMessagesStore(): Map<string, Message[]> {
   if (typeof window === 'undefined') {
     return new Map<string, Message[]>();
   }
+
+  if (globalThis.mockMessagesData_assigno_messages && globalThis.mockMessagesInitialized_assigno_messages) {
+    return globalThis.mockMessagesData_assigno_messages;
+  }
+
   try {
     const storedData = localStorage.getItem(MESSAGES_STORAGE_KEY);
     if (storedData) {
@@ -87,7 +99,7 @@ function getMockMessagesData(): Map<string, Message[]> {
                 options: msg.pollData.options || (msg.pollData.pollType === 'mcq' ? [] : undefined),
                 results: msg.pollData.results || (msg.pollData.pollType === 'mcq' ? {} : undefined),
                 voters: msg.pollData.voters || {},
-                correctOptionId: msg.pollData.correctOptionId, // Ensure this is loaded
+                correctOptionId: msg.pollData.correctOptionId, 
               } : undefined,
               eventData: msg.eventData ? {
                 ...msg.eventData,
@@ -98,18 +110,38 @@ function getMockMessagesData(): Map<string, Message[]> {
           );
         }
       }
+      globalThis.mockMessagesData_assigno_messages = messagesMap;
+      globalThis.mockMessagesInitialized_assigno_messages = true;
+      console.log("[Service:messages] Initialized global messages store from localStorage.");
       return messagesMap;
     }
   } catch (error) {
-    console.error("[Service:messages] Error reading messages from localStorage:", error);
+    console.error("[Service:messages] Error reading messages from localStorage during global init:", error);
   }
-  return new Map<string, Message[]>();
+
+  const newStore = new Map<string, Message[]>();
+  globalThis.mockMessagesData_assigno_messages = newStore;
+  globalThis.mockMessagesInitialized_assigno_messages = true;
+  console.log("[Service:messages] Initialized new empty global messages store.");
+  return newStore;
+}
+
+
+function getMockMessagesData(): Map<string, Message[]> {
+  if (typeof window === 'undefined') {
+    return new Map<string, Message[]>(); // Server-side, return empty
+  }
+  if (!globalThis.mockMessagesData_assigno_messages || !globalThis.mockMessagesInitialized_assigno_messages) {
+    return initializeGlobalMessagesStore();
+  }
+  return globalThis.mockMessagesData_assigno_messages;
 }
 
 function updateMockMessagesData(newData: Map<string, Message[]>): void {
   if (typeof window === 'undefined') {
     return; 
   }
+  globalThis.mockMessagesData_assigno_messages = newData; // Update global store
   try {
     const objectToStore: Record<string, StoredMessage[]> = {};
     newData.forEach((messages, groupId) => {
@@ -126,9 +158,7 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
           type: msg.type,
         };
         if (msg.pollData) {
-          storedMsg.pollData = { // Store PollData as is
-            ...msg.pollData
-          };
+          storedMsg.pollData = { ...msg.pollData };
         }
         if (msg.eventData) {
           storedMsg.eventData = { ...msg.eventData, dateTime: msg.eventData.dateTime };
@@ -145,13 +175,19 @@ function updateMockMessagesData(newData: Map<string, Message[]>): void {
   }
 }
 
+// Initialize on load for client-side
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+  initializeGlobalMessagesStore();
+}
+
+
 export async function getGroupMessages(groupId: string): Promise<Message[]> {
   console.log(`[Service:messages] Fetching messages for group ${groupId}`);
   
   await new Promise(resolve => setTimeout(resolve, 10)); 
   const store = getMockMessagesData(); 
   const messages = store.get(groupId) || [];
-  console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (localStorage mock).`);
+  console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (global/localStorage mock).`);
   return [...messages].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
 }
 
@@ -204,7 +240,7 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
             results: messageInput.pollData.pollType === 'mcq' ? {} : undefined, 
             voters: {}, 
             resultsPublished: false,
-            correctOptionId: undefined, // Initialize as undefined
+            correctOptionId: undefined, 
         } 
     };
   } else if (messageInput.type === 'event') {
@@ -228,7 +264,7 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
 
   updateMockMessagesData(store); 
 
-  console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (localStorage mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
+  console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (global/localStorage mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
   return { ...fullMessage };
 }
 
@@ -250,7 +286,7 @@ export async function voteOnPoll(groupId: string, messageId: string, submission:
   
   if (pollMessage.pollData.pollType === 'mcq') {
       pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
-      const optionId = submission; // For MCQ, submission is the optionId
+      const optionId = submission; 
       const previousVoteOptionId = pollMessage.pollData.voters[userId];
       if (previousVoteOptionId && pollMessage.pollData.results[previousVoteOptionId]) {
         pollMessage.pollData.results[previousVoteOptionId] = Math.max(0, (pollMessage.pollData.results[previousVoteOptionId] || 1) - 1);
@@ -263,9 +299,11 @@ export async function voteOnPoll(groupId: string, messageId: string, submission:
       console.log(`[Service:messages] Short Answer Poll ${messageId} submission from ${userId} recorded.`);
   }
   
-  groupMessages[messageIndex] = pollMessage;
-  store.set(groupId, groupMessages);
-  updateMockMessagesData(store);
+  const newGroupMessages = [...groupMessages]; // Create a new array for the specific group
+  newGroupMessages[messageIndex] = pollMessage;
+  const newStore = new Map(store); // Create a new map for the overall store
+  newStore.set(groupId, newGroupMessages);
+  updateMockMessagesData(newStore);
 
   return pollMessage;
 }
@@ -281,8 +319,6 @@ export async function publishPollResults(groupId: string, messageId: string, pub
 
   const pollMessage = { ...groupMessages[messageIndex] };
   if (!pollMessage.pollData) return null;
-
-  // TODO: Add permission check: Only sender (teacher/admin) or another admin can publish.
   
   pollMessage.pollData = { 
     ...pollMessage.pollData, 
@@ -290,9 +326,11 @@ export async function publishPollResults(groupId: string, messageId: string, pub
     ...(pollMessage.pollData.pollType === 'mcq' && correctOptionId && { correctOptionId: correctOptionId })
   };
   
-  groupMessages[messageIndex] = pollMessage;
-  store.set(groupId, groupMessages);
-  updateMockMessagesData(store);
+  const newGroupMessages = [...groupMessages];
+  newGroupMessages[messageIndex] = pollMessage;
+  const newStore = new Map(store);
+  newStore.set(groupId, newGroupMessages);
+  updateMockMessagesData(newStore);
 
   console.log(`[Service:messages] Poll ${messageId} results published. Correct Option: ${pollMessage.pollData.correctOptionId}`);
   return pollMessage;
