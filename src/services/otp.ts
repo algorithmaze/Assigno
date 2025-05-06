@@ -1,4 +1,3 @@
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc, getDoc)
 // import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -21,7 +20,7 @@ export async function sendOTP(identifier: string): Promise<void> {
   } else {
     console.log(`(For other identifiers, a generic OTP might be needed or signup flow)`);
   }
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay
   return;
 }
 
@@ -32,7 +31,7 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
   // Upon successful verification, you'd then fetch or create the user in your 'users' Firestore collection.
 
   // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 100)); // Reduced delay
 
   const sampleUserEntry = Object.values(sampleCredentials).find(
     cred => cred.identifier.toLowerCase() === identifier.toLowerCase() && cred.otp === otp
@@ -201,3 +200,4 @@ export function logSampleCredentials() {
 if (process.env.NODE_ENV === 'development') {
     logSampleCredentials();
 }
+

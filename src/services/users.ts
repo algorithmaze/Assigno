@@ -1,4 +1,3 @@
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs)
 // import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -120,7 +119,7 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     // return users;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 50)); 
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const users = mockUsersData.filter(user => userIds.includes(user.id));
     console.log(`[Service:users] Found ${users.length} users for IDs (mock): ${userIds.join(', ')}`);
     return users.map(u => ({...u})); 
@@ -145,7 +144,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
     // );
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
     const filterByTerm = lowerSearchTerm.length > 0;
     const results = mockUsersData.filter(user => {
@@ -211,7 +210,7 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      // return users;
 
      // --- Mock implementation ---
-     await new Promise(resolve => setTimeout(resolve, 50));
+     await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
      const users = mockUsersData.filter(user => user.schoolCode === schoolCode);
      console.log(`[Service:users] Found ${users.length} users in school ${schoolCode} (mock).`);
      return users.map(u => ({...u}));
@@ -232,7 +231,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     // return updatedUser;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const userIndex = mockUsersData.findIndex(u => u.id === userId);
     if (userIndex === -1) {
         console.error(`[Service:users] User ${userId} not found for update (mock).`);
@@ -256,7 +255,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const initialLength = mockUsersData.length;
     mockUsersData = mockUsersData.filter(u => u.id !== userId);
     if (mockUsersData.length < initialLength) {
@@ -268,3 +267,4 @@ export async function deleteUser(userId: string): Promise<boolean> {
     }
     // --- End mock implementation ---
 }
+

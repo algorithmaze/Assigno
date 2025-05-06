@@ -1,4 +1,3 @@
-
 'use client'; 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp)
 // import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -50,7 +49,7 @@ export async function getGroupMessages(groupId: string): Promise<Message[]> {
   // return messages;
 
   // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 50)); 
+  await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
   const messages = groupMessagesStore.get(groupId) || [];
   console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (mock).`);
   return [...messages].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
@@ -79,7 +78,7 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
   // return sentMessage;
   
   // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
   const fullMessage: Message = {
     ...fullMessageData,
     id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -91,4 +90,5 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
   return { ...fullMessage }; 
   // --- End mock implementation ---
 }
+
 

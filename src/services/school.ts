@@ -1,4 +1,3 @@
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, getDoc, setDoc)
 // import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -30,7 +29,7 @@ export async function getSchoolDetails(schoolCode: string): Promise<SchoolDetail
   // return null;
 
   // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 100)); 
+  await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
   if (currentSchoolDetails.schoolCode.toLowerCase() === schoolCode.toLowerCase()) {
     return { ...currentSchoolDetails }; 
   }
@@ -53,7 +52,7 @@ export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>
     // return newDetailsSnap.exists() ? newDetailsSnap.data() as SchoolDetails : null;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     if (updatedDetails.schoolName) {
         currentSchoolDetails.schoolName = updatedDetails.schoolName;
     }
@@ -64,3 +63,4 @@ export async function updateSchoolDetails(updatedDetails: Partial<SchoolDetails>
     return { ...currentSchoolDetails }; 
     // --- End mock implementation ---
 }
+

@@ -1,4 +1,3 @@
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc)
 // import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -54,9 +53,9 @@ function generateGroupCode(schoolCode: string): string {
     let newCode;
     let attempts = 0;
     do {
-        newCode = `${schoolCode.toUpperCase().slice(0,4)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        newCode = `${schoolCode.toUpperCase().slice(0,7).replace(/[^A-Z0-9]/g, '')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         attempts++;
-        if (attempts > 10) throw new Error("Failed to generate unique group code after multiple attempts.");
+        if (attempts > 20) throw new Error("Failed to generate unique group code after multiple attempts.");
         // TODO: Firebase - Check Firestore for groupCode uniqueness instead of mockGroupsData
     } while (mockGroupsData.some(g => g.groupCode === newCode));
     return newCode;
@@ -83,7 +82,7 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
     // const newGroup: Group = { id: docRef.id, ...newGroupData };
     
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const newGroup: Group = {
         id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         ...newGroupData,
@@ -113,7 +112,7 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     // return fetchedGroups;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const usersModule = await import('@/services/users');
     const user = await usersModule.fetchUsersByIds([userId]).then(users => users[0]);
 
@@ -151,7 +150,7 @@ export async function fetchGroupDetails(groupId: string): Promise<Group | null> 
     // }
     
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const foundGroup = mockGroupsData.find(group => group.id === groupId);
     if (foundGroup) {
       console.log(`[Service:groups] Group found (mock): ${foundGroup.name}`);
@@ -176,7 +175,7 @@ export async function fetchGroupByCode(groupCode: string, schoolCode: string): P
     // return null;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const foundGroup = mockGroupsData.find(g => g.groupCode.toUpperCase() === groupCode.toUpperCase() && g.schoolCode === schoolCode);
     return foundGroup ? { ...foundGroup } : null;
     // --- End mock implementation ---
@@ -201,7 +200,7 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(group => group.id === groupId);
     if (groupIndex === -1) {
       console.warn(`[Service:groups] Group ${groupId} not found for adding members (mock).`);
@@ -244,7 +243,7 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(group => group.id === groupId);
     if (groupIndex === -1) return false;
     const groupToUpdate = { ...mockGroupsData[groupIndex] };
@@ -266,54 +265,9 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
-    // Firebase - Group deletion is disabled
-    console.warn(`[Service:groups] Group deletion is currently disabled. Group ID: ${groupId}`);
+    // Firebase - Group deletion is disabled as per requirement
+    console.warn(`[Service:groups] Group deletion is disabled. Group ID: ${groupId}`);
     return false;
-
-
-    // TODO: Firebase - Replace with Firestore deleteDoc
-    // const firestore = getFirestore();
-    // const groupRef = doc(firestore, 'groups', groupId);
-    // const groupSnap = await getDoc(groupRef);
-    // if (!groupSnap.exists() || groupSnap.data().schoolCode !== schoolCode) {
-    //     console.warn(`[Service:groups] Group ${groupId} not found or admin lacks permission for deletion in Firestore.`);
-    //     return false;
-    // }
-    // await deleteDoc(groupRef);
-    // console.log(`[Service:groups] Group "${groupSnap.data().name}" (ID: ${groupId}) deleted successfully from Firestore.`);
-    // // TODO: Firebase - Delete associated messages subcollection (e.g. using a Cloud Function)
-    // return true;
-
-    // --- Mock implementation (commented out as deletion is disabled) ---
-    // await new Promise(resolve => setTimeout(resolve, 200));
-    // const groupToDelete = mockGroupsData.find(g => g.id === groupId);
-    // if (!groupToDelete) {
-    //     console.warn(`[Service:groups] Group ${groupId} not found for deletion (mock).`);
-    //     return false;
-    // }
-    // if (groupToDelete.schoolCode !== schoolCode) {
-    //     console.warn(`[Service:groups] Admin ${adminId} from school ${schoolCode} cannot delete group ${groupId} from school ${groupToDelete.schoolCode} (mock).`);
-    //     return false;
-    // }
-    // const initialLength = mockGroupsData.length;
-    // mockGroupsData = mockGroupsData.filter(group => group.id !== groupId);
-
-    // // Also remove messages associated with this group from the mock message store
-    // const messagesModule = await import('./messages');
-    // if (messagesModule.groupMessagesStore_assigno) { // Check if mock store is defined
-    //   messagesModule.groupMessagesStore_assigno.delete(groupId);
-    //   console.log(`[Service:groups] Deleted messages for group ${groupId} from mock store.`);
-    // }
-
-
-    // const success = mockGroupsData.length < initialLength;
-    // if (success) {
-    //   console.log(`[Service:groups] Group "${groupToDelete.name}" (ID: ${groupId}) deleted successfully (mock).`);
-    // } else {
-    //   console.error(`[Service:groups] Failed to delete group ${groupId} (mock).`);
-    // }
-    // return success;
-    // --- End mock implementation ---
 }
 
 
@@ -333,7 +287,7 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) return false;
     const group = { ...mockGroupsData[groupIndex] };
@@ -362,7 +316,7 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     // return usersModule.fetchUsersByIds(groupData.joinRequests); // This function needs to query Firestore users
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const group = mockGroupsData.find(g => g.id === groupId && (g.teacherIds.includes(teacherId) || g.schoolCode === (await import('@/services/users')).sampleCredentials.adminAntony.schoolCode && teacherId === (await import('@/services/users')).sampleCredentials.adminAntony.id)); // Admin can also view
     if (!group || !group.joinRequests || group.joinRequests.length === 0) return [];
     const usersModule = await import('@/services/users');
@@ -384,7 +338,7 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) return false;
     
@@ -418,7 +372,7 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
     // return true;
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) return false;
 
@@ -464,7 +418,7 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     // ... rest of the logic using Firestore data ...
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 200));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const usersModule = await import('@/services/users');
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
     const schoolGroups = mockGroupsData.filter(g => g.schoolCode === schoolCode);
@@ -510,7 +464,7 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     // return { ...group, ...settings };
 
     // --- Mock implementation ---
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const groupIndex = mockGroupsData.findIndex(g => g.id === groupId);
     if (groupIndex === -1) {
       console.warn(`[Service:groups] Group ${groupId} not found for settings update (mock).`);
@@ -534,5 +488,6 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     return { ...mockGroupsData[groupIndex] };
     // --- End mock implementation ---
 }
+
 
 
