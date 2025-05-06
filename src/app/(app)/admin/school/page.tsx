@@ -1,9 +1,10 @@
+
 'use client';
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import * as z from zod;
+import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -15,9 +16,10 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Save } from lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import { getSchoolDetails, updateSchoolDetails as updateSchoolDetailsService, type SchoolDetails } from '@/services/school';
 import { useRouter } from 'next/navigation';
