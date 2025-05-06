@@ -118,9 +118,10 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
 
 /**
  * Simulates searching for users within a school, excluding certain IDs.
- * Searches by name or email (case-insensitive).
+ * If searchTerm is less than 2 chars, returns all eligible users.
+ * Otherwise, searches by name or email (case-insensitive).
  * @param schoolCode The school code to filter users by.
- * @param searchTerm The string to search for in name or email.
+ * @param searchTerm The string to search for in name or email (min 2 chars for filtering).
  * @param excludeIds An array of user IDs to exclude from the results.
  * @returns Promise resolving to an array of matching User objects.
  */
@@ -128,30 +129,40 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
     console.log(`[Service:users] Simulating user search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     await new Promise(resolve => setTimeout(resolve, 400)); // Simulate search delay
 
-    if (!searchTerm || searchTerm.trim().length < 2) {
-        console.log("[Service:users] Search term too short, returning empty array.");
-        return []; // Don't return users on empty or very short search terms
-    }
+    const lowerSearchTerm = searchTerm.trim().toLowerCase();
+    const filterByTerm = lowerSearchTerm.length >= 2;
 
-    const lowerSearchTerm = searchTerm.toLowerCase();
     const results = mockUsersData.filter(user => {
         const matchesSchool = user.schoolCode === schoolCode;
         const isExcluded = excludeIds.includes(user.id);
+        if (!matchesSchool || isExcluded) {
+            return false;
+        }
+
+        // If not filtering by term, include the user
+        if (!filterByTerm) {
+            return true;
+        }
+
+        // If filtering, check name and email
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
-        // console.log(`[Service:users] Checking user ${user.id} (${user.name}): School=${matchesSchool}, Excluded=${isExcluded}, Name=${matchesName}, Email=${matchesEmail}`);
-        return matchesSchool && !isExcluded && (matchesName || matchesEmail);
+        return matchesName || matchesEmail;
     });
 
-    console.log(`[Service:users] Found ${results.length} users matching search criteria.`);
-    // console.log("[Service:users] Results:", results.map(u => ({ id: u.id, name: u.name })));
+    console.log(`[Service:users] Found ${results.length} users matching criteria (filterByTerm: ${filterByTerm}).`);
     return results;
 }
 
 // Function to add a new user (mainly for signup simulation if needed)
 export function addUser(user: User): void {
-    mockUsersData.push(user);
-    console.log("[Service:users] Added mock user:", user);
+    // Avoid adding duplicates if user already exists by ID
+    if (!mockUsersData.some(existingUser => existingUser.id === user.id)) {
+        mockUsersData.push(user);
+        console.log("[Service:users] Added mock user:", user);
+    } else {
+        console.log("[Service:users] User already exists, not adding:", user.id);
+    }
 }
 
 // Function to get all users (e.g., for admin management)
@@ -162,3 +173,11 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
      console.log(`[Service:users] Found ${users.length} users in school ${schoolCode}.`);
      return users;
 }
+
+// Ensure all sample users are in the mock data on module load
+import { sampleCredentials } from './otp';
+
+addUser(sampleCredentials.admin as User);
+addUser(sampleCredentials.teacher as User);
+addUser(sampleCredentials.student as User);
+// The others are already added manually above

@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -106,11 +105,11 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
 
   // --- Manage Members Logic ---
 
-  const handleSearchUsers = React.useCallback(async () => {
-     console.log(`[GroupDetail:ManageMembers] handleSearchUsers called. Term: "${searchTerm}"`);
-     if (!searchTerm.trim() || searchTerm.trim().length < 2 || !currentUser || !group) {
-        console.log("[GroupDetail:ManageMembers] Search term too short or missing user/group, aborting search.");
-        setSearchResults([]); // Clear results if search term is too short
+  const handleSearchUsers = React.useCallback(async (currentSearchTerm: string) => {
+     console.log(`[GroupDetail:ManageMembers] handleSearchUsers called. Term: "${currentSearchTerm}"`);
+     if (!currentUser || !group) {
+        console.log("[GroupDetail:ManageMembers] Missing user/group, aborting search.");
+        setSearchResults([]);
         return;
      }
      setIsSearching(true);
@@ -119,7 +118,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
        // Exclude users already in the group or staged for adding
        const excludeIds = [...members.map(m => m.id), ...membersToAdd.map(m => m.id)];
        console.log("[GroupDetail:ManageMembers] Excluding IDs:", excludeIds);
-       const results = await searchUsers(currentUser.schoolCode, searchTerm, excludeIds);
+       const results = await searchUsers(currentUser.schoolCode, currentSearchTerm, excludeIds);
        console.log("[GroupDetail:ManageMembers] Search results:", results);
        setSearchResults(results);
      } catch (err) {
@@ -129,25 +128,27 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
        setIsSearching(false);
         console.log("[GroupDetail:ManageMembers] Finished user search.");
      }
-   }, [searchTerm, currentUser, group, members, membersToAdd, toast]);
+   }, [currentUser, group, members, membersToAdd, toast]);
 
-  // Trigger search when search term changes (debounced)
+  // Trigger search when search term changes (debounced) or dialog opens
    React.useEffect(() => {
-     console.log(`[GroupDetail:ManageMembers] Search term changed: "${searchTerm}"`);
+     console.log(`[GroupDetail:ManageMembers] Search term or dialog state changed. Term: "${searchTerm}", Open: ${isManageMembersOpen}`);
+     if (!isManageMembersOpen) {
+        console.log("[GroupDetail:ManageMembers] Dialog closed, clearing results and skipping search.");
+        setSearchResults([]); // Clear results when dialog closes
+        return;
+     }
+
+     // Debounce search term changes
      const debounceTimer = setTimeout(() => {
-       if (searchTerm.trim().length >= 2) { // Match service logic (min 2 chars)
-         handleSearchUsers();
-       } else {
-         setSearchResults([]); // Clear results if search term is too short
-         console.log("[GroupDetail:ManageMembers] Search term too short, clearing results.");
-       }
-     }, 500); // 500ms debounce
+        handleSearchUsers(searchTerm); // Pass the current term
+     }, searchTerm.trim().length === 0 ? 0 : 500); // No delay if search term is cleared, 500ms otherwise
 
      return () => {
         console.log("[GroupDetail:ManageMembers] Clearing debounce timer.");
         clearTimeout(debounceTimer);
      }
-   }, [searchTerm, handleSearchUsers]);
+   }, [searchTerm, isManageMembersOpen, handleSearchUsers]);
 
 
    const addMemberToStaging = (userToAdd: User) => {
@@ -159,11 +160,18 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     const removeMemberFromStaging = (userToRemove: User) => {
       console.log("[GroupDetail:ManageMembers] Removing user from staging:", userToRemove);
       setMembersToAdd(prev => prev.filter(u => u.id !== userToRemove.id));
-      // Optionally add back to search results if they match the current term
-      if (searchTerm.trim().length >= 2 && (userToRemove.name.toLowerCase().includes(searchTerm.toLowerCase()) || userToRemove.email?.toLowerCase().includes(searchTerm.toLowerCase()))) {
+      // Optionally add back to search results if they match the current term OR if term is empty
+      const currentSearchTerm = searchTerm.trim().toLowerCase();
+      const shouldAddBack = currentSearchTerm.length === 0 || // Always add back if search is empty
+                             (currentSearchTerm.length >= 2 &&
+                              (userToRemove.name.toLowerCase().includes(currentSearchTerm) ||
+                               userToRemove.email?.toLowerCase().includes(currentSearchTerm)));
+
+      if (shouldAddBack) {
           // Avoid adding duplicates if already in results
           if (!searchResults.some(u => u.id === userToRemove.id)) {
               console.log("[GroupDetail:ManageMembers] Adding removed user back to search results:", userToRemove);
+              // Add back to the start of the list for visibility
               setSearchResults(prev => [userToRemove, ...prev]);
           }
       }
@@ -214,6 +222,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                 await loadGroupAndMembers(); // Reload group members
                  // If the member being removed was staged for addition, remove them from staging too
                 setMembersToAdd(prev => prev.filter(u => u.id !== memberIdToRemove));
+                // Refresh search results in case the removed member now qualifies
+                handleSearchUsers(searchTerm);
             } else {
                 throw new Error("Failed to remove member via service.");
             }
@@ -284,6 +294,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                          console.log(`[GroupDetail:ManageMembers] Dialog ${open ? 'opened' : 'closed'}.`);
                          setIsManageMembersOpen(open);
                          if (!open) resetManageMembersDialog(); // Reset state on close
+                         else handleSearchUsers(''); // Load initial users when opening
                      }}>
                          <DialogTrigger asChild>
                              <Button variant="outline" size="sm"><UserPlus className="mr-2 h-4 w-4" /> Manage Members</Button>
@@ -302,7 +313,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                   <div className="relative">
                                       <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                       <Input
-                                          placeholder="Search by name or email (min 2 chars)..."
+                                          placeholder="Search or browse users..."
                                           value={searchTerm}
                                           onChange={(e) => setSearchTerm(e.target.value)}
                                           className="pl-8"
@@ -313,7 +324,8 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                      <div className="p-2 space-y-1">
                                          {isSearching && <div className="text-center text-muted-foreground p-2"><Loader2 className="h-4 w-4 animate-spin inline mr-2"/>Searching...</div>}
                                          {!isSearching && searchResults.length === 0 && searchTerm.trim().length >= 2 && <div className="text-center text-muted-foreground p-2 text-sm">No users found matching "{searchTerm}".</div>}
-                                         {!isSearching && searchResults.length === 0 && searchTerm.trim().length < 2 && <div className="text-center text-muted-foreground p-2 text-sm">Enter 2 or more characters to search.</div>}
+                                          {!isSearching && searchResults.length === 0 && searchTerm.trim().length < 2 && <div className="text-center text-muted-foreground p-2 text-sm">No other users available to add.</div>}
+                                         {/* Removed the "Enter 2 or more characters" message to allow browsing */}
                                          {searchResults.map(user => (
                                              <div key={user.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                   <div className="flex items-center gap-2">
