@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -25,6 +26,7 @@ interface ChatInterfaceProps {
 type MessageTypeFilter = Message['type'] | 'all';
 type SenderRoleFilter = AuthUserType['role'] | 'all'; // Use AuthUserType['role']
 
+const POLLING_INTERVAL = 5000; // Poll every 5 seconds
 
 export function ChatInterface({ groupId }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -47,7 +49,6 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     try {
       const fetchedMessages = await getGroupMessages(groupId);
       setMessages(prevMessages => {
-        // Basic check for changes to avoid unnecessary re-renders
         if (JSON.stringify(prevMessages) !== JSON.stringify(fetchedMessages)) {
             return fetchedMessages;
         }
@@ -55,7 +56,6 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
       });
     } catch (error) {
         console.error("Error fetching messages:", error);
-        // Show toast only on initial load failure, not for poll failures
         if (!isPoll) toast({title: "Error", description: "Could not load messages.", variant: "destructive"});
         else console.warn("Polling for messages failed, suppressing UI error.");
     } finally {
@@ -71,17 +71,17 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     if (!groupId) return; 
     
     const intervalId = setInterval(async () => {
-        if (isPollingRef.current) return; // Skip if already polling
+        if (isPollingRef.current) return; 
         isPollingRef.current = true;
         try {
-            console.log("Polling for messages...");
-            await fetchAndSetMessages(true); // Pass true to indicate it's a poll
+            // console.log("Polling for messages...");
+            await fetchAndSetMessages(true);
         } catch (e) {
             console.error("Error during messages poll:", e);
         } finally {
             isPollingRef.current = false;
         }
-    }, 5000); // Poll every 5 seconds
+    }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
   }, [groupId, fetchAndSetMessages]);
@@ -91,10 +91,9 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     e?.preventDefault();
     if (!newMessage.trim() || !user) return;
 
-    // Assuming groupSettings might control this, for now allow teachers/admins freely
     if (user.role === 'Student' && !groupSettings?.allowStudentPosts) {
         toast({ title: "Restriction", description: "Students may not be allowed to send messages in this group.", variant: "default"});
-        // Depending on strictness, you might return here. For now, we let it proceed for testing.
+        return;
     }
 
     setIsSending(true);
@@ -105,8 +104,6 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
 
     try {
       const sentMessage = await addMessageToGroup(groupId, messageInput, user);
-      // The fetchAndSetMessages poll will pick up the new message,
-      // or you can optimistically update:
       setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
       setNewMessage('');
     } catch (error) {
@@ -126,8 +123,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
        }
     }, [messages, isLoadingMessages]); 
 
-    // Placeholder for group-specific settings (e.g., if students can post)
-    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); // Default to true for easier testing
+    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); 
 
     const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
     const canUseSpecialFeatures = user?.role === 'Teacher' || user?.role === 'Admin';
@@ -195,7 +191,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 p-4 space-y-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 space-y-0" ref={scrollAreaRef}> {/* Removed space-y-4 from here */}
         {isLoadingMessages && (
              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <Loader2 size={32} className="mb-2 animate-spin"/>
@@ -215,7 +211,7 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
         {!isLoadingMessages && filteredAndSearchedMessages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex items-end gap-2 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-end gap-2 mb-3 ${msg.senderId === user?.id ? 'justify-end' : 'justify-start'}`} // Added mb-3 for spacing
           >
              {msg.senderId !== user?.id && (
                 <Avatar className="h-8 w-8 self-start flex-shrink-0">
@@ -281,3 +277,4 @@ export function ChatInterface({ groupId }: ChatInterfaceProps) {
     </div>
   );
 }
+
