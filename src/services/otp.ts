@@ -66,20 +66,26 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
     };
   }
 
+  // Fallback for any identifier with OTP '123456' for easier testing of signup/other flows
+  // Ensure this logic aligns with how you want to handle non-predefined users.
   if (otp === '123456' && !sampleUserEntry) { 
      console.warn(`Generic OTP used for identifier: ${identifier}. This user might not be fully configured.`);
-     const schoolCodeForGeneric = identifier.split('@')[1]?.startsWith('school.com') ? 'samp123' : 'unknownSchool';
+     // Attempt to derive school code or use a default
+     const isEmail = identifier.includes('@');
+     const schoolCodeForGeneric = isEmail && identifier.split('@')[1]?.startsWith('school.com') ? 'samp123' : 'samp123'; // Default to samp123
      const schoolDetails = await getSchoolDetails(schoolCodeForGeneric);
      const genericUserId = 'user-' + Math.random().toString(36).substring(7);
+     
      const genericUser: User = {
          id: genericUserId,
          name: 'Generic User',
-         email: identifier.includes('@') ? identifier : undefined,
-         phoneNumber: !identifier.includes('@') ? identifier : undefined,
-         role: 'Student', 
+         email: isEmail ? identifier : undefined,
+         phoneNumber: !isEmail ? identifier : undefined,
+         role: 'Student', // Default role for generic OTP users
          schoolCode: schoolDetails?.schoolCode || schoolCodeForGeneric,
          schoolName: schoolDetails?.schoolName,
          schoolAddress: schoolDetails?.address,
+         profilePictureUrl: `https://picsum.photos/100/100?random=${genericUserId}`,
      };
      // TODO: Firebase - Create this generic user in Firestore if they don't exist.
      // const firestore = getFirestore();
@@ -94,6 +100,10 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
 }
 
 
+// School Details for all sample users
+const SCHOOL_CODE = 'samp123';
+const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
+
 export const sampleCredentials = {
     adminAntony: {
         id: 'admin-antony-001',
@@ -103,8 +113,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Admin' as 'Admin',
         otp: '000000', 
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=admin-antony-001`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}admin-antony-001`,
         admissionNumber: undefined,
         class: undefined,
      },
@@ -116,8 +126,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Teacher' as 'Teacher',
         otp: '111111',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-zara-001`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-zara-001`,
         admissionNumber: undefined,
         class: 'Class 10A',
      },
@@ -129,8 +139,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Teacher' as 'Teacher',
         otp: '222222',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-leo-002`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-leo-002`,
         admissionNumber: undefined,
         class: 'Class 9B',
      },
@@ -142,8 +152,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Student' as 'Student',
         otp: '333333',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=student-mia-001`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-mia-001`,
         admissionNumber: 'SAMP9001',
         class: 'Class 8A',
      },
@@ -155,8 +165,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Student' as 'Student',
         otp: '444444',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=student-omar-002`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-omar-002`,
         admissionNumber: 'SAMP9002',
         class: 'Class 7C',
      },
@@ -168,8 +178,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Teacher' as 'Teacher',
         otp: '555555',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=teacher-eva-003`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-eva-003`,
         admissionNumber: undefined,
         class: 'Class 11 Science',
     },
@@ -181,8 +191,8 @@ export const sampleCredentials = {
         phoneNumber: undefined,
         role: 'Student' as 'Student',
         otp: '666666',
-        schoolCode: 'samp123',
-        profilePictureUrl: `https://picsum.photos/100/100?random=student-ken-003`,
+        schoolCode: SCHOOL_CODE,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-ken-003`,
         admissionNumber: 'SAMP9003',
         class: 'Class 6B',
     },
@@ -190,14 +200,24 @@ export const sampleCredentials = {
 
 
 export function logSampleCredentials() {
-    console.log("--- Sample Login Credentials ---");
+    console.log("--- Sample Login Credentials (School: samp123 - Sample Sr. Sec. School) ---");
     Object.values(sampleCredentials).forEach(cred => {
         console.log(`${cred.role} ${cred.name}: ${cred.identifier} (OTP: ${cred.otp})`);
     });
     console.log("-------------------------------------------------");
 }
 
+// Log credentials only in development environment
 if (process.env.NODE_ENV === 'development') {
     logSampleCredentials();
 }
 
+// Initialize the mock users in the users service with these credentials
+// This is a bit of a hack due to module dependencies, but ensures users service is populated
+// with these sample users for other parts of the app (like group management).
+// A more robust solution might involve a shared mock data initialization module.
+import { initializeMockUsersWithCredentials } from './users';
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+    // Ensure this runs client-side only or where globalThis is reliable for mocks
+    initializeMockUsersWithCredentials(sampleCredentials);
+}

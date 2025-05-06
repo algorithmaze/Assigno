@@ -3,11 +3,32 @@
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
-import { sampleCredentials } from './otp';
+import type { sampleCredentials as SampleCredentialsType } from './otp'; // Import type
 import { getSchoolDetails } from './school';
 
+// Use a global variable for mock data in non-production environments
+declare global {
+  var mockUsersData_assigno_users: User[] | undefined;
+  var mockUsersInitialized_assigno_users: boolean | undefined;
+}
 
-async function transformToUser(cred: typeof sampleCredentials.adminAntony): Promise<User> {
+
+let mockUsersData: User[] = globalThis.mockUsersData_assigno_users || [];
+let isMockDataInitialized = globalThis.mockUsersInitialized_assigno_users || false;
+
+if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+    if (!globalThis.mockUsersData_assigno_users) {
+        globalThis.mockUsersData_assigno_users = [];
+    }
+    if (globalThis.mockUsersInitialized_assigno_users === undefined) {
+        globalThis.mockUsersInitialized_assigno_users = false;
+    }
+    mockUsersData = globalThis.mockUsersData_assigno_users;
+    isMockDataInitialized = globalThis.mockUsersInitialized_assigno_users;
+}
+
+
+async function transformCredentialToUser(cred: SampleCredentialsType[keyof SampleCredentialsType]): Promise<User> {
     const schoolDetails = await getSchoolDetails(cred.schoolCode);
     return {
         id: cred.id,
@@ -24,91 +45,43 @@ async function transformToUser(cred: typeof sampleCredentials.adminAntony): Prom
     };
 }
 
-
-let mockUsersData: User[] = [];
-let isMockDataInitialized = false;
-
-async function initializeMockUsers() {
+// This function will be called from otp.ts to initialize users based on sampleCredentials
+export async function initializeMockUsersWithCredentials(credentials: SampleCredentialsType) {
     if (isMockDataInitialized) return;
 
+    console.log("[Service:users] Initializing mock users from OTP credentials...");
     const transformedUsers = await Promise.all(
-        Object.values(sampleCredentials).map(cred => transformToUser(cred))
+        Object.values(credentials).map(cred => transformCredentialToUser(cred))
     );
-
-    const additionalUsersRaw = [
-        {
-            id: 'teacher-extra-004',
-            name: 'Nina Teacher',
-            email: 'nina@school.com',
-            role: 'Teacher' as 'Teacher',
-            schoolCode: 'samp123',
-            class: 'Class 12 Arts',
-            profilePictureUrl: `https://picsum.photos/100/100?random=teacher-extra-004`,
-        },
-        {
-            id: 'student-extra-004',
-            name: 'Leo Student (Extra)', 
-            email: 'leo.student@school.com',
-            role: 'Student' as 'Student',
-            schoolCode: 'samp123',
-            admissionNumber: 'SAMP9004',
-            class: 'Class 5A',
-            profilePictureUrl: `https://picsum.photos/100/100?random=student-extra-004`,
-        },
-         {
-            id: 'teacher-extra-005',
-            name: 'Sam Teacher',
-            email: 'sam@school.com',
-            role: 'Teacher' as 'Teacher',
-            schoolCode: 'samp123',
-            class: 'Class 7 Social Studies',
-            profilePictureUrl: `https://picsum.photos/100/100?random=teacher-extra-005`,
-        },
-        {
-            id: 'student-extra-005',
-            name: 'Grace Student',
-            email: 'grace@school.com',
-            role: 'Student'as 'Student',
-            schoolCode: 'samp123',
-            admissionNumber: 'SAMP9005',
-            class: 'Class 9C',
-            profilePictureUrl: `https://picsum.photos/100/100?random=student-extra-005`,
-        },
-    ];
-
-    const additionalTransformedUsers = await Promise.all(
-        additionalUsersRaw.map(async (rawUser) => {
-            const schoolDetails = await getSchoolDetails(rawUser.schoolCode);
-            return {
-                ...rawUser,
-                schoolName: schoolDetails?.schoolName,
-                schoolAddress: schoolDetails?.address,
-                phoneNumber: undefined, 
-                admissionNumber: rawUser.role === 'Student' ? rawUser.admissionNumber : undefined,
-                profilePictureUrl: rawUser.profilePictureUrl || `https://picsum.photos/100/100?random=${rawUser.id}`,
-            } as User;
-        })
-    );
-
-
-    const allUsers = [...transformedUsers, ...additionalTransformedUsers];
-
+    
     const uniqueUsersMap = new Map<string, User>();
-    allUsers.forEach(user => {
+    transformedUsers.forEach(user => {
         if (!uniqueUsersMap.has(user.id)) {
             uniqueUsersMap.set(user.id, user);
         }
     });
-    mockUsersData = Array.from(uniqueUsersMap.values());
-    console.log("[Service:users] Initialized unique mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
+    
+    mockUsersData.splice(0, mockUsersData.length, ...Array.from(uniqueUsersMap.values())); // Replace current mock data
+    
     isMockDataInitialized = true;
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockUsersData_assigno_users = mockUsersData;
+        globalThis.mockUsersInitialized_assigno_users = isMockDataInitialized;
+    }
+    console.log("[Service:users] Initialized mock users:", mockUsersData.length, mockUsersData.map(u => `${u.name} (${u.role})`));
 }
-
-initializeMockUsers();
 
 
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
-    await initializeMockUsers(); 
+    if (!isMockDataInitialized) {
+        console.warn("[Service:users] Mock data not initialized in fetchUsersByIds. This might happen if otp.ts didn't call initializeMockUsersWithCredentials yet.");
+        // Attempt to initialize if running in a context where credentials might be available (e.g. client-side dev)
+        // This is a fallback, ideally otp.ts handles initialization.
+         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+    }
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
     // TODO: Firebase - Replace with multiple getDoc calls or a more efficient Firestore query if possible (e.g., IN query for up to 30 IDs)
     // const firestore = getFirestore();
@@ -127,7 +100,13 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
 }
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
-    await initializeMockUsers();
+    if (!isMockDataInitialized) {
+       console.warn("[Service:users] Mock data not initialized in searchUsers.");
+        if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+    }
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     // TODO: Firebase - Replace with Firestore query. This is complex to replicate exactly with client-side filtering.
     // Firestore queries for searching parts of strings typically require a third-party search service like Algolia or Typesense,
@@ -153,12 +132,10 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
         if (!matchesSchool || isExcluded) {
             return false;
         }
-        if (!filterByTerm && excludeIds.length === 0) { 
-             return true;
-        }
-         if (!filterByTerm && excludeIds.length > 0) { 
+        if (!filterByTerm) { // If no search term, return all non-excluded users from the school
              return true; 
         }
+        // If there is a search term, filter by it
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
         return matchesName || matchesEmail;
@@ -169,7 +146,13 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
 }
 
 export async function addUser(user: User): Promise<User> {
-    await initializeMockUsers();
+    if (!isMockDataInitialized) {
+        console.warn("[Service:users] Mock data not initialized in addUser.");
+         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+    }
     console.log("[Service:users] Adding user:", user.name);
     // TODO: Firebase - Replace with Firestore setDoc (if ID is known, e.g., auth UID) or addDoc
     // const firestore = getFirestore();
@@ -188,6 +171,9 @@ export async function addUser(user: User): Promise<User> {
             profilePictureUrl: user.profilePictureUrl || `https://picsum.photos/100/100?random=${user.id}`,
         };
         mockUsersData.push(userToAdd);
+        if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+            globalThis.mockUsersData_assigno_users = mockUsersData;
+        }
         console.log("[Service:users] Added mock user:", userToAdd.name);
         return {...userToAdd};
     } else {
@@ -198,7 +184,13 @@ export async function addUser(user: User): Promise<User> {
 }
 
 export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
-     await initializeMockUsers();
+     if (!isMockDataInitialized) {
+        console.warn("[Service:users] Mock data not initialized in fetchAllUsers.");
+         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+     }
      console.log(`[Service:users] Fetching all users for school "${schoolCode}"`);
      // TODO: Firebase - Replace with Firestore query
      // const firestore = getFirestore();
@@ -218,7 +210,13 @@ export async function fetchAllUsers(schoolCode: string): Promise<User[]> {
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
-    await initializeMockUsers();
+    if (!isMockDataInitialized) {
+        console.warn("[Service:users] Mock data not initialized in updateUser.");
+         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+    }
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
     // TODO: Firebase - Replace with Firestore updateDoc
     // const firestore = getFirestore();
@@ -238,13 +236,22 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
         return null;
     }
     mockUsersData[userIndex] = { ...mockUsersData[userIndex], ...updates };
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockUsersData_assigno_users = mockUsersData;
+    }
     console.log("[Service:users] Updated user (mock):", mockUsersData[userIndex].name);
     return { ...mockUsersData[userIndex] }; 
     // --- End mock implementation ---
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
-    await initializeMockUsers();
+    if (!isMockDataInitialized) {
+        console.warn("[Service:users] Mock data not initialized in deleteUser.");
+         if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        }
+    }
     console.log(`[Service:users] Deleting user ${userId}`);
     // TODO: Firebase - Replace with Firestore deleteDoc
     // const firestore = getFirestore();
@@ -258,6 +265,9 @@ export async function deleteUser(userId: string): Promise<boolean> {
     await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
     const initialLength = mockUsersData.length;
     mockUsersData = mockUsersData.filter(u => u.id !== userId);
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockUsersData_assigno_users = mockUsersData;
+    }
     if (mockUsersData.length < initialLength) {
         console.log(`[Service:users] User ${userId} deleted successfully (mock).`);
         return true;
@@ -268,3 +278,15 @@ export async function deleteUser(userId: string): Promise<boolean> {
     // --- End mock implementation ---
 }
 
+// Ensure mock data is initialized if accessed directly by other modules on client side.
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !isMockDataInitialized) {
+    console.log("[Service:users] Attempting late initialization of mock users...");
+    (async () => {
+        try {
+            const otpService = await import('./otp');
+            await initializeMockUsersWithCredentials(otpService.sampleCredentials);
+        } catch (e) {
+            console.error("Late initialization of mock users failed:", e);
+        }
+    })();
+}

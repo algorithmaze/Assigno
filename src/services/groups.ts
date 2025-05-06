@@ -1,3 +1,4 @@
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, getDoc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc)
 // import { getFirestore, collection, addDoc, getDoc, doc, updateDoc, arrayUnion, arrayRemove, query, where, getDocs, serverTimestamp, deleteDoc, writeBatch } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -52,8 +53,9 @@ if (process.env.NODE_ENV === 'production') {
 function generateGroupCode(schoolCode: string): string {
     let newCode;
     let attempts = 0;
+    const normalizedSchoolCode = schoolCode.toUpperCase().slice(0,4).replace(/[^A-Z0-9]/g, '');
     do {
-        newCode = `${schoolCode.toUpperCase().slice(0,7).replace(/[^A-Z0-9]/g, '')}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        newCode = `${normalizedSchoolCode}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
         attempts++;
         if (attempts > 20) throw new Error("Failed to generate unique group code after multiple attempts.");
         // TODO: Firebase - Check Firestore for groupCode uniqueness instead of mockGroupsData
@@ -88,6 +90,9 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
         ...newGroupData,
     };
     mockGroupsData.push(newGroup);
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockGroupsData_assigno = mockGroupsData;
+    }
     console.log("[Service:groups] New group created (mock):", newGroup);
     // --- End mock implementation ---
     return { ...newGroup };
@@ -224,6 +229,9 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
     });
     if (changed) {
         mockGroupsData[groupIndex] = groupToUpdate;
+        if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+            globalThis.mockGroupsData_assigno = mockGroupsData;
+        }
         console.log("[Service:groups] Updated group members (mock):", groupToUpdate.name, "Teachers:", groupToUpdate.teacherIds.length, "Students:", groupToUpdate.studentIds.length);
     }
     return true;
@@ -256,6 +264,9 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
     if (groupToUpdate.studentIds.length < initialStudentCount) changed = true;
     if (changed) {
         mockGroupsData[groupIndex] = groupToUpdate;
+        if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+            globalThis.mockGroupsData_assigno = mockGroupsData;
+        }
         console.log("[Service:groups] Updated group after removal (mock):", groupToUpdate);
     }
     return true;
@@ -298,6 +309,9 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
     }
     group.joinRequests.push(studentId);
     mockGroupsData[groupIndex] = group;
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockGroupsData_assigno = mockGroupsData;
+    }
     console.log(`[Service:groups] Group ${groupId} join requests (mock):`, group.joinRequests);
     return true;
     // --- End mock implementation ---
@@ -317,9 +331,18 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
 
     // --- Mock implementation ---
     await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-    const group = mockGroupsData.find(g => g.id === groupId && (g.teacherIds.includes(teacherId) || g.schoolCode === (await import('@/services/users')).sampleCredentials.adminAntony.schoolCode && teacherId === (await import('@/services/users')).sampleCredentials.adminAntony.id)); // Admin can also view
-    if (!group || !group.joinRequests || group.joinRequests.length === 0) return [];
+    
     const usersModule = await import('@/services/users');
+    const adminAntonyId = usersModule.sampleCredentials.adminAntony.id;
+    const adminAntonySchoolCode = usersModule.sampleCredentials.adminAntony.schoolCode;
+
+    const group = mockGroupsData.find(g => 
+        g.id === groupId && 
+        (g.teacherIds.includes(teacherId) || (g.schoolCode === adminAntonySchoolCode && teacherId === adminAntonyId))
+    ); 
+
+    if (!group || !group.joinRequests || group.joinRequests.length === 0) return [];
+    
     return usersModule.fetchUsersByIds(group.joinRequests);
     // --- End mock implementation ---
 }
@@ -356,6 +379,9 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
     group.studentIds = [...group.studentIds, studentId];
     group.joinRequests = group.joinRequests.filter(id => id !== studentId);
     mockGroupsData[groupIndex] = group;
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockGroupsData_assigno = mockGroupsData;
+    }
     console.log(`[Service:groups] Student ${studentId} approved for group ${groupId} (mock). Students: ${group.studentIds.length}, Requests: ${group.joinRequests.length}`);
     return true;
     // --- End mock implementation ---
@@ -389,6 +415,9 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
     if (!group.joinRequests?.includes(studentId)) return false;
     group.joinRequests = group.joinRequests.filter(id => id !== studentId);
     mockGroupsData[groupIndex] = group;
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockGroupsData_assigno = mockGroupsData;
+    }
     return true;
     // --- End mock implementation ---
 }
@@ -484,10 +513,10 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
         return null;
     }
     mockGroupsData[groupIndex] = { ...group, ...settings };
+    if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+        globalThis.mockGroupsData_assigno = mockGroupsData;
+    }
     console.log(`[Service:groups] Group settings for "${group.name}" updated (mock).`);
     return { ...mockGroupsData[groupIndex] };
     // --- End mock implementation ---
 }
-
-
-

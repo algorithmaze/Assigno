@@ -18,17 +18,15 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
-import { sendOTP, verifyOTP, sampleCredentials } from '@/services/otp'; // Import sampleCredentials
-import { useAuth, type User } from '@/context/auth-context'; // Import User type
+import { Loader2, KeyRound, Users, UserCheck, CornerDownLeft, Info } from 'lucide-react';
+import { sendOTP, verifyOTP, sampleCredentials } from '@/services/otp'; 
+import { useAuth, type User } from '@/context/auth-context'; 
 import { useRouter } from 'next/navigation';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const loginSchema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
-  // Basic validation: check if it looks like an email or includes a '+' for phone
-  // .refine(val => z.string().email().safeParse(val).success || val.includes('+'), {
-  //   message: "Please enter a valid email or phone number (including country code)",
-  // }),
 });
 
 const otpSchema = z.object({
@@ -38,12 +36,14 @@ const otpSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
+type SampleUserKey = keyof typeof sampleCredentials;
+
 export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
-  const [identifierValue, setIdentifierValue] = React.useState(''); // Store identifier for OTP step
-  const [currentOtpForDemo, setCurrentOtpForDemo] = React.useState<string | null>(null);
+  const [identifierValue, setIdentifierValue] = React.useState(''); 
+  const [currentSampleUser, setCurrentSampleUser] = React.useState<typeof sampleCredentials[SampleUserKey] | null>(null);
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -63,27 +63,24 @@ export function LoginForm() {
   });
 
   const handleLoginSubmit = async (data: LoginFormData) => {
-    const isResend = otpSent; // Check if it's a resend request
+    const isResend = otpSent; 
     if (!isResend) setIsLoading(true);
     else setIsResendingOtp(true);
 
     try {
       await sendOTP(data.identifier);
       setIdentifierValue(data.identifier);
-      setOtpSent(true); // Ensure OTP screen is shown/remains
+      setOtpSent(true); 
 
-      // Find OTP for sample user if applicable
-      const sampleUserEntry = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === data.identifier.toLowerCase());
-      setCurrentOtpForDemo(sampleUserEntry ? sampleUserEntry.otp : null);
-
+      const matchedSampleUser = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === data.identifier.toLowerCase());
+      setCurrentSampleUser(matchedSampleUser || null);
 
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. ${sampleUserEntry ? `(For ${sampleUserEntry.name}, use OTP: ${sampleUserEntry.otp})` : '(For demo, use OTP from console or specific user\'s magic OTP).'}`,
+        description: `An OTP has been sent to ${data.identifier}. ${matchedSampleUser ? `(For ${matchedSampleUser.name}, use OTP: ${matchedSampleUser.otp})` : '(Use a generic OTP for other identifiers or check console).'}`,
       });
-      // Clear previous OTP errors if any
       otpForm.clearErrors('otp');
-      otpForm.resetField('otp'); // Clear the OTP input field on resend
+      otpForm.resetField('otp'); 
     } catch (error) {
       console.error('Error sending OTP:', error);
       toast({
@@ -101,36 +98,13 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       const response = await verifyOTP(identifierValue, data.otp);
-      if (response.success) {
-          // If the response includes sample user data, use it
-          if (response.user) {
-              await login(response.user);
-              toast({
-                title: 'Login Successful',
-                description: `Welcome back, ${response.user.name}!`,
-              });
-          } else {
-             // Fallback for generic success (e.g., if magic OTP used with unknown identifier)
-             // Create a very basic user object or handle as needed
-             console.warn("OTP verified but no specific user data returned. Creating generic user.");
-              const genericUser: User = {
-                  id: 'user-' + Math.random().toString(36).substring(7),
-                  name: 'Logged In User',
-                  email: identifierValue.includes('@') ? identifierValue : undefined,
-                  phoneNumber: !identifierValue.includes('@') ? identifierValue : undefined,
-                  role: 'Student', // Default role or determine based on identifier pattern
-                  schoolCode: 'samp123',
-                  schoolName: 'Sample Sr. Sec. School',
-                  schoolAddress: '456 School Road, Testville',
-              };
-              await login(genericUser);
-              toast({
-                title: 'Login Successful',
-                description: 'Welcome back!',
-              });
-          }
-         // Redirect is handled by AuthProvider's useEffect
-         // router.push('/dashboard');
+      if (response.success && response.user) {
+          await login(response.user);
+          toast({
+            title: 'Login Successful',
+            description: `Welcome back, ${response.user.name}!`,
+          });
+         // router.push('/dashboard'); // AuthProvider handles redirection
       } else {
         toast({
           title: 'Invalid OTP',
@@ -151,12 +125,11 @@ export function LoginForm() {
     }
   };
 
-  // Function to quickly fill form for sample users
-  const fillSampleUser = (roleKey: keyof typeof sampleCredentials) => {
+  const fillSampleUser = (roleKey: SampleUserKey) => {
     const userCred = sampleCredentials[roleKey];
     if (userCred) {
       loginForm.setValue('identifier', userCred.identifier);
-      setCurrentOtpForDemo(userCred.otp); // Set current OTP for display
+      setCurrentSampleUser(userCred); 
     } else {
       toast({
         title: "Sample User Not Configured",
@@ -167,103 +140,141 @@ export function LoginForm() {
   }
 
   return (
-    <>
+    <div className="space-y-6">
       {!otpSent ? (
         <>
             <Form {...loginForm}>
-            <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-4">
+            <form onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="space-y-6">
                 <FormField
                 control={loginForm.control}
                 name="identifier"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>School Email or Phone Number</FormLabel>
+                    <FormLabel className="text-base">School Email or Phone</FormLabel>
                     <FormControl>
-                        <Input placeholder="e.g., student@school.com or +1234567890" {...field} />
+                        <Input 
+                            type="text"
+                            placeholder="e.g., student@school.com or +1234567890" 
+                            {...field} 
+                            className="text-base py-6"
+                            aria-describedby="identifier-description"
+                         />
                     </FormControl>
-                    <FormDescription>
-                        Use a sample email below or your own. OTP for samples is in console/user details.
+                    <FormDescription id="identifier-description">
+                        Enter your registered credential.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
                 )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                <Button type="submit" className="w-full py-6 text-base" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <KeyRound className="mr-2 h-5 w-5" />}
                 Send OTP
                 </Button>
             </form>
             </Form>
-            {/* Sample User Buttons */}
-            <div className="mt-4 space-y-2 text-center">
-                <p className="text-sm text-muted-foreground">Quick Login (Demo):</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('studentMia')}>Student (Mia)</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('teacherZara')}>Teacher (Zara)</Button>
-                    <Button variant="outline" size="sm" onClick={() => fillSampleUser('adminAntony')}>Admin (Antony)</Button>
+            
+            <Separator />
+
+            <div className="space-y-3 text-center">
+                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Users className="h-4 w-4"/>Quick Logins (Demo Users)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(Object.keys(sampleCredentials) as SampleUserKey[]).map((key) => (
+                        <Button 
+                            key={key}
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => fillSampleUser(key)}
+                            className="py-3 text-xs sm:text-sm"
+                        >
+                           {sampleCredentials[key].name.split(' ')[0]} ({sampleCredentials[key].role})
+                        </Button>
+                    ))}
                 </div>
-                 {currentOtpForDemo && (
-                    <p className="text-xs text-accent mt-1">
-                        (Selected user's demo OTP: <strong>{currentOtpForDemo}</strong>)
-                    </p>
+                 {currentSampleUser && (
+                    <Alert variant="default" className="mt-4 text-left text-sm">
+                        <Info className="h-4 w-4" />
+                        <AlertTitle>Demo User Selected: {currentSampleUser.name}</AlertTitle>
+                        <AlertDescription>
+                            Identifier <code className="bg-muted px-1 rounded">{currentSampleUser.identifier}</code> filled.
+                            <br />
+                            Use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
+                        </AlertDescription>
+                    </Alert>
                  )}
             </div>
          </>
       ) : (
-        <Form {...otpForm}>
-          <form onSubmit={otpForm.handleSubmit(handleOtpSubmit)} className="space-y-4">
-             <p className="text-sm text-muted-foreground">
-              Enter the 6-digit OTP sent to <strong>{identifierValue}</strong>.
-             </p>
-              {currentOtpForDemo && (
-                <p className="text-xs text-center text-accent">
-                    (For this demo user, use OTP: <strong>{currentOtpForDemo}</strong>)
+        <div className="space-y-6">
+            <div className="text-center">
+                <h3 className="text-xl font-semibold">Verify Your Identity</h3>
+                <p className="text-muted-foreground">
+                Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
                 </p>
-              )}
-            <FormField
-              control={otpForm.control}
-              name="otp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>OTP Code</FormLabel>
-                  <FormControl>
-                    {/* Consider using a dedicated OTP input component for better UX */}
-                     <Input
-                        placeholder="------"
-                        maxLength={6}
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        {...field}
-                        // Auto focus on OTP field when it appears
-                        autoFocus
-                      />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={isLoading || isResendingOtp}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Verify OTP & Login
-            </Button>
-             <div className="flex flex-col sm:flex-row justify-between gap-2">
-                <Button variant="link" size="sm" onClick={() => { setOtpSent(false); loginForm.reset(); setCurrentOtpForDemo(null); }} disabled={isLoading || isResendingOtp} className="flex-1">
-                Change Email/Phone
+            </div>
+            {currentSampleUser && (
+                 <Alert variant="default" className="text-sm">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Demo User: {currentSampleUser.name}</AlertTitle>
+                    <AlertDescription>
+                        Use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
+                    </AlertDescription>
+                </Alert>
+            )}
+            <Form {...otpForm}>
+            <form onSubmit={otpForm.handleSubmit(handleOtpSubmit)} className="space-y-6">
+                <FormField
+                control={otpForm.control}
+                name="otp"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel className="text-base">One-Time Password (OTP)</FormLabel>
+                    <FormControl>
+                        <Input
+                            placeholder="------"
+                            maxLength={6}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            {...field}
+                            className="text-center text-2xl tracking-[0.5em] py-6 font-mono"
+                            autoFocus
+                        />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <Button type="submit" className="w-full py-6 text-base" disabled={isLoading || isResendingOtp}>
+                {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserCheck className="mr-2 h-5 w-5" />}
+                Verify & Login
                 </Button>
-                <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => handleLoginSubmit({ identifier: identifierValue })}
-                    disabled={isLoading || isResendingOtp}
-                    className="flex-1"
-                >
-                    {isResendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Resend OTP
-                </Button>
-             </div>
-          </form>
-        </Form>
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-2">
+                    <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => { setOtpSent(false); loginForm.reset(); setCurrentSampleUser(null); }} 
+                        disabled={isLoading || isResendingOtp} 
+                        className="w-full sm:w-auto"
+                    >
+                        <CornerDownLeft className="mr-2 h-4 w-4"/> Change Email/Phone
+                    </Button>
+                    <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        onClick={() => handleLoginSubmit({ identifier: identifierValue })}
+                        disabled={isLoading || isResendingOtp}
+                        className="w-full sm:w-auto"
+                    >
+                        {isResendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                        Resend OTP
+                    </Button>
+                </div>
+            </form>
+            </Form>
+        </div>
       )}
-    </>
+    </div>
   );
 }
