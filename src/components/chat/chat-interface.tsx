@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -369,15 +370,17 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                     const optionVotes = msg.pollData?.results?.[option.id] || 0;
                                     const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
                                     const isCorrect = msg.pollData?.resultsPublished && msg.pollData.correctOptionId === option.id;
-                                    const isIncorrect = msg.pollData?.resultsPublished && msg.pollData.correctOptionId && msg.pollData.correctOptionId !== option.id;
+                                    const isIncorrectSelected = msg.pollData?.resultsPublished && msg.pollData.correctOptionId && msg.pollData.correctOptionId !== option.id && msg.pollData.voters?.[user?.id || ''] === option.id;
+                                    const isSelected = msg.pollData.voters?.[user?.id || ''] === option.id;
                                     
-                                    let optionStyle = {};
-                                    if(isCorrect) optionStyle = { backgroundColor: 'hsl(var(--success))', color: 'hsl(var(--success-foreground))' };
-                                    if(isIncorrect) optionStyle = { backgroundColor: 'hsl(var(--destructive))', color: 'hsl(var(--destructive-foreground))' };
+                                    let optionStyleClasses = "p-1.5 rounded-md";
+                                    if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
+                                    else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
+                                    else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; // For selected but not correct/incorrect (when another option is correct)
 
 
                                     return (
-                                        <div key={option.id} className="p-1.5 rounded-md" style={optionStyle}>
+                                        <div key={option.id} className={optionStyleClasses}>
                                             <div className="flex items-center space-x-2 mb-0.5">
                                                 <RadioGroupItem value={option.id} id={`${msg.id}-${option.id}`} disabled={isSending || !!msg.pollData?.voters?.[user?.id || ''] || msg.pollData.resultsPublished}/>
                                                 <Label htmlFor={`${msg.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
@@ -441,7 +444,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                             </Button>
                         )}
                         {canUseSpecialFeatures && msg.pollData.resultsPublished && (
-                             <p className="text-xs mt-2 text-green-600 dark:text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Results Published</p>
+                             <p className="text-xs mt-2 text-success flex items-center gap-1"><CheckCircle className="h-3 w-3"/> Results Published</p>
                         )}
                     </div>
                 )}
@@ -536,6 +539,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
   const [pollType, setPollType] = React.useState<'mcq' | 'shortAnswer'>('mcq');
   const [options, setOptions] = React.useState<PollOption[]>([{ id: `opt-${Date.now()}`, text: '' }]);
   const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(false);
+  const { toast } = useToast(); // Moved useToast hook here
 
   const handleAddOption = () => setOptions([...options, { id: `opt-${Date.now()}-${options.length}`, text: '' }]);
   const handleRemoveOption = (id: string) => setOptions(options.filter(opt => opt.id !== id));
@@ -549,7 +553,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
       return;
     }
     if (pollType === 'mcq' && (options.some(opt => !opt.text.trim()) || options.length < 2)) {
-      toast({ title: "Invalid Poll", description: "For MCQ, at least two options are required.", variant: "destructive" });
+      toast({ title: "Invalid Poll", description: "For MCQ, at least two options are required and they cannot be empty.", variant: "destructive" });
       return;
     }
 
@@ -646,6 +650,7 @@ function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
   const [description, setDescription] = React.useState('');
   const [dateTime, setDateTime] = React.useState<Date | undefined>();
   const [location, setLocation] = React.useState('');
+  const { toast } = useToast(); // Moved useToast hook here
 
   const handleSubmit = () => {
     if (!title.trim() || !dateTime) {
@@ -735,6 +740,8 @@ interface PublishPollResultDialogProps {
 
 function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
     const [selectedCorrectOptionId, setSelectedCorrectOptionId] = React.useState<string | undefined>(pollMessage.pollData?.correctOptionId);
+    const { toast } = useToast(); // Moved useToast hook here
+
 
     React.useEffect(() => { // Reset selected option if dialog reopens for a different poll or same poll
         setSelectedCorrectOptionId(pollMessage.pollData?.correctOptionId);
@@ -793,3 +800,6 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
         </Dialog>
     );
 }
+
+
+    
