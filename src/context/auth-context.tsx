@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { ReactNode } from 'react';
@@ -111,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
      <AuthContext.Provider value={value}>
-        {!loading ? children : null}
+        {children}
     </AuthContext.Provider>
   );
 }
@@ -123,3 +124,4 @@ export function useAuth() {
   }
   return context;
 }
+
