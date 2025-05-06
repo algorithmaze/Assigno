@@ -5,6 +5,8 @@
 import type { User } from '@/context/auth-context';
 import type { sampleCredentials as SampleCredentialsType } from './otp'; // Import type
 import { getSchoolDetails } from './school';
+import * as XLSX from 'xlsx';
+
 
 // Use a global variable for mock data in non-production environments
 declare global {
@@ -42,6 +44,7 @@ async function transformCredentialToUser(cred: SampleCredentialsType[keyof Sampl
         profilePictureUrl: cred.profilePictureUrl || `https://picsum.photos/100/100?random=${cred.id}`,
         admissionNumber: cred.admissionNumber,
         class: cred.class,
+        designation: cred.designation,
     };
 }
 
@@ -145,7 +148,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
     // --- End mock implementation ---
 }
 
-export async function addUser(user: User): Promise<User> {
+export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & { id?: string }): Promise<User> {
     if (!isMockDataInitialized) {
         console.warn("[Service:users] Mock data not initialized in addUser.");
          if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
@@ -154,22 +157,34 @@ export async function addUser(user: User): Promise<User> {
         }
     }
     console.log("[Service:users] Adding user:", user.name);
+    
+    const schoolDetails = await getSchoolDetails(user.schoolCode);
+    const newUserId = user.id || `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+    const userToAdd: User = {
+        id: newUserId,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        schoolCode: user.schoolCode,
+        schoolName: schoolDetails?.schoolName,
+        schoolAddress: schoolDetails?.address,
+        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId}`,
+        admissionNumber: user.role === 'Student' ? user.admissionNumber : undefined,
+        class: user.role === 'Student' || user.role === 'Teacher' ? user.class : undefined,
+        designation: user.role === 'Teacher' ? user.designation : undefined,
+    };
+
     // TODO: Firebase - Replace with Firestore setDoc (if ID is known, e.g., auth UID) or addDoc
     // const firestore = getFirestore();
-    // const userRef = doc(firestore, 'users', user.id); // Assuming user.id is the auth UID
-    // await setDoc(userRef, user); // Use setDoc to create or overwrite
-    // console.log("[Service:users] Added user to Firestore:", user.name);
-    // return user;
+    // const userRef = doc(firestore, 'users', userToAdd.id); 
+    // await setDoc(userRef, userToAdd); 
+    // console.log("[Service:users] Added user to Firestore:", userToAdd.name);
+    // return userToAdd;
 
     // --- Mock implementation ---
-    if (!mockUsersData.some(existingUser => existingUser.id === user.id)) {
-        const schoolDetails = await getSchoolDetails(user.schoolCode);
-        const userToAdd: User = {
-            ...user,
-            schoolName: user.schoolName ?? schoolDetails?.schoolName,
-            schoolAddress: user.schoolAddress ?? schoolDetails?.address,
-            profilePictureUrl: user.profilePictureUrl || `https://picsum.photos/100/100?random=${user.id}`,
-        };
+    if (!mockUsersData.some(existingUser => existingUser.id === userToAdd.id)) {
         mockUsersData.push(userToAdd);
         if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
             globalThis.mockUsersData_assigno_users = mockUsersData;
@@ -177,8 +192,18 @@ export async function addUser(user: User): Promise<User> {
         console.log("[Service:users] Added mock user:", userToAdd.name);
         return {...userToAdd};
     } else {
-        console.log("[Service:users] User already exists, not adding (mock):", user.id);
-        return mockUsersData.find(u => u.id === user.id)!; 
+        console.log("[Service:users] User already exists, not adding (mock):", userToAdd.id);
+        // Optionally update existing user if ID was provided and matched
+        const existingUserIndex = mockUsersData.findIndex(u => u.id === userToAdd.id);
+        if (existingUserIndex !== -1) {
+            mockUsersData[existingUserIndex] = { ...mockUsersData[existingUserIndex], ...userToAdd };
+             if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
+                globalThis.mockUsersData_assigno_users = mockUsersData;
+            }
+            console.log("[Service:users] Updated existing mock user:", userToAdd.name);
+            return {...mockUsersData[existingUserIndex]};
+        }
+        return mockUsersData.find(u => u.id === userToAdd.id)!; 
     }
     // --- End mock implementation ---
 }
@@ -277,6 +302,114 @@ export async function deleteUser(userId: string): Promise<boolean> {
     }
     // --- End mock implementation ---
 }
+
+export type ExcelUser = {
+    Name: string;
+    'Email or Phone'?: string; // Optional, can be derived or explicitly provided
+    Role: 'Student' | 'Teacher';
+    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher';
+    'Class Handling (Teacher Only)'?: string; // e.g., "10A, 9B"
+    'Admission Number (Student Only)'?: string;
+    'Class (Student Only)'?: string;
+};
+
+export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Promise<{ successCount: number, errorCount: number, errors: string[] }> {
+    const reader = new FileReader();
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+
+    return new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+            try {
+                const data = event.target?.result;
+                if (!data) {
+                    reject(new Error("Failed to read file data."));
+                    return;
+                }
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
+
+                if (jsonData.length === 0) {
+                    errors.push("Excel file is empty or has no data in the first sheet.");
+                    errorCount = 1;
+                    resolve({ successCount, errorCount, errors });
+                    return;
+                }
+                
+                const schoolDetails = await getSchoolDetails(schoolCode);
+                if (!schoolDetails) {
+                     errors.push(`Invalid school code "${schoolCode}" provided for bulk import.`);
+                     errorCount = jsonData.length;
+                     resolve({ successCount, errorCount, errors });
+                     return;
+                }
+
+
+                for (const row of jsonData) {
+                    try {
+                        if (!row.Name || !row.Role) {
+                            errors.push(`Skipping row: Missing Name or Role. Row: ${JSON.stringify(row)}`);
+                            errorCount++;
+                            continue;
+                        }
+
+                        const baseUser: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & {id?: string} = {
+                            name: row.Name,
+                            email: row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
+                            phoneNumber: row['Email or Phone'] && !row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
+                            role: row.Role,
+                            schoolCode: schoolCode,
+                        };
+                        
+                        if (row.Role === 'Teacher') {
+                            if(!row['Designation (Teacher Only)']){
+                                errors.push(`Skipping Teacher "${row.Name}": Missing Designation. Row: ${JSON.stringify(row)}`);
+                                errorCount++;
+                                continue;
+                            }
+                            baseUser.designation = row['Designation (Teacher Only)'];
+                            baseUser.class = row['Class Handling (Teacher Only)'];
+                        } else if (row.Role === 'Student') {
+                            if(!row['Admission Number (Student Only)'] || !row['Class (Student Only)']){
+                                 errors.push(`Skipping Student "${row.Name}": Missing Admission Number or Class. Row: ${JSON.stringify(row)}`);
+                                 errorCount++;
+                                 continue;
+                            }
+                            baseUser.admissionNumber = row['Admission Number (Student Only)'];
+                            baseUser.class = row['Class (Student Only)'];
+                        } else {
+                            errors.push(`Skipping row: Invalid Role "${row.Role}". Row: ${JSON.stringify(row)}`);
+                            errorCount++;
+                            continue;
+                        }
+
+                        // TODO: Firebase - In a real scenario, you'd likely want to check if user already exists by email/phone
+                        // before creating a new one, or decide on an update strategy.
+                        // For mock, we just add.
+                        await addUser(baseUser);
+                        successCount++;
+                    } catch (e: any) {
+                        errors.push(`Error processing row for "${row.Name}": ${e.message || 'Unknown error'}`);
+                        errorCount++;
+                    }
+                }
+                resolve({ successCount, errorCount, errors });
+
+            } catch (e: any) {
+                console.error("Error processing Excel file:", e);
+                reject(new Error(`Failed to process Excel file: ${e.message}`));
+            }
+        };
+        reader.onerror = () => {
+            reject(new Error("Failed to read the file."));
+        };
+        reader.readAsBinaryString(file);
+    });
+}
+
 
 // Ensure mock data is initialized if accessed directly by other modules on client side.
 if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !isMockDataInitialized) {

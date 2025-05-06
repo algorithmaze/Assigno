@@ -1,3 +1,4 @@
+
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc, getDoc)
 // import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -62,6 +63,7 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
         profilePictureUrl: sampleUserEntry.profilePictureUrl,
         admissionNumber: sampleUserEntry.admissionNumber,
         class: sampleUserEntry.class,
+        designation: sampleUserEntry.designation,
       }
     };
   }
@@ -85,7 +87,7 @@ export async function verifyOTP(identifier: string, otp: string): Promise<OTPVer
          schoolCode: schoolDetails?.schoolCode || schoolCodeForGeneric,
          schoolName: schoolDetails?.schoolName,
          schoolAddress: schoolDetails?.address,
-         profilePictureUrl: `https://picsum.photos/100/100?random=${genericUserId}`,
+         profilePictureUrl: `https://picsum.photos/100/100?random=${genericUserId.replace('-', '')}`,
      };
      // TODO: Firebase - Create this generic user in Firestore if they don't exist.
      // const firestore = getFirestore();
@@ -114,9 +116,10 @@ export const sampleCredentials = {
         role: 'Admin' as 'Admin',
         otp: '000000', 
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}admin-antony-001`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}adminantony001`,
         admissionNumber: undefined,
         class: undefined,
+        designation: undefined,
      },
     teacherZara: {
         id: 'teacher-zara-001',
@@ -127,9 +130,10 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '111111',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-zara-001`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherzara001`,
         admissionNumber: undefined,
         class: 'Class 10A',
+        designation: 'Class Teacher' as 'Class Teacher',
      },
     teacherLeo: {
         id: 'teacher-leo-002',
@@ -140,9 +144,10 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '222222',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-leo-002`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherleo002`,
         admissionNumber: undefined,
-        class: 'Class 9B',
+        class: 'Class 9B, Class 10B',
+        designation: 'Subject Teacher' as 'Subject Teacher',
      },
     studentMia: {
         id: 'student-mia-001',
@@ -153,9 +158,10 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '333333',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-mia-001`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentmia001`,
         admissionNumber: 'SAMP9001',
         class: 'Class 8A',
+        designation: undefined,
      },
     studentOmar: {
         id: 'student-omar-002',
@@ -166,9 +172,10 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '444444',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-omar-002`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentomar002`,
         admissionNumber: 'SAMP9002',
         class: 'Class 7C',
+        designation: undefined,
      },
      teacherEva: {
         id: 'teacher-eva-003',
@@ -179,9 +186,10 @@ export const sampleCredentials = {
         role: 'Teacher' as 'Teacher',
         otp: '555555',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacher-eva-003`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teachereva003`,
         admissionNumber: undefined,
         class: 'Class 11 Science',
+        designation: 'Class Teacher' as 'Class Teacher',
     },
     studentKen: {
         id: 'student-ken-003',
@@ -192,9 +200,10 @@ export const sampleCredentials = {
         role: 'Student' as 'Student',
         otp: '666666',
         schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}student-ken-003`,
+        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentken003`,
         admissionNumber: 'SAMP9003',
         class: 'Class 6B',
+        designation: undefined,
     },
 };
 

@@ -28,7 +28,7 @@ import { Loader2 } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp'; 
 import { getSchoolDetails } from '@/services/school'; 
 import type { SchoolDetails } from '@/services/school';
-import { useAuth, type User } from '@/context/auth-context'; // Added User import
+import { useAuth, type User } from '@/context/auth-context'; 
 import { useRouter } from 'next/navigation';
 
 const signupStep1Schema = z.object({
@@ -41,9 +41,14 @@ const signupStep2Schema = z.object({
   otp: z.string().length(6, { message: 'OTP must be 6 digits' }),
   name: z.string().min(2, { message: 'Name is required' }),
   admissionNumber: z.string().optional(), 
-  class: z.string().optional(), 
+  class: z.string().optional(),
+  designation: z.enum(['Class Teacher', 'Subject Teacher']).optional(),
 }).refine((data) => {
-  return true;
+  // Validation for role-specific fields can be added here if needed.
+  // For example, if role is Student, admissionNumber and class might be required.
+  // If role is Teacher, designation might be required.
+  // This is simplified for now.
+  return true; 
 });
 
 
@@ -75,6 +80,7 @@ export function SignupForm() {
       name: '',
       admissionNumber: '',
       class: '',
+      designation: undefined,
     },
   });
 
@@ -146,7 +152,8 @@ export function SignupForm() {
           schoolAddress: schoolDetails?.address,
           admissionNumber: fullData.role === 'Student' ? fullData.admissionNumber : undefined,
           class: fullData.role === 'Student' || fullData.role === 'Teacher' ? fullData.class : undefined,
-          profilePictureUrl: `https://picsum.photos/100/100?random=${fullData.name.split(' ')[0]}`, // Default pic
+          profilePictureUrl: `https://picsum.photos/100/100?random=${fullData.name.split(' ')[0].toLowerCase()}`, // Default pic
+          designation: fullData.role === 'Teacher' ? fullData.designation : undefined,
        };
 
       // TODO: Firebase - Save newUser object to Firestore 'users' collection with newUser.id as document ID
@@ -175,8 +182,7 @@ export function SignupForm() {
     }
   };
 
-   const isStudentRole = step1Form.watch('role') === 'Student';
-   const isTeacherRole = step1Form.watch('role') === 'Teacher';
+   const currentRole = step1Form.watch('role') || formData.role;
 
 
   return (
@@ -243,7 +249,7 @@ export function SignupForm() {
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
              <p className="text-sm text-muted-foreground">
-              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Enter OTP sent to {formData.identifier}.
+              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}.
             </p>
             <FormField
               control={step2Form.control}
@@ -277,7 +283,7 @@ export function SignupForm() {
                 </FormItem>
               )}
             />
-            {isStudentRole && (
+            {currentRole === 'Student' && (
                  <>
                     <FormField
                     control={step2Form.control}
@@ -307,20 +313,43 @@ export function SignupForm() {
                     />
                  </>
             )}
-             {isTeacherRole && (
-                <FormField
-                    control={step2Form.control}
-                    name="class"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Class Teacher For (Optional)</FormLabel>
-                        <FormControl>
-                            <Input placeholder="e.g., 10A, Grade 5B" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
+             {currentRole === 'Teacher' && (
+                <>
+                    <FormField
+                        control={step2Form.control}
+                        name="designation"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Designation</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select your designation" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                <SelectItem value="Class Teacher">Class Teacher</SelectItem>
+                                <SelectItem value="Subject Teacher">Subject Teacher</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={step2Form.control}
+                        name="class"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Class(es) Handling (Optional)</FormLabel>
+                            <FormControl>
+                                <Input placeholder="e.g., 10A, 9B (comma-separated)" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </>
              )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>

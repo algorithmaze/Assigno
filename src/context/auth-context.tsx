@@ -20,7 +20,8 @@ export interface User {
   schoolName?: string;
   schoolAddress?: string;
   admissionNumber?: string; 
-  class?: string; 
+  class?: string; // For Students: their class (e.g., "10A"). For Teachers: classes they handle (e.g., "10A, 9B")
+  designation?: string; // For Teachers: "Class Teacher" or "Subject Teacher"
 }
 
 interface AuthContextType {

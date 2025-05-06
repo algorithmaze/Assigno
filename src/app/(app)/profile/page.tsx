@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { User as UserIcon, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase } from "lucide-react";
+import { User as UserIcon, Edit, Loader2, Mail, Phone, Building, BookOpen, Hash, Briefcase, Award } from "lucide-react"; // Added Award for designation
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link'; // Added Link import
@@ -54,8 +54,8 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Your Profile</h1>
-        <Button onClick={handleEditToggle} variant="outline">
-          <Edit className="mr-2 h-4 w-4" /> {isEditing ? 'Cancel' : 'Edit Profile'}
+        <Button onClick={handleEditToggle} variant="outline" disabled>
+          <Edit className="mr-2 h-4 w-4" /> {isEditing ? 'Cancel' : 'Edit Profile (Not Implemented)'}
         </Button>
       </div>
 
@@ -76,14 +76,17 @@ export default function ProfilePage() {
         <Card className="shadow-lg">
           <CardHeader className="items-center text-center border-b pb-6">
             <Avatar className="h-28 w-28 mb-4 ring-2 ring-primary/20 p-1">
-              <AvatarImage src={user.profilePictureUrl || `https://picsum.photos/120/120?random=${user.id}`} alt={user.name} data-ai-hint="profile large" />
+              <AvatarImage src={user.profilePictureUrl || `https://picsum.photos/120/120?random=${user.id.replace('-','')}`} alt={user.name} data-ai-hint="profile large" />
               <AvatarFallback className="text-4xl">
-                  <UserIcon/>
+                  {user.name ? user.name.charAt(0).toUpperCase() : <UserIcon/>}
               </AvatarFallback>
             </Avatar>
             <CardTitle className="text-3xl">{user.name}</CardTitle>
             <CardDescription className="text-lg text-muted-foreground">
                 {user.role}
+                {user.role === 'Teacher' && user.designation && (
+                    <span className="block text-sm">({user.designation})</span>
+                )}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 grid gap-6 md:grid-cols-2">
@@ -116,10 +119,17 @@ export default function ProfilePage() {
              )}
              {(user.role === 'Student' || user.role === 'Teacher') && user.class && (
                <div className="space-y-1">
-                 <Label htmlFor="class" className="flex items-center text-muted-foreground"><BookOpen className="mr-2 h-4 w-4" />Class</Label>
+                 <Label htmlFor="class" className="flex items-center text-muted-foreground"><BookOpen className="mr-2 h-4 w-4" />Class(es)</Label>
                  <Input id="class" value={user.class} readOnly className="text-base"/>
                </div>
              )}
+             {user.role === 'Teacher' && user.designation && (
+                <div className="space-y-1">
+                    <Label htmlFor="designation" className="flex items-center text-muted-foreground"><Award className="mr-2 h-4 w-4" />Designation</Label>
+                    <Input id="designation" value={user.designation} readOnly className="text-base"/>
+                </div>
+             )}
+
 
             <h2 className="text-xl font-semibold col-span-full border-b pb-2 mt-4 mb-2">School Information</h2>
              <div className="space-y-1 md:col-span-2">
