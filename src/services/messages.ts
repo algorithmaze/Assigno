@@ -1,4 +1,5 @@
-'use client'; 
+
+'use client';
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp)
 // import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -18,77 +19,63 @@ export interface Message {
 }
 
 declare global {
-  var groupMessagesStore_assigno: Map<string, Message[]>;
+  var mockGroupMessagesStore_assigno_messages: Map<string, Message[]> | undefined;
 }
 
-let groupMessagesStore: Map<string, Message[]>;
 
-if (process.env.NODE_ENV === 'production') {
-  groupMessagesStore = new Map<string, Message[]>();
-  // TODO: Firebase - In production, this Map would not be used. Data comes from Firestore.
-} else {
-  if (!(globalThis as any).groupMessagesStore_assigno) {
-    (globalThis as any).groupMessagesStore_assigno = new Map<string, Message[]>();
-    console.log("[Service:messages] Initialized global groupMessagesStore_assigno.");
+if (process.env.NODE_ENV !== 'production') {
+  if (!globalThis.mockGroupMessagesStore_assigno_messages) {
+    globalThis.mockGroupMessagesStore_assigno_messages = new Map<string, Message[]>();
+    console.log("[Service:messages] Initialized global mockGroupMessagesStore_assigno_messages.");
   }
-  groupMessagesStore = (globalThis as any).groupMessagesStore_assigno;
 }
+
+function getMockMessagesStore(): Map<string, Message[]> {
+  if (process.env.NODE_ENV === 'production') {
+    return new Map<string, Message[]>();
+  }
+  if (!globalThis.mockGroupMessagesStore_assigno_messages) {
+    globalThis.mockGroupMessagesStore_assigno_messages = new Map<string, Message[]>();
+  }
+  return globalThis.mockGroupMessagesStore_assigno_messages;
+}
+
 
 // TODO: Firebase - Consider using onSnapshot for real-time updates in getGroupMessages
 export async function getGroupMessages(groupId: string): Promise<Message[]> {
   console.log(`[Service:messages] Fetching messages for group ${groupId}`);
-  // TODO: Firebase - Replace with Firestore query
-  // const firestore = getFirestore();
-  // const messagesCol = collection(firestore, 'groups', groupId, 'messages');
-  // const q = query(messagesCol, orderBy('timestamp', 'asc'));
-  // For real-time, you'd use onSnapshot here and manage unsubscription.
-  // For a one-time fetch:
-  // const snapshot = await getDocs(q);
-  // const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), timestamp: doc.data().timestamp.toDate() } as Message));
-  // console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} from Firestore.`);
-  // return messages;
-
-  // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
-  const messages = groupMessagesStore.get(groupId) || [];
+  
+  await new Promise(resolve => setTimeout(resolve, 10)); 
+  const store = getMockMessagesStore();
+  const messages = store.get(groupId) || [];
   console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (mock).`);
-  return [...messages].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
-  // --- End mock implementation ---
+  return [...messages].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
 }
 
 export type NewMessageInput = Omit<Message, 'id' | 'timestamp' | 'groupId' | 'senderId' | 'senderName' | 'senderRole' | 'senderAvatar'>;
 
 export async function addMessageToGroup(groupId: string, messageInput: NewMessageInput, sender: User): Promise<Message> {
   console.log(`[Service:messages] Adding message to group ${groupId} from sender ${sender.id} (${sender.name})`);
-  // TODO: Firebase - Replace with Firestore addDoc
-  // const firestore = getFirestore();
-  // const messagesCol = collection(firestore, 'groups', groupId, 'messages');
+  
   const fullMessageData = {
     ...messageInput,
     groupId: groupId,
-    timestamp: new Date(), // Firebase: serverTimestamp()
+    timestamp: new Date(),
     senderId: sender.id,
     senderName: sender.name,
     senderRole: sender.role,
-    senderAvatar: sender.profilePictureUrl || '', // Ensure it's not undefined
+    senderAvatar: sender.profilePictureUrl || `https://picsum.photos/40/40?random=${sender.id}`, 
   };
-  // const docRef = await addDoc(messagesCol, fullMessageData);
-  // const sentMessage: Message = { id: docRef.id, ...fullMessageData };
-  // console.log(`[Service:messages] Message added by ${sentMessage.senderName} to group ${groupId} in Firestore. Content: "${sentMessage.content}".`);
-  // return sentMessage;
   
-  // --- Mock implementation ---
-  await new Promise(resolve => setTimeout(resolve, 10)); // Reduced delay
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const store = getMockMessagesStore();
   const fullMessage: Message = {
     ...fullMessageData,
     id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   };
-  const currentMessages = groupMessagesStore.get(groupId) || [];
+  const currentMessages = store.get(groupId) || [];
   const updatedMessages = [...currentMessages, fullMessage];
-  groupMessagesStore.set(groupId, updatedMessages);
+  store.set(groupId, updatedMessages);
   console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
-  return { ...fullMessage }; 
-  // --- End mock implementation ---
+  return { ...fullMessage };
 }
-
-
