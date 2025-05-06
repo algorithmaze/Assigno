@@ -19,7 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, Users, UserCheck, CornerDownLeft, Info } from 'lucide-react';
-import { sendOTP, verifyOTP, sampleCredentials } from '@/services/otp'; 
+import { sendOTP, verifyOTP } from '@/services/otp'; 
+import { sampleCredentials } from '@/services/users'; // Corrected import path
 import type { User } from '@/context/auth-context'; 
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
