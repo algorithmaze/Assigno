@@ -83,8 +83,15 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
 
 function getMockGroupsData(): Map<string, Group> {
   if (typeof window === 'undefined') {
-    return new Map<string, Group>(); // Server-side, return empty
+    if (!globalThis.mockGroupsInitialized_assigno_groups) {
+        // Server-side: initialize with empty or default if not already done by ensureMockDataInitialized
+        globalThis.mockGroupsData_assigno_groups = new Map<string, Group>();
+        globalThis.mockGroupsInitialized_assigno_groups = true;
+        console.log("[Service:groups] Server-side getMockGroupsData: Initialized empty groups store.");
+    }
+    return globalThis.mockGroupsData_assigno_groups || new Map<string, Group>();
   }
+  // Client-side
   if (!globalThis.mockGroupsData_assigno_groups || !globalThis.mockGroupsInitialized_assigno_groups) {
     return initializeGlobalGroupsStore();
   }
@@ -93,9 +100,13 @@ function getMockGroupsData(): Map<string, Group> {
 
 function updateMockGroupsData(newData: Map<string, Group>): void {
   if (typeof window === 'undefined') {
+    globalThis.mockGroupsData_assigno_groups = newData;
+    globalThis.mockGroupsInitialized_assigno_groups = true; // Mark as initialized for server context
     return; 
   }
+  // Client-side
   globalThis.mockGroupsData_assigno_groups = newData; // Update global store
+  globalThis.mockGroupsInitialized_assigno_groups = true;
   try {
     // Serialize Date objects to ISO strings for storage
     const serializableArray = Array.from(newData.values()).map(g => ({
@@ -454,22 +465,28 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
-    const usersModule = await import('./users'); // Await the dynamic import itself
+    
+    let usersModule;
+    try {
+        usersModule = await import('./users'); // Await the dynamic import itself
+         if (typeof usersModule.ensureMockDataInitialized === 'function') { 
+            await usersModule.ensureMockDataInitialized(); 
+        }
+    } catch (error) {
+        console.error("[Service:groups] Failed to import usersModule in getSchoolStats:", error);
+         return { // Return default/empty stats on error
+            totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
+            totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
+        };
+    }
     
     if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in getSchoolStats.");
-        // Return a default or empty stats object to prevent further errors
+        console.error("[Service:groups] usersModule is not available after import in getSchoolStats.");
         return {
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
-
-    // Now ensure data is initialized after module is loaded
-    if (typeof usersModule.ensureMockDataInitialized === 'function') { 
-        await usersModule.ensureMockDataInitialized(); // Await if it's async
-    }
-
 
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
     const schoolGroups = allGroups.filter(g => g.schoolCode === schoolCode);
@@ -543,3 +560,4 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock). Allow student posts: ${updatedGroup.allowStudentPosts}`);
     return { ...updatedGroup };
 }
+

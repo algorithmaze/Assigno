@@ -132,14 +132,34 @@ function initializeGlobalUsersStore(): User[] {
     try {
         const storedData = localStorage.getItem(USERS_STORAGE_KEY);
         if (storedData) {
-            const users = JSON.parse(storedData) as User[];
-            globalThis.mockUsersData_assigno_users = users;
-            globalThis.mockUsersInitialized_assigno_users = true;
-            console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
-            return users;
+            const parsedJson = JSON.parse(storedData);
+            if (Array.isArray(parsedJson)) {
+                const users: User[] = parsedJson.map((u: any) => ({
+                    id: String(u.id || `temp-id-${Math.random()}`),
+                    name: String(u.name || 'Unknown User'),
+                    email: typeof u.email === 'string' ? u.email : undefined,
+                    phoneNumber: typeof u.phoneNumber === 'string' ? u.phoneNumber : undefined,
+                    role: ['Student', 'Teacher', 'Admin'].includes(u.role) ? u.role : 'Student',
+                    schoolCode: String(u.schoolCode || SCHOOL_CODE),
+                    schoolName: typeof u.schoolName === 'string' ? u.schoolName : "Sample Sr. Sec. School",
+                    schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : "456 School Road, Testville",
+                    profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : `${DEFAULT_PROFILE_URL_BASE}${u.id || 'default'}`,
+                    admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
+                    class: typeof u.class === 'string' ? u.class : undefined,
+                    designation: typeof u.designation === 'string' ? u.designation : undefined,
+                }));
+                globalThis.mockUsersData_assigno_users = users;
+                globalThis.mockUsersInitialized_assigno_users = true;
+                console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
+                return users;
+            } else {
+                 console.warn("[Service:users] localStorage data is not an array. Initializing with sample credentials.");
+            }
         }
     } catch (error) {
-        console.error("[Service:users] Error reading users from localStorage during global init:", error);
+        console.error("[Service:users] Error reading/parsing users from localStorage. Initializing with sample credentials:", error);
+        // Clear potentially corrupted data
+        localStorage.removeItem(USERS_STORAGE_KEY);
     }
 
     const safeSampleCredentials = sampleCredentials || {};
@@ -174,8 +194,13 @@ function initializeGlobalUsersStore(): User[] {
 
 function getMockUsersData(): User[] {
   if (typeof window === 'undefined') {
-    return []; 
+    // For server-side, ensure data is initialized if not already
+    if (!globalThis.mockUsersInitialized_assigno_users) {
+        ensureMockDataInitialized_server();
+    }
+    return globalThis.mockUsersData_assigno_users || [];
   }
+  // Client-side
   if (!globalThis.mockUsersData_assigno_users || !globalThis.mockUsersInitialized_assigno_users) {
     return initializeGlobalUsersStore();
   }
@@ -184,8 +209,11 @@ function getMockUsersData(): User[] {
 
 function updateMockUsersData(newData: User[]): void {
   if (typeof window === 'undefined') {
+    globalThis.mockUsersData_assigno_users = newData; 
+    globalThis.mockUsersInitialized_assigno_users = true; // Mark as initialized for server context
     return;
   }
+  // Client-side
   globalThis.mockUsersData_assigno_users = newData; 
   globalThis.mockUsersInitialized_assigno_users = true; 
   try {
@@ -196,38 +224,54 @@ function updateMockUsersData(newData: User[]): void {
   }
 }
 
+// Client-side specific initialization (runs when module is loaded)
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
     initializeGlobalUsersStore();
 }
 
+// Server-side specific initialization helper
+function ensureMockDataInitialized_server() {
+    if (globalThis.mockUsersInitialized_assigno_users) return;
+
+    console.log("[Service:users] Server-side ensureMockDataInitialized_server: Initializing mock users store.");
+    const safeSampleCredentials = sampleCredentials || {};
+    const initialUsers = Object.values(safeSampleCredentials).map(cred => {
+        if (!cred || typeof cred.id !== 'string' || typeof cred.name !== 'string' || typeof cred.role !== 'string' || typeof cred.schoolCode !== 'string') {
+            console.warn("[Service:users] Server-init: Malformed credential, skipping:", cred);
+            return null;
+        }
+        return {
+            id: cred.id,
+            name: cred.name,
+            email: typeof cred.email === 'string' ? cred.email : undefined,
+            phoneNumber: typeof cred.phoneNumber === 'string' ? cred.phoneNumber : undefined,
+            role: cred.role as User['role'],
+            schoolCode: cred.schoolCode,
+            schoolName: "Sample Sr. Sec. School",
+            schoolAddress: "456 School Road, Testville",
+            profilePictureUrl: typeof cred.profilePictureUrl === 'string' ? cred.profilePictureUrl : `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
+            admissionNumber: typeof cred.admissionNumber === 'string' ? cred.admissionNumber : undefined,
+            class: typeof cred.class === 'string' ? cred.class : undefined,
+            designation: typeof cred.designation === 'string' ? cred.designation : undefined,
+        };
+    }).filter(user => user !== null) as User[];
+
+    globalThis.mockUsersData_assigno_users = initialUsers;
+    globalThis.mockUsersInitialized_assigno_users = true;
+    console.log("[Service:users] Initialized global users store with sample credentials for server context. Count:", initialUsers.length);
+}
+
 
 export async function ensureMockDataInitialized() {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    if (typeof window === 'undefined') { // Server-side or build-time
+        ensureMockDataInitialized_server();
+    } else if (process.env.NODE_ENV !== 'production') { // Client-side, dev environment
         if (!globalThis.mockUsersInitialized_assigno_users) {
             initializeGlobalUsersStore(); 
         }
-    } else if (typeof window === 'undefined') {
-        if (!globalThis.mockUsersInitialized_assigno_users) {
-             console.log("[Service:users] Server-side ensureMockDataInitialized called. Initializing mock users for server context if needed.");
-             // For server-side, you might not want to initialize from localStorage.
-             // Instead, just ensure the globalThis.mockUsersData_assigno_users has the default sample credentials.
-             const safeSampleCredentials = sampleCredentials || {};
-             const initialUsers = Object.values(safeSampleCredentials).map(cred => {
-                 if (!cred || typeof cred.id === 'undefined' || typeof cred.name === 'undefined' || typeof cred.role === 'undefined' || typeof cred.schoolCode === 'undefined') {
-                     return null;
-                 }
-                 return {
-                     id: cred.id, name: cred.name, email: cred.email, phoneNumber: cred.phoneNumber, role: cred.role,
-                     schoolCode: cred.schoolCode, schoolName: "Sample Sr. Sec. School", schoolAddress: "456 School Road, Testville",
-                     profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
-                     admissionNumber: cred.admissionNumber, class: cred.class, designation: cred.designation,
-                 };
-             }).filter(user => user !== null) as User[];
-             globalThis.mockUsersData_assigno_users = initialUsers;
-             globalThis.mockUsersInitialized_assigno_users = true;
-             console.log("[Service:users] Initialized global users store with sample credentials for server context.");
-        }
     }
+    // For production client-side, data should be loaded from actual DB, not localStorage primarily.
+    // The check inside getMockUsersData will handle initial localStorage load if it exists.
 }
 
 
@@ -281,7 +325,7 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
         schoolCode: user.schoolCode,
         schoolName: schoolDetails?.schoolName,
         schoolAddress: schoolDetails?.address,
-        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId.replace('-','')}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId.replace(/-/g,'')}`,
         admissionNumber: user.role === 'Student' ? user.admissionNumber : undefined,
         class: user.role === 'Student' || user.role === 'Teacher' ? user.class : undefined,
         designation: user.role === 'Teacher' ? user.designation : (user.role === 'Admin' ? 'Administrator' : undefined),
