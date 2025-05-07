@@ -41,6 +41,37 @@ const otpSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
+// Define types for dummy users for quick login
+interface DummyUserCredential {
+  label: string;
+  identifier: string; // Email for these dummies
+  note?: string;
+}
+
+const dummyLoginDetails: Record<string, DummyUserCredential> = {
+  stAntonyAdmin: {
+    label: 'St. Antony Admin',
+    identifier: 'admin@stantony.school',
+    note: 'School: STA987'
+  },
+  dummyAdmin: {
+    label: 'Dummy Admin',
+    identifier: 'dummy.admin@assigno.app',
+    note: 'School: DUMMYSC'
+  },
+  dummyTeacher: {
+    label: 'Dummy Teacher',
+    identifier: 'dummy.teacher@assigno.app',
+    note: 'School: DUMMYSC'
+  },
+  dummyStudent: {
+    label: 'Dummy Student',
+    identifier: 'dummy.student@assigno.app',
+    note: 'School: DUMMYSC'
+  },
+};
+type DummyUserKey = keyof typeof dummyLoginDetails;
+
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
@@ -76,7 +107,7 @@ export function LoginForm() {
       setOtpSent(true);
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: In a real app, an email/SMS would be sent. For testing, check browser console for OTP).`,
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "000000" or check browser console).`,
         duration: 7000,
       });
       otpForm.clearErrors('otp');
@@ -105,8 +136,6 @@ export function LoginForm() {
             description: `Welcome back, ${response.user.name}!`,
           });
       } else if (response.success && !response.user) {
-        // This can happen if it's a signup flow or if the user was deleted post-OTP request
-        // For login, this implies the user doesn't exist or wasn't found by verifyOTP.
         toast({
           title: 'OTP Verified, User Not Found',
           description: 'OTP is correct, but no user account is associated with this identifier. Please ensure you have signed up.',
@@ -132,6 +161,11 @@ export function LoginForm() {
     }
   };
 
+   // Function to quickly fill form for sample users
+  const fillDummyUser = (key: DummyUserKey) => {
+     loginForm.setValue('identifier', dummyLoginDetails[key].identifier);
+  }
+
 
   return (
     <div className="space-y-6">
@@ -154,13 +188,13 @@ export function LoginForm() {
                             type="text"
                             placeholder="e.g., user@school.com or +1234567890"
                             {...field}
-                            className="text-base py-6 pl-10" // Added pl-10 for icon padding
+                            className="text-base py-6 pl-10" 
                             aria-describedby="identifier-description"
                          />
                         </div>
                     </FormControl>
                     <FormDescription id="identifier-description">
-                        Enter your registered credential to receive an OTP.
+                        Enter your registered credential to receive an OTP. (MOCK: Use OTP "000000" for dummy users or check console).
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -172,7 +206,24 @@ export function LoginForm() {
                 </Button>
             </form>
             </Form>
-            {/* Quick Logins section removed as sampleCredentials are removed */}
+            
+            <div className="space-y-3 pt-4 border-t">
+                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Users className="h-4 w-4"/>Quick Logins (Dummy Users - OTP: 000000)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(Object.keys(dummyLoginDetails) as DummyUserKey[]).map((key) => (
+                        <Button 
+                            key={key}
+                            variant="outline" 
+                            onClick={() => fillDummyUser(key)}
+                            className="flex flex-col items-start h-auto py-2 px-3 text-left"
+                        >
+                           <span className="font-semibold text-sm">{dummyLoginDetails[key].label}</span>
+                           <span className="text-xs text-muted-foreground block truncate w-full">{dummyLoginDetails[key].identifier}</span>
+                           {dummyLoginDetails[key].note && <span className="text-xs text-muted-foreground/70 block">{dummyLoginDetails[key].note}</span>}
+                        </Button>
+                    ))}
+                </div>
+            </div>
          </>
       ) : (
         <div className="space-y-6">
@@ -180,7 +231,7 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                (MOCK: In a real app, an email/SMS would be sent. For testing, check browser console for OTP).
+                (MOCK: Use OTP "000000" or check browser console).
                 </p>
             </div>
             <Form {...otpForm}>

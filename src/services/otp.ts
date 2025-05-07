@@ -19,19 +19,29 @@ export interface OTPVerificationResponse {
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing
-const ADMIN_EXAMPLE_EMAIL_DEPRECATED = "admin@example.com"; // Kept for reference, but not actively used by new schools
-const ADMIN_STANTONY_EMAIL = "admin@stantony.school";
+
+// Predefined dummy user emails for fixed OTP
+const DUMMY_USER_EMAILS_FOR_FIXED_OTP = [
+  "admin@stantony.school", // St. Antony Admin
+  "dummy.admin@assigno.app", // New Dummy Admin
+  "dummy.teacher@assigno.app", // New Dummy Teacher
+  "dummy.student@assigno.app"  // New Dummy Student
+].map(email => email.toLowerCase());
 
 
 export async function sendOTP(identifier: string): Promise<void> {
   let generatedOtp: string;
-
-  // Check for specific admin emails to use the default test OTP
   const lowerIdentifier = identifier.toLowerCase();
-  if (lowerIdentifier === ADMIN_EXAMPLE_EMAIL_DEPRECATED.toLowerCase() || lowerIdentifier === ADMIN_STANTONY_EMAIL.toLowerCase()) {
+
+  // Check if the identifier matches any of the predefined dummy emails
+  if (DUMMY_USER_EMAILS_FOR_FIXED_OTP.includes(lowerIdentifier)) {
     generatedOtp = DEFAULT_TEST_OTP;
+    console.log(`Using default OTP ${DEFAULT_TEST_OTP} for recognized dummy user: ${identifier}`);
   } else {
-    generatedOtp = DEFAULT_TEST_OTP; // Default OTP for all other users in mock environment
+    // For any other user in a mock/dev environment, you might still want a predictable OTP
+    // or a randomly generated one that's logged. For simplicity, we'll use the default.
+    generatedOtp = DEFAULT_TEST_OTP; 
+    console.log(`Using default OTP ${DEFAULT_TEST_OTP} for general user: ${identifier} (for testing).`);
   }
   
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
@@ -65,7 +75,7 @@ export async function sendOTP(identifier: string): Promise<void> {
   // }
   // --- End of Real Email Sending Logic ---
 
-  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
+  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS. It expires in 5 minutes).`);
   
   await new Promise(resolve => setTimeout(resolve, 50)); 
   return;

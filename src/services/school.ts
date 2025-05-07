@@ -1,3 +1,4 @@
+
 import type { User } from '@/context/auth-context';
 import { addUser } from './users'; // For creating admin user
 
@@ -40,7 +41,7 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v5_stantony_default'; // Version bump
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v6_dummy_school'; // Version bump
 
 
 // Initialize global store for a LIST of registered institutes
@@ -54,16 +55,30 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     state: "NY",
     pincode: "10001",
     contactNumber: "+1555010101",
-    adminEmail: "admin@stantony.school",
-    registrationDate: new Date().toISOString(),
+    adminEmail: "admin@stantony.school", // Admin for St. Antony
+    registrationDate: new Date("2023-01-15T10:00:00.000Z").toISOString(),
   };
+
+  const dummySchool: SchoolDetails = {
+    schoolCode: "DUMMYSC",
+    schoolName: "Dummy School of Excellence",
+    instituteType: "School",
+    address: "123 Dummy Street, Mocksville",
+    city: "Faketown",
+    state: "DS", // Dummy State
+    pincode: "00000",
+    contactNumber: "+0000000000",
+    adminEmail: "dummy.admin@assigno.app", // Admin for Dummy School
+    registrationDate: new Date("2023-02-01T11:00:00.000Z").toISOString(),
+  };
+
+  const defaultInitialSchools = [stAntonySchool, dummySchool];
 
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        // Server-side default includes St. Antony if list is not initialized
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [stAntonySchool];
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST with St. Antony.");
+        console.log("[Service:school] Server-side: Initialized global institutes LIST with defaults.");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -76,22 +91,28 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     const storedData = localStorage.getItem(REGISTERED_INSTITUTES_STORAGE_KEY);
     if (storedData) {
       const institutesList = JSON.parse(storedData) as SchoolDetails[];
+       // Ensure default schools are present if not already in stored data
+      const currentSchoolCodes = new Set(institutesList.map(s => s.schoolCode));
+      defaultInitialSchools.forEach(defaultSchool => {
+        if (!currentSchoolCodes.has(defaultSchool.schoolCode)) {
+          institutesList.push(defaultSchool);
+        }
+      });
       globalThis.mockRegisteredInstitutes_assigno_school_list = institutesList;
       globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
       console.log("[Service:school] Initialized global institutes LIST from localStorage:", institutesList.length, "institutes loaded.");
+      localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(institutesList)); // Save back if modified
       return institutesList;
     }
   } catch (error) {
     console.error("[Service:school] Error reading institutes LIST from localStorage:", error);
   }
   
-  // Default to a list containing St. Antony school if nothing is stored
-  const defaultList: SchoolDetails[] = [stAntonySchool];
-  globalThis.mockRegisteredInstitutes_assigno_school_list = defaultList;
+  globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools];
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-  localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultList));
-  console.log("[Service:school] Initialized new global institutes LIST with St. Antony and saved to localStorage.");
-  return defaultList;
+  localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultInitialSchools));
+  console.log("[Service:school] Initialized new global institutes LIST with defaults and saved to localStorage.");
+  return defaultInitialSchools;
 }
 
 
@@ -184,7 +205,7 @@ export async function registerInstitute(
   
   try {
     const adminUserData: Omit<User, 'id' | 'schoolName' | 'schoolAddress'> & {schoolName: string, schoolAddress: string} = {
-      name: `${input.instituteName} Admin`,
+      name: `${input.instituteName} Admin`, // Default name
       email: input.adminEmail,
       role: 'Admin',
       schoolCode: schoolCode,
@@ -198,6 +219,7 @@ export async function registerInstitute(
 
   } catch (userError: any) {
     console.error('[Service:school] Failed to create admin user for new institute:', userError);
+    // Still return success for school registration, but with a message about user creation
     return { success: true, schoolCode, message: `Institute registered, but admin user creation failed: ${userError.message}. Please try signup manually.` };
   }
 }
@@ -235,6 +257,7 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
   const updatedInstitutesList = institutesList.map(school => {
     if (school.schoolCode === targetSchoolCode) {
       schoolFoundAndUpdated = true;
+      // Create a new object for the updated school to ensure immutability
       const updatedSchool = { ...school, ...updatedDetailsInput, schoolCode: targetSchoolCode };
       return updatedSchool;
     }
@@ -247,6 +270,7 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
   }
   
   updateMockRegisteredInstitutes(updatedInstitutesList); 
+  // Find the updated school from the new list to return it (ensures the returned object is the one in the "store")
   const newlyUpdatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
   return newlyUpdatedSchoolFromList ? { ...newlyUpdatedSchoolFromList } : null;
 }

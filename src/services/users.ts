@@ -12,15 +12,68 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v10_no_dummies_at_all'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v11_dummy_school_users'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
+    const stAntonyAdmin: User = {
+        id: 'admin-sta987-001',
+        name: 'Antony (Admin St. Antony)',
+        email: 'admin@stantony.school',
+        role: 'Admin',
+        schoolCode: 'STA987',
+        schoolName: 'ST.ANTONY SR. SEC SCHOOL',
+        schoolAddress: '456 Church Road, Vatican City, Metropolis, NY 10001',
+        designation: 'Administrator',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=adminsta987',
+    };
+
+    const dummySchoolAdmin: User = {
+        id: 'admin-dummysc-001',
+        name: 'Dummy Admin',
+        email: 'dummy.admin@assigno.app',
+        role: 'Admin',
+        schoolCode: 'DUMMYSC',
+        schoolName: 'Dummy School of Excellence',
+        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
+        designation: 'Administrator',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=admindummy',
+    };
+
+    const dummySchoolTeacher: User = {
+        id: 'teacher-dummysc-001',
+        name: 'Dummy Teacher',
+        email: 'dummy.teacher@assigno.app',
+        role: 'Teacher',
+        schoolCode: 'DUMMYSC',
+        schoolName: 'Dummy School of Excellence',
+        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
+        designation: 'Subject Teacher',
+        class: 'Various Classes', // Example
+        profilePictureUrl: 'https://picsum.photos/100/100?random=teacherdummy',
+    };
+    
+    const dummySchoolStudent: User = {
+        id: 'student-dummysc-001',
+        name: 'Dummy Student',
+        email: 'dummy.student@assigno.app',
+        role: 'Student',
+        schoolCode: 'DUMMYSC',
+        schoolName: 'Dummy School of Excellence',
+        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
+        admissionNumber: 'DUM001',
+        class: 'Grade X',
+        profilePictureUrl: 'https://picsum.photos/100/100?random=studentdummy',
+    };
+
+    const defaultInitialUsers = [stAntonyAdmin, dummySchoolAdmin, dummySchoolTeacher, dummySchoolStudent];
+
+
     if (typeof window === 'undefined') {
-        // Server-side: Initialize with an empty array. No default users.
-        const serverInitialUsers: User[] = [];
+        // Server-side: Initialize with default users.
+        const serverInitialUsers: User[] = [...defaultInitialUsers];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store (empty).");
+        console.log("[Service:users] Server-side: Initialized global users store with defaults.", serverInitialUsers.length, "users.");
         return serverInitialUsers;
     }
 
@@ -33,7 +86,7 @@ function initializeGlobalUsersStore(): User[] {
         if (storedData) {
             const parsedJson = JSON.parse(storedData);
             if (Array.isArray(parsedJson)) {
-                const users: User[] = parsedJson.map((u: any) => ({ // Added type annotation for 'u'
+                let users: User[] = parsedJson.map((u: any) => ({ 
                     id: String(u.id || `temp-id-${Math.random()}`),
                     name: String(u.name || 'Unknown User'),
                     email: typeof u.email === 'string' ? u.email : undefined,
@@ -47,25 +100,34 @@ function initializeGlobalUsersStore(): User[] {
                     class: typeof u.class === 'string' ? u.class : undefined,
                     designation: typeof u.designation === 'string' ? u.designation : undefined,
                 }));
+
+                // Ensure default users are present if not already in stored data
+                const currentUserIds = new Set(users.map(u => u.id));
+                defaultInitialUsers.forEach(defaultUser => {
+                    if (!currentUserIds.has(defaultUser.id)) {
+                        users.push(defaultUser);
+                    }
+                });
+
                 globalThis.mockUsersData_assigno_users = users;
                 globalThis.mockUsersInitialized_assigno_users = true;
                 console.log("[Service:users] Client-side: Initialized global users store from localStorage.", users.length, "users loaded.");
+                localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users)); // Save back if modified
                 return users;
             } else {
-                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing.");
+                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");
             }
         }
     } catch (error) {
-        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing:", error);
+        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
         localStorage.removeItem(USERS_STORAGE_KEY);
     }
 
-    // If no valid stored data on client, initialize with empty array
-    const clientInitialUsers: User[] = [];
+    const clientInitialUsers: User[] = [...defaultInitialUsers];
     globalThis.mockUsersData_assigno_users = clientInitialUsers;
     globalThis.mockUsersInitialized_assigno_users = true;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(clientInitialUsers));
-    console.log("[Service:users] Client-side: Initialized new empty global users store and saved to localStorage.");
+    console.log("[Service:users] Client-side: Initialized new global users store with defaults and saved to localStorage.");
     return clientInitialUsers;
 }
 
@@ -186,11 +248,13 @@ export async function addUser(
     };
 
     const currentUsers = getMockUsersData();
+    // More robust check for existing user: by ID if provided, or by email/phone within the same schoolCode.
     const existingUserIndex = currentUsers.findIndex(existingUser =>
-        existingUser.id === userToProcess.id ||
+        (userData.id && existingUser.id === userData.id) || // If an ID was passed in (e.g. for an update)
         (userToProcess.email && existingUser.email && existingUser.email.toLowerCase() === userToProcess.email.toLowerCase() && existingUser.schoolCode === userToProcess.schoolCode) ||
         (userToProcess.phoneNumber && existingUser.phoneNumber === userToProcess.phoneNumber && existingUser.schoolCode === userToProcess.schoolCode)
     );
+
 
     if (existingUserIndex === -1) {
         const updatedUsers = [...currentUsers, userToProcess];
@@ -202,11 +266,12 @@ export async function addUser(
         const updatedUser = { 
             ...currentUsers[existingUserIndex], 
             ...userToProcess,
+            id: currentUsers[existingUserIndex].id, // Crucially, keep the existing ID if found by email/phone
             profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl
         };
         currentUsers[existingUserIndex] = updatedUser;
         updateMockUsersData([...currentUsers]);
-        console.log("[Service:users] Updated existing mock user:", userToProcess.name, "ID:", userToProcess.id);
+        console.log("[Service:users] Updated existing mock user:", updatedUser.name, "ID:", updatedUser.id);
         return {...updatedUser};
     }
 }
