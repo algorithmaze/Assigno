@@ -1,7 +1,8 @@
 
 import type { User } from '@/context/auth-context';
-import { getSchoolDetails } from './school'; // Import to get school details for consistency
+import { getSchoolDetails, DEFAULT_TEST_SCHOOL } from './school'; // Import to get school details for consistency
 import * as XLSX from 'xlsx';
+import { TEST_ADMIN_EMAIL as OTP_BYPASS_ADMIN_EMAIL, TEST_STUDENT_EMAIL as OTP_BYPASS_STUDENT_EMAIL } from './otp'; // Import test emails
 
 // Use a global variable for mock data in non-production environments
 declare global {
@@ -9,26 +10,40 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v17_default_admin'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v19_default_users'; // Incremented version
 
 // Default admin user for OTP bypass, linked to the default test school
-const DEFAULT_ADMIN_USER_FOR_OTP_BYPASS: User = {
+const DEFAULT_ADMIN_USER: User = {
   id: 'admin-kv5287-test',
-  name: 'KV Test Admin',
-  email: 'admin@assigno.test', // Matches OTP bypass email
+  name: 'Assigno Admin (Test)',
+  email: OTP_BYPASS_ADMIN_EMAIL, // Matches OTP bypass email from otp.ts
   role: 'Admin',
-  schoolCode: 'KV5287', // Matches default test school code
-  schoolName: 'Kendriya Vidyalaya Test School', // Matches default test school name
-  schoolAddress: 'Knowledge Park III, Test City, Test State 123456', // Matches default test school address
+  schoolCode: DEFAULT_TEST_SCHOOL.schoolCode, 
+  schoolName: DEFAULT_TEST_SCHOOL.schoolName, 
+  schoolAddress: DEFAULT_TEST_SCHOOL.address, 
   designation: 'Administrator',
   profilePictureUrl: 'https://picsum.photos/100/100?random=kvadmin',
+};
+
+const DEFAULT_STUDENT_USER: User = {
+  id: 'student-kv5287-test',
+  name: 'Assigno Student (Test)',
+  email: OTP_BYPASS_STUDENT_EMAIL, // Matches OTP bypass email from otp.ts
+  role: 'Student',
+  schoolCode: DEFAULT_TEST_SCHOOL.schoolCode,
+  schoolName: DEFAULT_TEST_SCHOOL.schoolName,
+  schoolAddress: DEFAULT_TEST_SCHOOL.address,
+  admissionNumber: 'S-TEST01',
+  class: '10-Demo',
+  profilePictureUrl: 'https://picsum.photos/100/100?random=kvstudent',
 };
 
 
 // Defines the default set of users. This is the source of truth for these specific users.
 function getDefaultInitialUsers(): User[] {
     return [
-      {...DEFAULT_ADMIN_USER_FOR_OTP_BYPASS}
+      {...DEFAULT_ADMIN_USER},
+      {...DEFAULT_STUDENT_USER}
     ];
 }
 
@@ -40,7 +55,7 @@ function initializeGlobalUsersStore(): User[] {
         const serverInitialUsers: User[] = [...defaultInitialUsers.map(u => ({...u}))];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store with default admin.");
+        console.log("[Service:users] Server-side: Initialized global users store with default users.");
         return serverInitialUsers;
     }
 
@@ -76,14 +91,16 @@ function initializeGlobalUsersStore(): User[] {
                 });
                 finalUserList = [...usersFromStorage];
 
-                // Ensure default admin user is present
-                const defaultAdminExists = finalUserList.some(
-                  u => u.email === DEFAULT_ADMIN_USER_FOR_OTP_BYPASS.email && u.schoolCode === DEFAULT_ADMIN_USER_FOR_OTP_BYPASS.schoolCode
-                );
-                if (!defaultAdminExists) {
-                  finalUserList.push({...DEFAULT_ADMIN_USER_FOR_OTP_BYPASS});
-                  console.log("[Service:users] Default admin user added to list from localStorage.");
-                }
+                // Ensure default users are present
+                defaultInitialUsers.forEach(defaultUser => {
+                    const defaultUserExists = finalUserList.some(
+                        u => u.email === defaultUser.email && u.schoolCode === defaultUser.schoolCode
+                    );
+                    if (!defaultUserExists) {
+                        finalUserList.push({...defaultUser});
+                        console.log(`[Service:users] Default user (${defaultUser.email}) added to list from localStorage.`);
+                    }
+                });
                 console.log("[Service:users] Client-side: Initialized global users store from localStorage.", finalUserList.length, "users loaded.");
             } else {
                  console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");

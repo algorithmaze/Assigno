@@ -16,6 +16,8 @@ export interface OTPVerificationResponse {
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 export const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing, EXPORTED
+export const TEST_ADMIN_EMAIL = "admin@assigno.test"; // Export for use in login form
+export const TEST_STUDENT_EMAIL = "student@assigno.test"; // Export for use in login form
 
 
 export async function sendOTP(identifier: string): Promise<void> {
@@ -99,3 +101,4 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
 
   return { success: false, message: 'The OTP entered is incorrect.' };
 }
+

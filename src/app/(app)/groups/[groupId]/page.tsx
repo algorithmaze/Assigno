@@ -496,5 +496,3 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     </div>
   );
 }
-
-```

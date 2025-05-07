@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users, ShieldAlert } from 'lucide-react';
-import { sendOTP, verifyOTP, DEFAULT_TEST_OTP } from '@/services/otp';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users, ShieldAlert, GraduationCap } from 'lucide-react';
+import { sendOTP, verifyOTP, DEFAULT_TEST_OTP, TEST_ADMIN_EMAIL, TEST_STUDENT_EMAIL } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -38,8 +38,6 @@ const otpSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
-
-const TEST_ADMIN_EMAIL = "admin@assigno.test";
 
 
 export function LoginForm() {
@@ -105,12 +103,15 @@ export function LoginForm() {
 
 
   const handleLoginSubmit = async (data: LoginFormData) => {
-    if (data.identifier === TEST_ADMIN_EMAIL) {
+    const isTestAdmin = data.identifier === TEST_ADMIN_EMAIL;
+    const isTestStudent = data.identifier === TEST_STUDENT_EMAIL;
+
+    if (isTestAdmin || isTestStudent) {
       setIsLoading(true);
       setIdentifierValue(data.identifier);
       toast({
-        title: 'Admin Test Login',
-        description: `Bypassing OTP entry for ${TEST_ADMIN_EMAIL}. Auto-verifying with default OTP...`,
+        title: `${isTestAdmin ? 'Admin' : 'Student'} Test Login`,
+        description: `Bypassing OTP entry for ${data.identifier}. Auto-verifying with default OTP...`,
         duration: 5000,
       });
       // Simulate OTP being sent and immediately verify with the default OTP
@@ -119,15 +120,15 @@ export function LoginForm() {
         // No need to setOtpSent(true) as we are bypassing the form
         await verifyAndLogin(data.identifier, DEFAULT_TEST_OTP);
       } catch (error) {
-        console.error('Error during admin test login bypass:', error);
+        console.error(`Error during ${isTestAdmin ? 'admin' : 'student'} test login bypass:`, error);
         toast({
-          title: 'Admin Login Error',
-          description: 'Failed to complete admin test login.',
+          title: `${isTestAdmin ? 'Admin' : 'Student'} Login Error`,
+          description: `Failed to complete ${isTestAdmin ? 'admin' : 'student'} test login.`,
           variant: 'destructive',
         });
          setIsLoading(false);
       }
-      return; // End execution for admin bypass
+      return; // End execution for test user bypass
     }
 
     const isResend = otpSent;
@@ -189,9 +190,11 @@ export function LoginForm() {
                          />
                         </div>
                     </FormControl>
-                    <FormDescription id="identifier-description">
-                        Enter your registered credential to receive an OTP. 
-                        (Admin Test Email: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_ADMIN_EMAIL}</code> for OTP bypass. Others: Use OTP "{DEFAULT_TEST_OTP}" or check console).
+                    <FormDescription id="identifier-description" className="text-xs">
+                        Enter your registered credential. For testing, use:<br/>
+                        Admin: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_ADMIN_EMAIL}</code> (OTP bypass)<br/>
+                        Student: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_STUDENT_EMAIL}</code> (OTP bypass)<br/>
+                        Others: Use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check console.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -211,7 +214,7 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                (MOCK: Use OTP "{DEFAULT_TEST_OTP}" or check browser console).
+                (MOCK: Use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check browser console).
                 </p>
             </div>
             <Form {...otpForm}>
@@ -271,3 +274,4 @@ export function LoginForm() {
     </div>
   );
 }
+
