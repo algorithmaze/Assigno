@@ -1,5 +1,4 @@
 
-
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs)
 // import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
@@ -121,7 +120,7 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v2'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v3'; // Incremented version for potential structural changes
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
@@ -144,20 +143,27 @@ function initializeGlobalUsersStore(): User[] {
     }
 
     // If no localStorage data or error, initialize with sampleCredentials
-    const initialUsers = Object.values(sampleCredentials).map(cred => ({
-        id: cred.id,
-        name: cred.name,
-        email: cred.email,
-        phoneNumber: cred.phoneNumber,
-        role: cred.role,
-        schoolCode: cred.schoolCode,
-        schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
-        schoolAddress: "456 School Road, Testville", // Default
-        profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
-        admissionNumber: cred.admissionNumber,
-        class: cred.class,
-        designation: cred.designation,
-    }));
+    const safeSampleCredentials = sampleCredentials || {};
+    const initialUsers = Object.values(safeSampleCredentials).map(cred => {
+        if (!cred || typeof cred.id === 'undefined' || typeof cred.name === 'undefined' || typeof cred.role === 'undefined' || typeof cred.schoolCode === 'undefined') {
+            console.warn("[Service:users] Malformed or incomplete credential in sampleCredentials, skipping:", cred);
+            return null; 
+        }
+        return {
+            id: cred.id,
+            name: cred.name,
+            email: cred.email,
+            phoneNumber: cred.phoneNumber,
+            role: cred.role,
+            schoolCode: cred.schoolCode,
+            schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
+            schoolAddress: "456 School Road, Testville", // Default
+            profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
+            admissionNumber: cred.admissionNumber,
+            class: cred.class,
+            designation: cred.designation,
+        };
+    }).filter(user => user !== null) as User[];
     
     globalThis.mockUsersData_assigno_users = initialUsers;
     globalThis.mockUsersInitialized_assigno_users = true;
@@ -200,7 +206,16 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 export async function ensureMockDataInitialized() {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
         if (!globalThis.mockUsersInitialized_assigno_users) {
-            initializeGlobalUsersStore(); // This will also populate from sampleCredentials if localStorage is empty
+            initializeGlobalUsersStore(); 
+        }
+    } else if (typeof window === 'undefined') {
+        // For server-side, ensure that if the store is accessed, it's at least an empty array
+        // or initialized with necessary defaults if required for server-side logic.
+        // getMockUsersData() already returns [] on server if not initialized.
+        // This function is primarily for ensuring client-side dynamic imports have data.
+        if (!globalThis.mockUsersInitialized_assigno_users) {
+            //  globalThis.mockUsersData_assigno_users = []; // Or some server-side specific init
+            //  globalThis.mockUsersInitialized_assigno_users = true;
         }
     }
 }
@@ -278,7 +293,10 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
             return {...currentUsers[existingUserIndex]};
         }
         // This path should ideally not be hit if the some() check is correct
-        return currentUsers.find(u => u.id === userToAdd.id)!; 
+        const existingUser = currentUsers.find(u => u.id === userToAdd.id);
+        if (existingUser) return {...existingUser};
+        // Fallback, should ideally not be reached if logic is correct
+        throw new Error(`User with id ${userToAdd.id} reported as existing but not found in array.`);
     }
 }
 
@@ -354,12 +372,28 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                     return;
                 }
                 const workbook = XLSX.read(data, { type: 'binary' });
-                const sheetName = workbook.SheetNames[0]; 
-                const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
+                
+                // Try to process "Teachers_Template" first, then "Students_Template"
+                const sheetNames = ["Teachers_Template", "Students_Template"];
+                let jsonData: ExcelUser[] = [];
+
+                for (const sheetName of sheetNames) {
+                    if (workbook.Sheets[sheetName]) {
+                        const worksheet = workbook.Sheets[sheetName];
+                        jsonData.push(...XLSX.utils.sheet_to_json<ExcelUser>(worksheet));
+                    }
+                }
+                // If specific sheets not found, try the first sheet (backward compatibility)
+                 if (jsonData.length === 0 && workbook.SheetNames.length > 0) {
+                    console.warn("[Service:users] Specific sheets 'Teachers_Template' or 'Students_Template' not found. Processing first available sheet.");
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
+                }
+
 
                 if (jsonData.length === 0) {
-                    errors.push("Excel file is empty or has no data in the first sheet.");
+                    errors.push("Excel file is empty or has no data in the expected sheets (Teachers_Template, Students_Template, or first sheet).");
                     errorCount = 1;
                     resolve({ successCount, errorCount, errors });
                     return;
@@ -423,7 +457,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                         await addUser(baseUser);
                         successCount++;
                     } catch (e: any) {
-                        errors.push(`Error processing row for "${row.Name}": ${e.message || 'Unknown error'}`);
+                        errors.push(`Error processing row for "${row.Name || 'Unknown Name'}": ${e.message || 'Unknown error'}`);
                         errorCount++;
                     }
                 }
@@ -440,9 +474,3 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
-
-// Run self-initialization when the module is loaded (primarily for client-side dev)
-// Ensure this is called after sampleCredentials is defined
-// Moved to a callable ensureMockDataInitialized for better control
-
-

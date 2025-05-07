@@ -20,6 +20,9 @@ export interface Group {
   groupCode: string;
   createdAt: Date; // Or Firebase Timestamp
   joinRequests?: string[];
+  // New fields for additional settings
+  allowStudentPosts?: boolean; // Default true, can be changed by admin/teacher
+  // Other settings like file sharing permissions, poll creation permissions for students can be added here
 }
 
 /**
@@ -29,6 +32,7 @@ export interface CreateGroupInput {
   name: string;
   description?: string;
   subject?: string;
+  allowStudentPosts?: boolean; // Added to creation
 }
 
 
@@ -38,7 +42,7 @@ declare global {
   var mockGroupsInitialized_assigno_groups: boolean | undefined;
 }
 
-const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v3'; // Incremented version for potential structural changes
+const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v4'; // Incremented version for new fields
 
 // Initialize from localStorage or create new if not present
 function initializeGlobalGroupsStore(): Map<string, Group> {
@@ -56,7 +60,8 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
       // Deserialize date strings back to Date objects
       const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt'> & {createdAt: string}>).map(g => ({
         ...g,
-        createdAt: new Date(g.createdAt)
+        createdAt: new Date(g.createdAt),
+        allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? true : g.allowStudentPosts, // Default for older data
       }));
       const groupsMap = new Map<string, Group>(parsedArray.map(g => [g.id, g]));
       globalThis.mockGroupsData_assigno_groups = groupsMap;
@@ -137,8 +142,9 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
         studentIds: [],
         schoolCode: schoolCode,
         groupCode: generateGroupCodeInternal(schoolCode, currentStore),
-        createdAt: new Date(), // Store as Date object
+        createdAt: new Date(), 
         joinRequests: [],
+        allowStudentPosts: typeof groupData.allowStudentPosts === 'undefined' ? true : groupData.allowStudentPosts,
     };
 
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -156,6 +162,9 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     
     await new Promise(resolve => setTimeout(resolve, 10));
     const usersModule = await import('./users');
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+      await usersModule.ensureMockDataInitialized();
+    }
     
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in fetchUserGroups.");
@@ -328,6 +337,9 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const usersModule = await import('./users');
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+        await usersModule.ensureMockDataInitialized();
+    }
     
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in fetchGroupJoinRequests.");
@@ -359,6 +371,9 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
     if (!groupToUpdate) return false;
 
     const usersModule = await import('./users');
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+      await usersModule.ensureMockDataInitialized();
+    }
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in approveJoinRequest.");
         return false;
@@ -395,6 +410,9 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
     if (!groupToUpdate) return false;
 
     const usersModule = await import('./users');
+     if (typeof usersModule.ensureMockDataInitialized === 'function') {
+        await usersModule.ensureMockDataInitialized();
+    }
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in rejectJoinRequest.");
         return false;
@@ -436,18 +454,22 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
-    const usersModule = await import('./users');
-
+    const usersModule = await import('./users'); // Await the dynamic import itself
+    
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in getSchoolStats.");
+        // Return a default or empty stats object to prevent further errors
         return {
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
+
+    // Now ensure data is initialized after module is loaded
     if (typeof usersModule.ensureMockDataInitialized === 'function') { 
-        await usersModule.ensureMockDataInitialized();
+        await usersModule.ensureMockDataInitialized(); // Await if it's async
     }
+
 
     const allSchoolUsers = await usersModule.fetchAllUsers(schoolCode);
     const schoolGroups = allGroups.filter(g => g.schoolCode === schoolCode);
@@ -475,7 +497,7 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     };
 }
 
-export async function updateGroupSettings(groupId: string, settings: Partial<Pick<Group, 'name' | 'description' | 'subject'>>, currentUserId: string): Promise<Group | null> {
+export async function updateGroupSettings(groupId: string, settings: Partial<Pick<Group, 'name' | 'description' | 'subject' | 'allowStudentPosts'>>, currentUserId: string): Promise<Group | null> {
     console.log(`[Service:groups] Updating settings for group ${groupId} by user ${currentUserId}`);
     
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -488,6 +510,9 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     
     const usersModule = await import('./users');
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+      await usersModule.ensureMockDataInitialized();
+    }
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in updateGroupSettings.");
         return null;
@@ -506,11 +531,15 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     
     const updatedGroup = { ...groupToUpdate, ...settings };
+    // Ensure allowStudentPosts retains its boolean value if not explicitly changed
+    if (typeof settings.allowStudentPosts === 'undefined') {
+        updatedGroup.allowStudentPosts = groupToUpdate.allowStudentPosts;
+    }
     
     const updatedStore = new Map(currentStore);
     updatedStore.set(groupId, updatedGroup);
     updateMockGroupsData(updatedStore);
 
-    console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock).`);
+    console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock). Allow student posts: ${updatedGroup.allowStudentPosts}`);
     return { ...updatedGroup };
 }
