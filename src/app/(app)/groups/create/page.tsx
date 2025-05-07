@@ -23,11 +23,13 @@ import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { createGroup, type CreateGroupInput } from '@/services/groups';
+import { Switch } from '@/components/ui/switch'; // Added Switch
 
 const createGroupSchema = z.object({
   name: z.string().min(3, { message: 'Group name must be at least 3 characters' }).max(100, { message: 'Group name too long' }),
   description: z.string().max(250, { message: 'Description too long' }).optional(),
   subject: z.string().max(50, { message: 'Subject too long' }).optional(),
+  allowStudentPosts: z.boolean().optional(), // Added
 });
 
 type CreateGroupFormData = z.infer<typeof createGroupSchema>;
@@ -44,6 +46,7 @@ export default function CreateGroupPage() {
       name: '',
       description: '',
       subject: '',
+      allowStudentPosts: false, // Default to false
     },
   });
 
@@ -66,8 +69,11 @@ export default function CreateGroupPage() {
     }
     setIsLoading(true);
     try {
-      const groupInput: CreateGroupInput = { ...data };
-      // TODO: Firebase - createGroup service will handle Firestore interaction
+      const groupInput: CreateGroupInput = { 
+          ...data,
+          allowStudentPosts: data.allowStudentPosts // Ensure it's passed
+       };
+      
       const newGroup = await createGroup(groupInput, user.id, user.role, user.schoolCode);
       toast({
         title: 'Group Created',
@@ -153,6 +159,26 @@ export default function CreateGroupPage() {
                   </FormItem>
                 )}
               />
+               <FormField
+                control={form.control}
+                name="allowStudentPosts"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <FormLabel className="text-base">Student Posting</FormLabel>
+                        <FormDescription>
+                            Allow students to send messages and create posts in this group.
+                        </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </CardContent>
             <CardFooter className="flex justify-end gap-2 border-t pt-6">
                <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>Cancel</Button>
@@ -167,3 +193,4 @@ export default function CreateGroupPage() {
     </div>
   );
 }
+

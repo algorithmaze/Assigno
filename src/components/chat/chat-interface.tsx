@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle, Edit2, User as UserIcon } from 'lucide-react'; // Added UserIcon
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, type PollQuestion, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
+import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, type PollQuestion, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults, fetchGroupDetails } from '@/services/messages'; // Added fetchGroupDetails from messages (should be groups)
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -36,17 +36,18 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
+import type { Group } from '@/services/groups'; // Import Group type
 
 
 interface ChatInterfaceProps {
     groupId: string;
-    groupSenders: AuthUserType[]; 
+    groupSenders: AuthUserType[];
 }
 
 type MessageTypeFilter = Message['type'] | 'all';
-type SenderIdFilter = AuthUserType['id'] | 'all'; 
+type SenderIdFilter = AuthUserType['id'] | 'all';
 
-const POLLING_INTERVAL = 7000; 
+const POLLING_INTERVAL = 7000;
 
 export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -66,12 +67,13 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [shortAnswerSubmissions, setShortAnswerSubmissions] = React.useState<Record<string, Record<string, string>>>({}); // { [messageId]: { [questionId]: answer } }
   const [pollToPublish, setPollToPublish] = React.useState<Message | null>(null);
+  const [groupDetails, setGroupDetails] = React.useState<Group | null>(null); // State for group details
 
 
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
     if (!groupId) return;
     if (!isPoll) setIsLoadingMessages(true);
-    isPollingRef.current = true; 
+    isPollingRef.current = true;
     try {
       const fetchedMessages = await getGroupMessages(groupId);
       setMessages(prevMessages => {
@@ -86,21 +88,40 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         else console.warn("Polling for messages failed, suppressing UI error.");
     } finally {
         if (!isPoll) setIsLoadingMessages(false);
-        isPollingRef.current = false; 
+        isPollingRef.current = false;
     }
   }, [groupId, toast]);
 
+  // Fetch group details
   React.useEffect(() => {
-    fetchAndSetMessages(); 
+    const loadGroupDetails = async () => {
+        if (groupId) {
+            try {
+                // Correctly import and use fetchGroupDetails from groups service
+                const groupsService = await import('@/services/groups');
+                const details = await groupsService.fetchGroupDetails(groupId);
+                setGroupDetails(details);
+            } catch (error) {
+                console.error("Failed to load group details for chat settings:", error);
+                toast({ title: "Error", description: "Could not load group settings for chat.", variant: "destructive" });
+            }
+        }
+    };
+    loadGroupDetails();
+  }, [groupId, toast]);
+
+
+  React.useEffect(() => {
+    fetchAndSetMessages();
   }, [fetchAndSetMessages]);
 
   React.useEffect(() => {
-    if (!groupId) return; 
-    
+    if (!groupId) return;
+
     const intervalId = setInterval(async () => {
         if (isPollingRef.current) {
           console.log("Message polling skipped, already in progress.");
-          return; 
+          return;
         }
         console.log("Polling for messages...");
         await fetchAndSetMessages(true);
@@ -113,7 +134,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const handleSendMessage = async (input: NewMessageInput) => {
     if (!user) return;
 
-    if (user.role === 'Student' && !groupSettings?.allowStudentPosts) {
+    if (user.role === 'Student' && !groupDetails?.allowStudentPosts) { // Use fetched groupDetails
         toast({ title: "Restriction", description: "Students are not allowed to send messages in this group.", variant: "default"});
         return;
     }
@@ -122,10 +143,10 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     try {
       const sentMessage = await addMessageToGroup(groupId, input, user);
       setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
-      if (input.type === 'text') setNewMessage(''); 
-      
+      if (input.type === 'text') setNewMessage('');
+
       setTimeout(() => {
-         if(scrollAreaRef.current){ 
+         if(scrollAreaRef.current){
             const scrollViewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
              if(scrollViewport){
                  scrollViewport.scrollTop = scrollViewport.scrollHeight;
@@ -156,11 +177,11 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         name: file.name,
         type: file.type,
         size: file.size,
-        url: e.target?.result as string, 
+        url: e.target?.result as string,
       };
       const messageInput: NewFileMessageInput = {
         type: 'file',
-        content: file.name, 
+        content: file.name,
         fileData: fileData,
       };
       handleSendMessage(messageInput);
@@ -168,13 +189,13 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     reader.readAsDataURL(file);
 
      if (fileInputRef.current) {
-      fileInputRef.current.value = ""; 
+      fileInputRef.current.value = "";
     }
   };
 
   const handleVoteOrSubmitAnswer = async (messageId: string, questionId: string, submission: string) => {
     if (!user) return;
-    setIsSending(true); 
+    setIsSending(true);
     try {
       const updatedPollMessage = await voteOnPoll(groupId, messageId, questionId, submission, user.id);
       if (updatedPollMessage) {
@@ -186,7 +207,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             setShortAnswerSubmissions(prev => ({
                 ...prev,
                 [messageId]: { ...(prev[messageId] || {}), [questionId]: '' }
-            })); 
+            }));
         }
       } else {
         toast({ title: "Error", description: "Failed to record submission.", variant: "destructive" });
@@ -219,23 +240,22 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         toast({ title: "Error", description: "An error occurred while publishing results.", variant: "destructive"});
     } finally {
         setIsSending(false);
-        setPollToPublish(null); 
+        setPollToPublish(null);
     }
   };
 
 
     React.useEffect(() => {
-       if(scrollAreaRef.current && !isLoadingMessages){ 
+       if(scrollAreaRef.current && !isLoadingMessages){
           const scrollViewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
            if(scrollViewport){
                scrollViewport.scrollTop = scrollViewport.scrollHeight;
            }
        }
-    }, [messages, isLoadingMessages]); 
+    }, [messages, isLoadingMessages]);
 
-    const [groupSettings] = React.useState<{allowStudentPosts?: boolean}>({allowStudentPosts: true}); 
 
-    const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupSettings?.allowStudentPosts);
+    const canPostMessages = user?.role === 'Teacher' || user?.role === 'Admin' || (user?.role === 'Student' && groupDetails?.allowStudentPosts);
     const canUseSpecialFeatures = user?.role === 'Teacher' || user?.role === 'Admin';
 
 
@@ -245,7 +265,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             const senderMatch = filterSenderId === 'all' || msg.senderId === filterSenderId;
             const dateMatch = !filterDate || isSameDay(new Date(msg.timestamp), filterDate);
             const searchTermLower = searchTerm.toLowerCase();
-            
+
             let contentToSearch = '';
             if (msg.type === 'text') contentToSearch = msg.content;
             else if (msg.type === 'file' && msg.fileData) contentToSearch = msg.fileData.name;
@@ -260,7 +280,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             const searchMatch = searchTerm.trim() === '' || contentMatch || senderNameMatch;
 
             return typeMatch && senderMatch && dateMatch && searchMatch;
-        }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
+        }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime());
     }, [messages, searchTerm, filterMessageType, filterSenderId, filterDate]);
 
     const handleShortAnswerChange = (messageId: string, questionId: string, value: string) => {
@@ -288,7 +308,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                     className="pl-8 w-full h-9 text-xs sm:text-sm"
                 />
             </div>
-            
+
             <div className="min-w-[120px] sm:min-w-[150px]">
                 <Label htmlFor="filter-type" className="sr-only">Filter by Type</Label>
                 <Select value={filterMessageType} onValueChange={(value) => setFilterMessageType(value as MessageTypeFilter)}>
@@ -304,7 +324,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                     </SelectContent>
                 </Select>
             </div>
-            
+
             <div className="min-w-[150px] sm:min-w-[180px]">
                 <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
                 <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
@@ -314,7 +334,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 <SelectContent>
                     <SelectItem value="all">All Senders</SelectItem>
                     {groupSenders
-                        .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') 
+                        .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin')
                         .map(sender => (
                         <SelectItem key={sender.id} value={sender.id}>
                             {sender.name} ({sender.role})
@@ -366,7 +386,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-10">
                     {messages.length > 0 ? <Filter size={32} className="mb-3"/> : <MessageSquareIcon size={32} className="mb-3"/>}
                     <p className="text-lg font-medium">No Messages Found</p>
-                    {messages.length > 0 ? 
+                    {messages.length > 0 ?
                         <p className="text-sm">Try adjusting your search or filter criteria.</p> :
                         (canPostMessages ? <p className="text-sm">Be the first to start the conversation!</p> : <p className="text-sm">Messages from teachers/admins will appear here.</p>)
                     }
@@ -391,9 +411,9 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 }`}
                 >
                 {msg.senderId !== user?.id && <p className="text-xs font-semibold mb-0.5">{msg.senderName} <span className="text-xs opacity-70">({msg.senderRole})</span></p>}
-                
+
                 {msg.type === 'text' && <p className="text-sm whitespace-pre-wrap">{msg.content}</p>}
-                
+
                 {msg.type === 'file' && msg.fileData && (
                     <div className="space-y-1">
                         <p className="text-sm font-medium flex items-center gap-1.5"><FileText className="h-4 w-4"/> {msg.fileData.name}</p>
@@ -429,17 +449,17 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                             const totalVotes = questionResults ? Object.values(questionResults).reduce((sum, count) => sum + count, 0) : 0;
                                             const optionVotes = questionResults?.[option.id] || 0;
                                             const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
-                                            
+
                                             const isCorrect = msg.pollData?.resultsPublished && question.correctOptionId === option.id;
                                             const isSelected = msg.pollData?.voters?.[question.id]?.[user?.id || ''] === option.id;
                                             const isIncorrectSelected = msg.pollData?.resultsPublished && question.correctOptionId && question.correctOptionId !== option.id && isSelected;
-                                            
+
                                             let optionStyleClasses = "p-1.5 rounded-md transition-colors";
                                             if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
                                             else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
-                                            else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted/70"; 
+                                            else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted/70";
                                             else if (hasVotedOrSubmitted || (user?.role === 'Student' && msg.pollData?.resultsPublished)) optionStyleClasses += " opacity-70";
-                                            
+
                                             return (
                                                 <div key={option.id} className={optionStyleClasses}>
                                                     <div className="flex items-center space-x-2 mb-0.5">
@@ -463,15 +483,15 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                             </div>
                                         ) : (
                                             <div className="space-y-2">
-                                                <Textarea 
+                                                <Textarea
                                                     placeholder="Type your answer..."
                                                     value={shortAnswerSubmissions[msg.id]?.[question.id] || ''}
                                                     onChange={(e) => handleShortAnswerChange(msg.id, question.id, e.target.value)}
                                                     disabled={isSending}
-                                                    className="text-sm bg-card" 
+                                                    className="text-sm bg-card"
                                                 />
-                                                <Button 
-                                                    size="sm" 
+                                                <Button
+                                                    size="sm"
                                                     onClick={() => handleVoteOrSubmitAnswer(msg.id, question.id, shortAnswerSubmissions[msg.id]?.[question.id] || '')}
                                                     disabled={isSending || !(shortAnswerSubmissions[msg.id]?.[question.id] || '').trim()}
                                                 >
@@ -479,15 +499,15 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                                 </Button>
                                             </div>
                                         )
-                                    ) : ( 
+                                    ) : (
                                         <div className="text-sm">
                                             <p className="font-medium">Student Responses:</p>
                                             {(msg.pollData?.voters?.[question.id] && Object.keys(msg.pollData.voters[question.id]).length > 0) ? (
                                                 <ScrollArea className="max-h-32">
                                                 <ul className="list-disc list-inside pl-2 mt-1 text-xs space-y-0.5">
                                                     {Object.entries(msg.pollData.voters[question.id] || {}).map(([voterId, answer]) => {
-                                                        const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || 
-                                                                         groupSenders.find(s => s.id === voterId); 
+                                                        const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') ||
+                                                                         groupSenders.find(s => s.id === voterId);
                                                         const voterName = voterUser ? voterUser.name : (messages.find(m => m.senderId === voterId)?.senderName || `User ${voterId.substring(0,5)}`);
                                                         return (
                                                             <li key={voterId}><strong>{voterName}:</strong> "{answer}"</li>
@@ -506,7 +526,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                             </Card>
                             );
                         })}
-                        
+
                         {canUseSpecialFeatures && msg.pollData.studentAnswersHidden && !msg.pollData.resultsPublished && (
                             <Button size="sm" variant="secondary" className="mt-2 h-7 text-xs" onClick={() => handleOpenPublishDialog(msg)} disabled={isSending}>
                                 {isSending ? <Loader2 className="h-3 w-3 animate-spin mr-1"/> : <Eye className="h-3 w-3 mr-1"/> } Publish Results
@@ -524,7 +544,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                         {msg.eventData.description && <p className="text-xs text-muted-foreground/80">{msg.eventData.description}</p>}
                         <p className="text-xs">Date: {format(new Date(msg.eventData.dateTime), "PPP p")}</p>
                         {msg.eventData.location && <p className="text-xs">Location: {msg.eventData.location}</p>}
-                        <Button size="sm" variant={msg.senderId === user?.id ? "secondary" : "outline"} className="mt-1 h-7 text-xs" 
+                        <Button size="sm" variant={msg.senderId === user?.id ? "secondary" : "outline"} className="mt-1 h-7 text-xs"
                             onClick={() => {
                                 const gCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(msg.eventData?.title || '')}&dates=${new Date(msg.eventData?.dateTime || '').toISOString().replace(/-|:|\.\d{3}/g, '')}/${new Date(new Date(msg.eventData?.dateTime || '').getTime() + 60 * 60 * 1000).toISOString().replace(/-|:|\.\d{3}/g, '')}&details=${encodeURIComponent(msg.eventData?.description || '')}&location=${encodeURIComponent(msg.eventData?.location || '')}`;
                                 window.open(gCalUrl, '_blank');
@@ -534,7 +554,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                         </Button>
                     </div>
                 )}
-                
+
                 <p className={`mt-1 text-xs ${msg.senderId === user?.id ? 'text-primary-foreground/70' : 'text-muted-foreground/80'} text-right`}>
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
@@ -557,7 +577,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                     <>
                         <Input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,.zip,.rar"/>
                         <Button type="button" variant="ghost" size="icon" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={isSending}><Paperclip className="h-5 w-5" /></Button>
-                        
+
                         <CreatePollDialog onSendPoll={handleSendMessage} disabled={isSending} />
                         <CreateEventDialog onSendEvent={handleSendMessage} disabled={isSending} />
                     </>
@@ -611,14 +631,14 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
     { id: `q-${Date.now()}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-0`, text: '' }] }
   ]);
   const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(true); // Default to hidden
-  const { toast } = useToast(); 
+  const { toast } = useToast();
   const pollDialogScrollAreaRef = React.useRef<HTMLDivElement>(null);
 
 
   const addQuestion = () => {
     if (questions.length < MAX_POLL_QUESTIONS) {
       setQuestions([
-        ...questions, 
+        ...questions,
         { id: `q-${Date.now()}-${questions.length}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-${questions.length}-0`, text: '' }] }
       ]);
     } else {
@@ -701,7 +721,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
         })),
         studentAnswersHidden,
     };
-    
+
     onSendPoll({
       type: 'poll',
       content: pollTitle, // Main title for the message content
@@ -729,7 +749,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
             <Label htmlFor="poll-main-title" className="text-right col-span-1">Poll Title</Label>
             <Input id="poll-main-title" value={pollTitle} onChange={(e) => setPollTitle(e.target.value)} className="col-span-3" placeholder="e.g., Weekly Quiz, Feedback Survey"/>
           </div>
-          
+
           {questions.map((q, qIndex) => (
             <Card key={q.id} className="p-4 space-y-3 bg-muted/30 shadow-sm">
               <div className="flex justify-between items-center">
@@ -740,16 +760,16 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
                     </Button>
                 )}
               </div>
-              <Textarea 
-                id={`q-${q.id}-text`} 
-                value={q.questionText} 
-                onChange={(e) => updateQuestion(q.id, 'questionText', e.target.value)} 
+              <Textarea
+                id={`q-${q.id}-text`}
+                value={q.questionText}
+                onChange={(e) => updateQuestion(q.id, 'questionText', e.target.value)}
                 placeholder="Type your question here..."
                 className="bg-background"
               />
-              <RadioGroup 
-                value={q.pollType} 
-                onValueChange={(value) => updateQuestion(q.id, 'pollType', value as 'mcq' | 'shortAnswer')} 
+              <RadioGroup
+                value={q.pollType}
+                onValueChange={(value) => updateQuestion(q.id, 'pollType', value as 'mcq' | 'shortAnswer')}
                 className="flex gap-4 py-1"
               >
                   <div className="flex items-center space-x-2">
@@ -766,10 +786,10 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
                 <div className="space-y-2 pl-2 border-l-2 border-primary/20">
                     {q.options?.map((option, optIndex) => (
                         <div key={option.id} className="flex items-center gap-2">
-                            <Input 
-                                id={`q-${q.id}-opt-${option.id}`} 
-                                value={option.text} 
-                                onChange={(e) => updateOptionInQuestion(q.id, option.id, e.target.value)} 
+                            <Input
+                                id={`q-${q.id}-opt-${option.id}`}
+                                value={option.text}
+                                onChange={(e) => updateOptionInQuestion(q.id, option.id, e.target.value)}
                                 placeholder={`Option ${optIndex + 1}`}
                                 className="flex-grow bg-background"
                             />
@@ -793,7 +813,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
                 <PlusCircle className="mr-2 h-4 w-4"/> Add Question
             </Button>
           )}
-          
+
           <div className="flex items-center space-x-2 mt-4 pt-4 border-t">
             <Checkbox id="hide-answers" checked={studentAnswersHidden} onCheckedChange={(checked) => setStudentAnswersHidden(checked as boolean)} />
             <Label htmlFor="hide-answers" className="text-sm font-normal cursor-pointer">
@@ -821,7 +841,7 @@ function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
   const [description, setDescription] = React.useState('');
   const [dateTime, setDateTime] = React.useState<Date | undefined>();
   const [location, setLocation] = React.useState('');
-  const { toast } = useToast(); 
+  const { toast } = useToast();
 
   const handleSubmit = () => {
     if (!title.trim() || !dateTime) {
@@ -830,7 +850,7 @@ function CreateEventDialog({ onSendEvent, disabled }: CreateEventDialogProps) {
     }
     onSendEvent({
       type: 'event',
-      content: title, 
+      content: title,
       eventData: { title, description, dateTime: dateTime.toISOString(), location },
     });
     setIsOpen(false);
@@ -911,11 +931,11 @@ interface PublishPollResultDialogProps {
 
 function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
     const [correctAnswers, setCorrectAnswers] = React.useState<Record<string, string>>({});
-    const { toast } = useToast(); 
+    const { toast } = useToast();
     const publishDialogScrollAreaRef = React.useRef<HTMLDivElement>(null);
 
 
-    React.useEffect(() => { 
+    React.useEffect(() => {
         if (isOpen && pollMessage.pollData) {
             const initialCorrect: Record<string, string> = {};
             pollMessage.pollData.questions.forEach(q => {
@@ -941,7 +961,7 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
 
 
     if (pollMessage.type !== 'poll' || !pollMessage.pollData) {
-        return null; 
+        return null;
     }
 
     const { title, questions = [] } = pollMessage.pollData;
@@ -1019,4 +1039,3 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
     );
 }
 
-```

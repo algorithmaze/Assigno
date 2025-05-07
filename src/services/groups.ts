@@ -42,7 +42,7 @@ declare global {
   var mockGroupsInitialized_assigno_groups: boolean | undefined;
 }
 
-const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v4'; // Incremented version for new fields
+const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v5_allow_student_posts'; // Incremented version for new fields
 
 // Initialize from localStorage or create new if not present
 function initializeGlobalGroupsStore(): Map<string, Group> {
@@ -61,11 +61,11 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
   try {
     const storedData = localStorage.getItem(GROUPS_STORAGE_KEY);
     if (storedData) {
-      const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt' | 'joinRequests'> & {createdAt: string, joinRequests?: any[]}>).map(g => ({
+      const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt' | 'joinRequests' | 'allowStudentPosts'> & {createdAt: string, joinRequests?: any[], allowStudentPosts?: boolean}>).map(g => ({
         ...g,
         createdAt: new Date(g.createdAt),
-        allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? true : g.allowStudentPosts, 
-        joinRequests: Array.isArray(g.joinRequests) ? g.joinRequests : [], 
+        allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? false : g.allowStudentPosts, // Default to false if missing
+        joinRequests: Array.isArray(g.joinRequests) ? g.joinRequests : [],
       }));
       const groupsMap = new Map<string, Group>(parsedArray.map(g => [g.id, g]));
       globalThis.mockGroupsData_assigno_groups = groupsMap;
@@ -97,7 +97,7 @@ function getMockGroupsData(): Map<string, Group> {
 
 function updateMockGroupsData(newData: Map<string, Group>): void {
   globalThis.mockGroupsData_assigno_groups = newData;
-  globalThis.mockGroupsInitialized_assigno_groups = true; 
+  globalThis.mockGroupsInitialized_assigno_groups = true;
   if (typeof window !== 'undefined') {
     try {
       const serializableArray = Array.from(newData.values()).map(g => ({
@@ -155,9 +155,9 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
         studentIds: [],
         schoolCode: schoolCode,
         groupCode: generateGroupCodeInternal(schoolCode, currentStore),
-        createdAt: new Date(), 
+        createdAt: new Date(),
         joinRequests: [],
-        allowStudentPosts: typeof groupData.allowStudentPosts === 'undefined' ? true : groupData.allowStudentPosts,
+        allowStudentPosts: typeof groupData.allowStudentPosts === 'undefined' ? false : groupData.allowStudentPosts, // Default to false
     };
 
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -208,10 +208,16 @@ export async function fetchGroupDetails(groupId: string): Promise<Group | null> 
     const foundGroup = currentStore.get(groupId);
     if (foundGroup) {
       console.log(`[Service:groups] Group found (mock): ${foundGroup.name}`);
+      // Ensure allowStudentPosts has a default value if somehow missing (though init should handle it)
+      const groupWithDefaults = {
+        ...foundGroup,
+        allowStudentPosts: typeof foundGroup.allowStudentPosts === 'undefined' ? false : foundGroup.allowStudentPosts,
+      };
+      return groupWithDefaults;
     } else {
       console.warn(`[Service:groups] Group NOT found for ID: ${groupId} (mock).`);
     }
-    return foundGroup ? { ...foundGroup } : null;
+    return null;
 }
 
 export async function fetchGroupByCode(groupCode: string, schoolCode: string): Promise<Group | null> {
@@ -221,7 +227,14 @@ export async function fetchGroupByCode(groupCode: string, schoolCode: string): P
     const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
     const foundGroup = allGroups.find(g => g.groupCode.toUpperCase() === groupCode.toUpperCase() && g.schoolCode === schoolCode);
-    return foundGroup ? { ...foundGroup } : null;
+    if (foundGroup) {
+         const groupWithDefaults = {
+            ...foundGroup,
+            allowStudentPosts: typeof foundGroup.allowStudentPosts === 'undefined' ? false : foundGroup.allowStudentPosts,
+        };
+        return groupWithDefaults;
+    }
+    return null;
 }
 
 
@@ -326,7 +339,7 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
 
     if (clonedGroup.studentIds.includes(studentId) || clonedGroup.joinRequests.includes(studentId)) {
         console.log(`[Service:groups] Student ${studentId} already in group or request pending (mock).`);
-        return false; 
+        return false;
     }
     clonedGroup.joinRequests.push(studentId);
     
@@ -337,25 +350,25 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
     return true;
 }
 
-export async function fetchGroupJoinRequests(groupId: string, teacherId: string): Promise<User[]> {
+export async function fetchGroupJoinRequests(groupId: string, requestingUserId: string): Promise<User[]> {
     await ensureMockDataInitialized();
-    console.log(`[Service:groups] Teacher ${teacherId} fetching join requests for group ${groupId}`);
+    console.log(`[Service:groups] User ${requestingUserId} fetching join requests for group ${groupId}`);
     
     const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     
-    const teacherUser = await usersModule.fetchUsersByIds([teacherId]).then(users => users[0]);
+    const requestingUser = await usersModule.fetchUsersByIds([requestingUserId]).then(users => users[0]);
 
-    if (!teacherUser) {
-        console.warn(`[Service:groups] Teacher user ${teacherId} not found when fetching join requests.`);
+    if (!requestingUser) {
+        console.warn(`[Service:groups] User ${requestingUserId} not found when fetching join requests.`);
         return [];
     }
 
     const currentStore = getMockGroupsData();
     const group = currentStore.get(groupId);
 
-    if (!group || !(group.teacherIds.includes(teacherId) || (teacherUser.role === 'Admin' && group.schoolCode === teacherUser.schoolCode))) {
-        console.warn(`[Service:groups] Teacher ${teacherId} does not manage group ${groupId} or is not admin of school.`);
+    if (!group || !(group.teacherIds.includes(requestingUserId) || (requestingUser.role === 'Admin' && group.schoolCode === requestingUser.schoolCode))) {
+        console.warn(`[Service:groups] User ${requestingUserId} does not manage group ${groupId} or is not admin of school.`);
         return [];
     }
     if (!group.joinRequests || group.joinRequests.length === 0) return [];
@@ -439,31 +452,28 @@ export interface SchoolStats {
 
 export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     console.log(`[Service:groups] Calculating stats for school ${schoolCode}`);
-    await ensureMockDataInitialized(); 
+    await ensureMockDataInitialized();
 
-    const currentStore = getMockGroupsData(); 
+    const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
     
-    let usersModule;
-    try {
-        usersModule = await import('./users'); 
-        if (usersModule && typeof usersModule.ensureMockDataInitialized === 'function') { 
-            await usersModule.ensureMockDataInitialized(); 
-        } else if (!usersModule) {
-            throw new Error("Users module failed to import.");
-        } else if (typeof usersModule.ensureMockDataInitialized !== 'function') {
-            console.warn("[Service:groups] users.ts module does not export ensureMockDataInitialized. Data might be stale if not pre-initialized.");
-        }
-    } catch (error) {
-        console.error("[Service:groups] Failed to import or initialize usersModule in getSchoolStats:", error);
-        return { 
+    const usersModule = await import('./users'); // Await the dynamic import itself
+    
+    if (!usersModule) {
+        console.error("[Service:groups] usersModule is not available in getSchoolStats.");
+         return { 
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
+    if (typeof usersModule.ensureMockDataInitialized === 'function') {
+        await usersModule.ensureMockDataInitialized();
+    } else {
+        console.warn("[Service:groups] users.ts module does not export ensureMockDataInitialized. Data might be stale if not pre-initialized.");
+    }
     
-    if (!usersModule || typeof usersModule.fetchAllUsers !== 'function') {
-        console.error("[Service:groups] usersModule is not available or fetchAllUsers is not a function after import in getSchoolStats.");
+    if (typeof usersModule.fetchAllUsers !== 'function') {
+        console.error("[Service:groups] fetchAllUsers is not a function after import in getSchoolStats.");
         return {
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
@@ -524,6 +534,7 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     
     const updatedGroup = { ...groupToUpdate, ...settings };
+    // Ensure allowStudentPosts maintains its value if not explicitly in settings
     if (typeof settings.allowStudentPosts === 'undefined') {
         updatedGroup.allowStudentPosts = groupToUpdate.allowStudentPosts;
     }
@@ -535,3 +546,4 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock). Allow student posts: ${updatedGroup.allowStudentPosts}`);
     return { ...updatedGroup };
 }
+

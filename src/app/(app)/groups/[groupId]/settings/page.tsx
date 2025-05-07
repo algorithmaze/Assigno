@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -22,12 +23,13 @@ import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { fetchGroupDetails, updateGroupSettings, type Group } from '@/services/groups';
+import { Switch } from '@/components/ui/switch'; // Added Switch
 
 const groupSettingsSchema = z.object({
   name: z.string().min(3, { message: 'Group name must be at least 3 characters' }).max(100),
   description: z.string().max(250).optional(),
   subject: z.string().max(50).optional(),
-  // Add other settings fields here, e.g., studentPostPermission: z.boolean().optional(),
+  allowStudentPosts: z.boolean().optional(), // Added allowStudentPosts
 });
 
 type GroupSettingsFormData = z.infer<typeof groupSettingsSchema>;
@@ -54,6 +56,7 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
       name: '',
       description: '',
       subject: '',
+      allowStudentPosts: false, // Default to false
     },
   });
 
@@ -82,6 +85,7 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
             name: fetchedGroup.name,
             description: fetchedGroup.description || '',
             subject: fetchedGroup.subject || '',
+            allowStudentPosts: typeof fetchedGroup.allowStudentPosts === 'boolean' ? fetchedGroup.allowStudentPosts : false,
           });
         } else {
           toast({ title: "Error", description: "Group not found.", variant: "destructive" });
@@ -115,7 +119,12 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
           description: `Group "${updatedGroup.name}" settings saved.`,
         });
         setGroup(updatedGroup); // Update local state with new details
-        form.reset(updatedGroup); // Reset form with updated values
+        form.reset({ // Reset form with updated values, ensure all fields are covered
+            name: updatedGroup.name,
+            description: updatedGroup.description || '',
+            subject: updatedGroup.subject || '',
+            allowStudentPosts: typeof updatedGroup.allowStudentPosts === 'boolean' ? updatedGroup.allowStudentPosts : false,
+        });
         router.refresh();
       } else {
         toast({ title: "Update Failed", description: "Could not save group settings.", variant: "destructive" });
@@ -207,10 +216,34 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
                   </FormItem>
                 )}
               />
-              {/* TODO: Add other settings like student posting permissions */}
+              <FormField
+                control={form.control}
+                name="allowStudentPosts"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <FormLabel className="text-base">Student Posting</FormLabel>
+                        <FormDescription>
+                            Allow students to send messages and create posts in this group.
+                        </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </CardContent>
             <CardFooter className="flex justify-end gap-2 border-t pt-6">
-              <Button type="button" variant="outline" onClick={() => form.reset({name: group.name, description: group.description || '', subject: group.subject || ''})} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={() => form.reset({
+                name: group.name, 
+                description: group.description || '', 
+                subject: group.subject || '',
+                allowStudentPosts: typeof group.allowStudentPosts === 'boolean' ? group.allowStudentPosts : false,
+                })} disabled={isLoading}>
                 Reset
               </Button>
               <Button type="submit" disabled={isLoading}>
@@ -224,3 +257,4 @@ export default function GroupSettingsPage({ params }: GroupSettingsPageProps) {
     </div>
   );
 }
+

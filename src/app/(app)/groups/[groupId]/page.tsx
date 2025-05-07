@@ -45,7 +45,7 @@ interface GroupDetailPageProps {
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const resolvedParams = React.use(params);
+  const resolvedParams = React.use(params); // Unwrap params correctly
   const groupId = resolvedParams.groupId;
 
   const { user: currentUser } = useAuth();
@@ -369,7 +369,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                      <AlertTriangle className="h-5 w-5 text-destructive" /> Final Confirmation
                                 </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    You are about to permanently delete the group "{group.name}". 
+                                    You are about to permanently delete the group "{group.name}".
                                     <strong className="text-destructive"> This is your final warning. This action is irreversible.</strong> Are you absolutely sure you want to proceed?
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
@@ -496,3 +496,4 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
     </div>
   );
 }
+
