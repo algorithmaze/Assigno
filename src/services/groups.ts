@@ -58,10 +58,12 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
     const storedData = localStorage.getItem(GROUPS_STORAGE_KEY);
     if (storedData) {
       // Deserialize date strings back to Date objects
-      const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt'> & {createdAt: string}>).map(g => ({
+      // Ensure joinRequests is always an array
+      const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt' | 'joinRequests'> & {createdAt: string, joinRequests?: any[]}>).map(g => ({
         ...g,
         createdAt: new Date(g.createdAt),
         allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? true : g.allowStudentPosts, // Default for older data
+        joinRequests: Array.isArray(g.joinRequests) ? g.joinRequests : [], // Ensure it's an array or default to empty
       }));
       const groupsMap = new Map<string, Group>(parsedArray.map(g => [g.id, g]));
       globalThis.mockGroupsData_assigno_groups = groupsMap;
@@ -331,7 +333,7 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
 
     if (clonedGroup.studentIds.includes(studentId) || clonedGroup.joinRequests.includes(studentId)) {
         console.log(`[Service:groups] Student ${studentId} already in group or request pending (mock).`);
-        return false;
+        return false; // Already a member or request pending
     }
     clonedGroup.joinRequests.push(studentId);
     
@@ -366,6 +368,7 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
     const group = currentStore.get(groupId);
 
     if (!group || !(group.teacherIds.includes(teacherId) || (teacherUser.role === 'Admin' && group.schoolCode === teacherUser.schoolCode))) {
+        console.warn(`[Service:groups] Teacher ${teacherId} does not manage group ${groupId} or is not admin of school.`);
         return [];
     }
     if (!group.joinRequests || group.joinRequests.length === 0) return [];
@@ -560,4 +563,3 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     console.log(`[Service:groups] Group settings for "${updatedGroup.name}" updated (mock). Allow student posts: ${updatedGroup.allowStudentPosts}`);
     return { ...updatedGroup };
 }
-
