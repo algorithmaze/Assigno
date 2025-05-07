@@ -19,10 +19,18 @@ export interface OTPVerificationResponse {
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing
+const ADMIN_EXAMPLE_EMAIL = "admin@example.com";
+const ADMIN_EXAMPLE_OTP = "000000";
 
 export async function sendOTP(identifier: string): Promise<void> {
-  // Use the default test OTP instead of generating a random one
-  const generatedOtp = DEFAULT_TEST_OTP; 
+  let generatedOtp: string;
+
+  if (identifier.toLowerCase() === ADMIN_EXAMPLE_EMAIL.toLowerCase()) {
+    generatedOtp = ADMIN_EXAMPLE_OTP;
+  } else {
+    generatedOtp = DEFAULT_TEST_OTP;
+  }
+  
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
   
   // --- Real Email Sending Logic Would Go Here ---
@@ -54,7 +62,7 @@ export async function sendOTP(identifier: string): Promise<void> {
   // }
   // --- End of Real Email Sending Logic ---
 
-  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: Using DEFAULT TEST OTP. This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
+  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
   
   await new Promise(resolve => setTimeout(resolve, 50)); 
   return;
