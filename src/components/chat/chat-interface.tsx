@@ -46,7 +46,7 @@ interface ChatInterfaceProps {
 type MessageTypeFilter = Message['type'] | 'all';
 type SenderIdFilter = AuthUserType['id'] | 'all'; 
 
-const POLLING_INTERVAL = 3000; 
+const POLLING_INTERVAL = 7000; // Increased polling interval for less frequent updates
 
 export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -278,18 +278,18 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     <div className="flex h-full flex-col bg-card border rounded-lg shadow-md overflow-hidden">
       <div className="p-2 sm:p-3 border-b bg-background sticky top-0 z-10">
         <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-grow min-w-[200px]">
+            <div className="relative flex-grow min-w-[150px] sm:min-w-[200px]">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 text-muted-foreground -translate-y-1/2" />
                 <Input
                     type="search"
                     placeholder="Search messages..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8 w-full h-9"
+                    className="pl-8 w-full h-9 text-xs sm:text-sm"
                 />
             </div>
             
-            <div className="min-w-[150px]">
+            <div className="min-w-[120px] sm:min-w-[150px]">
                 <Label htmlFor="filter-type" className="sr-only">Filter by Type</Label>
                 <Select value={filterMessageType} onValueChange={(value) => setFilterMessageType(value as MessageTypeFilter)}>
                     <SelectTrigger id="filter-type" className="h-9 text-xs sm:text-sm w-full">
@@ -299,13 +299,13 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                         <SelectItem value="all">All Types</SelectItem>
                         <SelectItem value="text">Text</SelectItem>
                         <SelectItem value="file">File</SelectItem>
-                        <SelectItem value="poll">Poll</SelectItem>
+                        <SelectItem value="poll">Poll/Quiz</SelectItem>
                         <SelectItem value="event">Event</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
             
-            <div className="min-w-[180px]">
+            <div className="min-w-[150px] sm:min-w-[180px]">
                 <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
                 <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
                 <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
@@ -323,7 +323,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 </SelectContent>
             </Select>
             </div>
-            <div className="min-w-[180px]">
+            <div className="min-w-[150px] sm:min-w-[180px]">
                  <Popover>
                     <PopoverTrigger asChild>
                         <Button
@@ -343,7 +343,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                         />
                          {filterDate && (
                             <div className="p-2 border-t">
-                                <Button variant="ghost" size="sm" className="w-full text-destructive" onClick={() => setFilterDate(undefined)}>
+                                <Button variant="ghost" size="sm" className="w-full text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setFilterDate(undefined)}>
                                     <XCircle className="mr-2 h-4 w-4" /> Clear Date Filter
                                 </Button>
                             </div>
@@ -422,7 +422,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                         value={msg.pollData?.voters?.[question.id]?.[user?.id || ''] || ''}
                                         onValueChange={(optionId) => handleVoteOrSubmitAnswer(msg.id, question.id, optionId)}
                                         className="space-y-1.5"
-                                        disabled={isSending || hasVotedOrSubmitted || msg.pollData?.resultsPublished}
+                                        disabled={isSending || hasVotedOrSubmitted || (user?.role === 'Student' && msg.pollData?.resultsPublished)}
                                     >
                                         {question.options.map(option => {
                                             const questionResults = msg.pollData?.results?.[question.id] as Record<string, number> | undefined;
@@ -434,19 +434,20 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                             const isSelected = msg.pollData?.voters?.[question.id]?.[user?.id || ''] === option.id;
                                             const isIncorrectSelected = msg.pollData?.resultsPublished && question.correctOptionId && question.correctOptionId !== option.id && isSelected;
                                             
-                                            let optionStyleClasses = "p-1.5 rounded-md";
+                                            let optionStyleClasses = "p-1.5 rounded-md transition-colors";
                                             if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
                                             else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
-                                            else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; 
+                                            else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted/70"; 
+                                            else if (hasVotedOrSubmitted || (user?.role === 'Student' && msg.pollData?.resultsPublished)) optionStyleClasses += " opacity-70";
                                             
                                             return (
                                                 <div key={option.id} className={optionStyleClasses}>
                                                     <div className="flex items-center space-x-2 mb-0.5">
-                                                        <RadioGroupItem value={option.id} id={`${msg.id}-${question.id}-${option.id}`} disabled={isSending || hasVotedOrSubmitted || msg.pollData?.resultsPublished}/>
+                                                        <RadioGroupItem value={option.id} id={`${msg.id}-${question.id}-${option.id}`} disabled={isSending || hasVotedOrSubmitted || (user?.role === 'Student' && msg.pollData?.resultsPublished) }/>
                                                         <Label htmlFor={`${msg.id}-${question.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
                                                         {isResultsViewable && <span className="text-xs opacity-80">{optionVotes} vote(s)</span>}
                                                     </div>
-                                                    {isResultsViewable && <Progress value={percentage} className="h-1.5"/>}
+                                                    {isResultsViewable && <Progress value={percentage} className="h-1.5 mt-0.5"/>}
                                                 </div>
                                             );
                                         })}
@@ -467,7 +468,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                                     value={shortAnswerSubmissions[msg.id]?.[question.id] || ''}
                                                     onChange={(e) => handleShortAnswerChange(msg.id, question.id, e.target.value)}
                                                     disabled={isSending}
-                                                    className="text-sm"
+                                                    className="text-sm bg-card" 
                                                 />
                                                 <Button 
                                                     size="sm" 
@@ -482,7 +483,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                         <div className="text-sm">
                                             <p className="font-medium">Student Responses:</p>
                                             {(msg.pollData?.voters?.[question.id] && Object.keys(msg.pollData.voters[question.id]).length > 0) ? (
-                                                <ul className="list-disc list-inside pl-2 mt-1 max-h-32 overflow-y-auto text-xs space-y-0.5">
+                                                <ScrollArea className="max-h-32">
+                                                <ul className="list-disc list-inside pl-2 mt-1 text-xs space-y-0.5">
                                                     {Object.entries(msg.pollData.voters[question.id] || {}).map(([voterId, answer]) => {
                                                         const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || 
                                                                          groupSenders.find(s => s.id === voterId); 
@@ -492,6 +494,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                                                         );
                                                     })}
                                                 </ul>
+                                                </ScrollArea>
                                             ) : <p className="text-xs text-muted-foreground/80 italic">No responses yet for this question.</p>}
                                             <p className="text-xs mt-1 text-muted-foreground/80">
                                                 {(msg.pollData?.voters?.[question.id] && Object.keys(msg.pollData.voters[question.id]).length) || 0} response(s) received.
@@ -552,7 +555,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             <form onSubmit={handleTextSubmit} className="flex items-center gap-2">
                 {canUseSpecialFeatures && (
                     <>
-                        <Input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain"/>
+                        <Input type="file" ref={fileInputRef} onChange={handleFileSelected} className="hidden" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,text/plain,.zip,.rar"/>
                         <Button type="button" variant="ghost" size="icon" aria-label="Attach file" onClick={() => fileInputRef.current?.click()} disabled={isSending}><Paperclip className="h-5 w-5" /></Button>
                         
                         <CreatePollDialog onSendPoll={handleSendMessage} disabled={isSending} />
@@ -607,8 +610,10 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
   const [questions, setQuestions] = React.useState<PollQuestion[]>([
     { id: `q-${Date.now()}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-0`, text: '' }] }
   ]);
-  const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(false);
+  const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(true); // Default to hidden
   const { toast } = useToast(); 
+  const pollDialogScrollAreaRef = React.useRef<HTMLDivElement>(null);
+
 
   const addQuestion = () => {
     if (questions.length < MAX_POLL_QUESTIONS) {
@@ -620,6 +625,19 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
       toast({ title: "Limit Reached", description: `You can add a maximum of ${MAX_POLL_QUESTIONS} questions.`, variant: "default" });
     }
   };
+
+  React.useEffect(() => {
+    if (isOpen && pollDialogScrollAreaRef.current) {
+        const viewport = pollDialogScrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (viewport) {
+            setTimeout(() => { // Use timeout to ensure DOM update and scrollHeight calculation
+                viewport.scrollTop = viewport.scrollHeight;
+            }, 0);
+        }
+    }
+  }, [questions.length, isOpen]);
+
+
   const removeQuestion = (questionId: string) => {
     if (questions.length > 1) {
       setQuestions(questions.filter(q => q.id !== questionId));
@@ -692,20 +710,20 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
     setIsOpen(false);
     setPollTitle('');
     setQuestions([{ id: `q-${Date.now()}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-0`, text: '' }] }]);
-    setStudentAnswersHidden(false);
+    setStudentAnswersHidden(true); // Reset to default
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" aria-label="Create poll" disabled={disabled}><ListChecks className="h-5 w-5" /></Button>
+        <Button type="button" variant="ghost" size="icon" aria-label="Create poll/quiz" disabled={disabled}><ListChecks className="h-5 w-5" /></Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Create New Poll / Quiz</DialogTitle>
-          <DialogDescription>Craft a multi-question poll, similar to Google Forms.</DialogDescription>
+          <DialogDescription>Craft a multi-question poll or quiz. Max {MAX_POLL_QUESTIONS} questions.</DialogDescription>
         </DialogHeader>
-        <ScrollArea className="flex-grow pr-2">
+        <ScrollArea className="flex-grow pr-2" ref={pollDialogScrollAreaRef}>
         <div className="grid gap-6 py-4 ">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="poll-main-title" className="text-right col-span-1">Poll Title</Label>
@@ -713,7 +731,7 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
           </div>
           
           {questions.map((q, qIndex) => (
-            <Card key={q.id} className="p-4 space-y-3 bg-muted/30">
+            <Card key={q.id} className="p-4 space-y-3 bg-muted/30 shadow-sm">
               <div className="flex justify-between items-center">
                 <Label className="text-md font-semibold">Question {qIndex + 1}</Label>
                 {questions.length > 1 && (
@@ -736,11 +754,11 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
               >
                   <div className="flex items-center space-x-2">
                       <RadioGroupItem value="mcq" id={`q-${q.id}-type-mcq`}/>
-                      <Label htmlFor={`q-${q.id}-type-mcq`}>Multiple Choice</Label>
+                      <Label htmlFor={`q-${q.id}-type-mcq`} className="cursor-pointer">Multiple Choice</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                       <RadioGroupItem value="shortAnswer" id={`q-${q.id}-type-sa`}/>
-                      <Label htmlFor={`q-${q.id}-type-sa`}>Short Answer</Label>
+                      <Label htmlFor={`q-${q.id}-type-sa`} className="cursor-pointer">Short Answer</Label>
                   </div>
               </RadioGroup>
 
@@ -762,8 +780,8 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
                             )}
                         </div>
                     ))}
-                    <Button type="button" variant="outline" size="sm" onClick={() => addOptionToQuestion(q.id)} className="mt-1">
-                        <PlusCircle className="mr-2 h-4 w-4"/> Add Option
+                    <Button type="button" variant="outline" size="sm" onClick={() => addOptionToQuestion(q.id)} className="mt-1 text-xs h-7">
+                        <PlusCircle className="mr-1.5 h-3.5 w-3.5"/> Add Option
                     </Button>
                 </div>
               )}
@@ -772,14 +790,14 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
 
           {questions.length < MAX_POLL_QUESTIONS && (
             <Button type="button" variant="outline" onClick={addQuestion} className="mt-2">
-                <PlusCircle className="mr-2 h-4 w-4"/> Add Another Question
+                <PlusCircle className="mr-2 h-4 w-4"/> Add Question
             </Button>
           )}
           
-          <div className="flex items-center space-x-2 mt-4">
+          <div className="flex items-center space-x-2 mt-4 pt-4 border-t">
             <Checkbox id="hide-answers" checked={studentAnswersHidden} onCheckedChange={(checked) => setStudentAnswersHidden(checked as boolean)} />
             <Label htmlFor="hide-answers" className="text-sm font-normal cursor-pointer">
-                Hide answers from students until results are published
+                Hide answers from students until results are published by a teacher/admin.
             </Label>
           </div>
         </div>
@@ -894,6 +912,8 @@ interface PublishPollResultDialogProps {
 function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
     const [correctAnswers, setCorrectAnswers] = React.useState<Record<string, string>>({});
     const { toast } = useToast(); 
+    const publishDialogScrollAreaRef = React.useRef<HTMLDivElement>(null);
+
 
     React.useEffect(() => { 
         if (isOpen && pollMessage.pollData) {
@@ -906,6 +926,18 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
             setCorrectAnswers(initialCorrect);
         }
     }, [isOpen, pollMessage]);
+
+    // Scroll to bottom when new questions are added or dialog opens
+    React.useEffect(() => {
+        if (isOpen && publishDialogScrollAreaRef.current) {
+            const viewport = publishDialogScrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+            if (viewport) {
+                setTimeout(() => { // Ensure DOM update
+                    viewport.scrollTop = viewport.scrollHeight;
+                }, 0);
+            }
+        }
+    }, [isOpen, pollMessage.pollData?.questions.length]);
 
 
     if (pollMessage.type !== 'poll' || !pollMessage.pollData) {
@@ -939,10 +971,10 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
                         For Short Answer Questions, responses will become visible (if previously hidden).
                     </DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="flex-grow pr-2">
+                <ScrollArea className="flex-grow pr-2" ref={publishDialogScrollAreaRef}>
                     <div className="py-4 space-y-4">
                         {questions.map((question, qIndex) => (
-                            <Card key={question.id} className="p-3">
+                            <Card key={question.id} className="p-3 shadow-sm bg-muted/30">
                                 <CardHeader className="p-0 pb-2">
                                     <p className="text-sm font-medium">{qIndex + 1}. {question.questionText}</p>
                                 </CardHeader>
@@ -956,7 +988,7 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
                                             className="space-y-1 mt-1"
                                         >
                                             {question.options.map(option => (
-                                                <div key={option.id} className="flex items-center space-x-2">
+                                                <div key={option.id} className="flex items-center space-x-2 p-1.5 rounded-md hover:bg-background/50 transition-colors">
                                                     <RadioGroupItem value={option.id} id={`publish-correct-${question.id}-${option.id}`} />
                                                     <Label htmlFor={`publish-correct-${question.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
                                                 </div>
