@@ -18,7 +18,7 @@ export interface OTPVerificationResponse {
 // For a more robust mock, consider sessionStorage or a global Map managed carefully.
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const DEFAULT_TEST_OTP = "123456"; // Default OTP for testing
+const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing
 
 export async function sendOTP(identifier: string): Promise<void> {
   // Use the default test OTP instead of generating a random one
@@ -111,3 +111,4 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
 
   return { success: false, message: 'The OTP entered is incorrect.' };
 }
+
