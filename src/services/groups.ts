@@ -47,7 +47,11 @@ const GROUPS_STORAGE_KEY = 'assigno_mock_groups_data_v4'; // Incremented version
 // Initialize from localStorage or create new if not present
 function initializeGlobalGroupsStore(): Map<string, Group> {
   if (typeof window === 'undefined') {
-    return new Map<string, Group>();
+     // Server-side: initialize with empty or default if not already done by ensureMockDataInitialized
+    globalThis.mockGroupsData_assigno_groups = new Map<string, Group>();
+    globalThis.mockGroupsInitialized_assigno_groups = true;
+    console.log("[Service:groups] Server-side: Initialized empty groups store.");
+    return globalThis.mockGroupsData_assigno_groups;
   }
 
   if (globalThis.mockGroupsData_assigno_groups && globalThis.mockGroupsInitialized_assigno_groups) {
@@ -57,13 +61,11 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
   try {
     const storedData = localStorage.getItem(GROUPS_STORAGE_KEY);
     if (storedData) {
-      // Deserialize date strings back to Date objects
-      // Ensure joinRequests is always an array
       const parsedArray = (JSON.parse(storedData) as Array<Omit<Group, 'createdAt' | 'joinRequests'> & {createdAt: string, joinRequests?: any[]}>).map(g => ({
         ...g,
         createdAt: new Date(g.createdAt),
-        allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? true : g.allowStudentPosts, // Default for older data
-        joinRequests: Array.isArray(g.joinRequests) ? g.joinRequests : [], // Ensure it's an array or default to empty
+        allowStudentPosts: typeof g.allowStudentPosts === 'undefined' ? true : g.allowStudentPosts, 
+        joinRequests: Array.isArray(g.joinRequests) ? g.joinRequests : [], 
       }));
       const groupsMap = new Map<string, Group>(parsedArray.map(g => [g.id, g]));
       globalThis.mockGroupsData_assigno_groups = groupsMap;
@@ -73,58 +75,55 @@ function initializeGlobalGroupsStore(): Map<string, Group> {
     }
   } catch (error) {
     console.error("[Service:groups] Error reading groups from localStorage during global init:", error);
+    localStorage.removeItem(GROUPS_STORAGE_KEY); // Clear corrupted data
   }
 
   const newStore = new Map<string, Group>();
   globalThis.mockGroupsData_assigno_groups = newStore;
   globalThis.mockGroupsInitialized_assigno_groups = true;
-  console.log("[Service:groups] Initialized new empty global groups store.");
+  localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(Array.from(newStore.values()))); // Save empty store
+  console.log("[Service:groups] Initialized new empty global groups store and saved to localStorage.");
   return newStore;
 }
 
 
 function getMockGroupsData(): Map<string, Group> {
-  if (typeof window === 'undefined') {
-    if (!globalThis.mockGroupsInitialized_assigno_groups) {
-        // Server-side: initialize with empty or default if not already done by ensureMockDataInitialized
-        globalThis.mockGroupsData_assigno_groups = new Map<string, Group>();
-        globalThis.mockGroupsInitialized_assigno_groups = true;
-        console.log("[Service:groups] Server-side getMockGroupsData: Initialized empty groups store.");
-    }
-    return globalThis.mockGroupsData_assigno_groups || new Map<string, Group>();
-  }
-  // Client-side
   if (!globalThis.mockGroupsData_assigno_groups || !globalThis.mockGroupsInitialized_assigno_groups) {
+    console.warn("[Service:groups] getMockGroupsData: Store not initialized. Attempting recovery by initializing.");
     return initializeGlobalGroupsStore();
   }
   return globalThis.mockGroupsData_assigno_groups;
 }
 
 function updateMockGroupsData(newData: Map<string, Group>): void {
-  if (typeof window === 'undefined') {
-    globalThis.mockGroupsData_assigno_groups = newData;
-    globalThis.mockGroupsInitialized_assigno_groups = true; // Mark as initialized for server context
-    return; 
+  globalThis.mockGroupsData_assigno_groups = newData;
+  globalThis.mockGroupsInitialized_assigno_groups = true; 
+  if (typeof window !== 'undefined') {
+    try {
+      const serializableArray = Array.from(newData.values()).map(g => ({
+        ...g,
+        createdAt: g.createdAt.toISOString()
+      }));
+      localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(serializableArray));
+      console.log("[Service:groups] Saved", serializableArray.length, "groups to localStorage.");
+    } catch (error) {
+      console.error("[Service:groups] Error writing groups to localStorage:", error);
+    }
   }
-  // Client-side
-  globalThis.mockGroupsData_assigno_groups = newData; // Update global store
-  globalThis.mockGroupsInitialized_assigno_groups = true;
-  try {
-    // Serialize Date objects to ISO strings for storage
-    const serializableArray = Array.from(newData.values()).map(g => ({
-      ...g,
-      createdAt: g.createdAt.toISOString()
-    }));
-    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(serializableArray));
-    console.log("[Service:groups] Saved", serializableArray.length, "groups to localStorage.");
-  } catch (error) {
-    console.error("[Service:groups] Error writing groups to localStorage:", error);
-  }
+}
+
+export async function ensureMockDataInitialized() {
+    if (typeof window !== 'undefined' && !globalThis.mockGroupsInitialized_assigno_groups) {
+        initializeGlobalGroupsStore();
+    } else if (typeof window === 'undefined' && !globalThis.mockGroupsInitialized_assigno_groups) {
+        // Ensure server-side has a basic initialized store if accessed directly
+        initializeGlobalGroupsStore();
+    }
 }
 
 // Initialize on load for client-side
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  initializeGlobalGroupsStore();
+  ensureMockDataInitialized();
 }
 
 
@@ -142,6 +141,7 @@ function generateGroupCodeInternal(schoolCode: string, existingGroupsMap: Map<st
 }
 
 export async function createGroup(groupData: CreateGroupInput, creatorId: string, creatorRole: 'Admin' | 'Teacher', schoolCode: string): Promise<Group> {
+    await ensureMockDataInitialized();
     console.log("[Service:groups] Creating group:", groupData, "Creator:", creatorId, "School:", schoolCode);
     
     const currentStore = getMockGroupsData();
@@ -171,18 +171,12 @@ export async function createGroup(groupData: CreateGroupInput, creatorId: string
 }
 
 export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teacher' | 'Student'): Promise<Group[]> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Fetching groups for user ${userId} (${userRole}).`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const usersModule = await import('./users');
-    if (typeof usersModule.ensureMockDataInitialized === 'function') {
-      await usersModule.ensureMockDataInitialized();
-    }
+    await usersModule.ensureMockDataInitialized();
     
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in fetchUserGroups.");
-        return [];
-    }
     const user = await usersModule.fetchUsersByIds([userId]).then(users => users[0]);
 
     const currentStore = getMockGroupsData();
@@ -207,9 +201,9 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
 }
 
 export async function fetchGroupDetails(groupId: string): Promise<Group | null> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Fetching details for group ${groupId}.`);
         
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const foundGroup = currentStore.get(groupId);
     if (foundGroup) {
@@ -221,9 +215,9 @@ export async function fetchGroupDetails(groupId: string): Promise<Group | null> 
 }
 
 export async function fetchGroupByCode(groupCode: string, schoolCode: string): Promise<Group | null> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Fetching group by code ${groupCode} for school ${schoolCode}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
     const foundGroup = allGroups.find(g => g.groupCode.toUpperCase() === groupCode.toUpperCase() && g.schoolCode === schoolCode);
@@ -232,9 +226,9 @@ export async function fetchGroupByCode(groupCode: string, schoolCode: string): P
 
 
 export async function addMembersToGroup(groupId: string, membersToAdd: User[]): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Adding ${membersToAdd.length} members to group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
 
@@ -255,7 +249,6 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
         } else if (member.role === 'Student') {
             if (!clonedGroup.studentIds.includes(member.id)) {
                 clonedGroup.studentIds.push(member.id);
-                // Remove from join requests if they were there
                 clonedGroup.joinRequests = clonedGroup.joinRequests.filter(id => id !== member.id);
                 changed = true;
             }
@@ -272,9 +265,9 @@ export async function addMembersToGroup(groupId: string, membersToAdd: User[]): 
 }
 
 export async function removeMemberFromGroup(groupId: string, memberId: string): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Removing member ${memberId} from group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
@@ -301,9 +294,9 @@ export async function removeMemberFromGroup(groupId: string, memberId: string): 
 
 
 export async function deleteGroup(groupId: string, adminId: string, schoolCode: string): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Admin ${adminId} (school: ${schoolCode}) attempting to delete group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToDelete = currentStore.get(groupId);
 
@@ -321,9 +314,9 @@ export async function deleteGroup(groupId: string, adminId: string, schoolCode: 
 
 
 export async function requestToJoinGroup(groupId: string, studentId: string): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Student ${studentId} requesting to join group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
@@ -333,7 +326,7 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
 
     if (clonedGroup.studentIds.includes(studentId) || clonedGroup.joinRequests.includes(studentId)) {
         console.log(`[Service:groups] Student ${studentId} already in group or request pending (mock).`);
-        return false; // Already a member or request pending
+        return false; 
     }
     clonedGroup.joinRequests.push(studentId);
     
@@ -345,19 +338,12 @@ export async function requestToJoinGroup(groupId: string, studentId: string): Pr
 }
 
 export async function fetchGroupJoinRequests(groupId: string, teacherId: string): Promise<User[]> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Teacher ${teacherId} fetching join requests for group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
-    const currentStore = getMockGroupsData();
     const usersModule = await import('./users');
-    if (typeof usersModule.ensureMockDataInitialized === 'function') {
-        await usersModule.ensureMockDataInitialized();
-    }
+    await usersModule.ensureMockDataInitialized();
     
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in fetchGroupJoinRequests.");
-        return [];
-    }
     const teacherUser = await usersModule.fetchUsersByIds([teacherId]).then(users => users[0]);
 
     if (!teacherUser) {
@@ -365,6 +351,7 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
         return [];
     }
 
+    const currentStore = getMockGroupsData();
     const group = currentStore.get(groupId);
 
     if (!group || !(group.teacherIds.includes(teacherId) || (teacherUser.role === 'Admin' && group.schoolCode === teacherUser.schoolCode))) {
@@ -377,21 +364,15 @@ export async function fetchGroupJoinRequests(groupId: string, teacherId: string)
 }
 
 export async function approveJoinRequest(groupId: string, studentId: string, approverId: string): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Approver ${approverId} approving join request for student ${studentId} in group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
 
     const usersModule = await import('./users');
-    if (typeof usersModule.ensureMockDataInitialized === 'function') {
-      await usersModule.ensureMockDataInitialized();
-    }
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in approveJoinRequest.");
-        return false;
-    }
+    await usersModule.ensureMockDataInitialized();
     const approverUser = await usersModule.fetchUsersByIds([approverId]).then(users => users[0]);
     if (!approverUser) return false;
 
@@ -416,21 +397,15 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
 }
 
 export async function rejectJoinRequest(groupId: string, studentId: string, rejectorId: string): Promise<boolean> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Rejector ${rejectorId} rejecting join request for student ${studentId} in group ${groupId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
 
     const usersModule = await import('./users');
-     if (typeof usersModule.ensureMockDataInitialized === 'function') {
-        await usersModule.ensureMockDataInitialized();
-    }
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in rejectJoinRequest.");
-        return false;
-    }
+    await usersModule.ensureMockDataInitialized();
     const rejectorUser = await usersModule.fetchUsersByIds([rejectorId]).then(users => users[0]);
     if(!rejectorUser) return false;
 
@@ -464,27 +439,31 @@ export interface SchoolStats {
 
 export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
     console.log(`[Service:groups] Calculating stats for school ${schoolCode}`);
-    
-    await new Promise(resolve => setTimeout(resolve, 10));
-    const currentStore = getMockGroupsData();
+    await ensureMockDataInitialized(); 
+
+    const currentStore = getMockGroupsData(); 
     const allGroups = Array.from(currentStore.values());
     
     let usersModule;
     try {
-        usersModule = await import('./users'); // Await the dynamic import itself
-         if (typeof usersModule.ensureMockDataInitialized === 'function') { 
+        usersModule = await import('./users'); 
+        if (usersModule && typeof usersModule.ensureMockDataInitialized === 'function') { 
             await usersModule.ensureMockDataInitialized(); 
+        } else if (!usersModule) {
+            throw new Error("Users module failed to import.");
+        } else if (typeof usersModule.ensureMockDataInitialized !== 'function') {
+            console.warn("[Service:groups] users.ts module does not export ensureMockDataInitialized. Data might be stale if not pre-initialized.");
         }
     } catch (error) {
-        console.error("[Service:groups] Failed to import usersModule in getSchoolStats:", error);
-         return { // Return default/empty stats on error
+        console.error("[Service:groups] Failed to import or initialize usersModule in getSchoolStats:", error);
+        return { 
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
         };
     }
     
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available after import in getSchoolStats.");
+    if (!usersModule || typeof usersModule.fetchAllUsers !== 'function') {
+        console.error("[Service:groups] usersModule is not available or fetchAllUsers is not a function after import in getSchoolStats.");
         return {
             totalGroups: 0, totalStudents: 0, studentsInAnyGroup: 0, studentsNotInAnyGroup: 0,
             totalTeachersAndAdmins: 0, staffInAnyGroup: 0, staffNotInAnyGroup: 0, groupMembership: []
@@ -518,9 +497,9 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
 }
 
 export async function updateGroupSettings(groupId: string, settings: Partial<Pick<Group, 'name' | 'description' | 'subject' | 'allowStudentPosts'>>, currentUserId: string): Promise<Group | null> {
+    await ensureMockDataInitialized();
     console.log(`[Service:groups] Updating settings for group ${groupId} by user ${currentUserId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
     const currentStore = getMockGroupsData();
     const groupToUpdate = currentStore.get(groupId);
 
@@ -530,13 +509,7 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     
     const usersModule = await import('./users');
-    if (typeof usersModule.ensureMockDataInitialized === 'function') {
-      await usersModule.ensureMockDataInitialized();
-    }
-    if (!usersModule) {
-        console.error("[Service:groups] usersModule is not available in updateGroupSettings.");
-        return null;
-    }
+    await usersModule.ensureMockDataInitialized();
     const user = await usersModule.fetchUsersByIds([currentUserId]).then(users => users[0]);
     if (!user) {
         console.warn(`[Service:groups] User ${currentUserId} not found, cannot update group settings (mock).`);
@@ -551,7 +524,6 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
     }
     
     const updatedGroup = { ...groupToUpdate, ...settings };
-    // Ensure allowStudentPosts retains its boolean value if not explicitly changed
     if (typeof settings.allowStudentPosts === 'undefined') {
         updatedGroup.allowStudentPosts = groupToUpdate.allowStudentPosts;
     }

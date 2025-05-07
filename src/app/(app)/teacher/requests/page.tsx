@@ -233,6 +233,3 @@ export default function TeacherJoinRequestsPage() {
     </div>
   );
 }
-
-
-```

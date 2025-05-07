@@ -84,7 +84,11 @@ const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v8'; // Incremented ver
 // Initialize from localStorage or create new if not present
 function initializeGlobalMessagesStore(): Map<string, Message[]> {
   if (typeof window === 'undefined') {
-    return new Map<string, Message[]>();
+    // Server-side: initialize with empty or default if not already done by ensureMockDataInitialized
+    globalThis.mockMessagesData_assigno_messages = new Map<string, Message[]>();
+    globalThis.mockMessagesInitialized_assigno_messages = true;
+    console.log("[Service:messages] Server-side: Initialized empty messages store.");
+    return globalThis.mockMessagesData_assigno_messages;
   }
 
   if (globalThis.mockMessagesData_assigno_messages && globalThis.mockMessagesInitialized_assigno_messages) {
@@ -103,22 +107,22 @@ function initializeGlobalMessagesStore(): Map<string, Message[]> {
             parsedObject[groupId].map(msg => {
               let pollDataToRestore: PollData | undefined = undefined;
               if (msg.pollData) {
-                // Basic pollData structure
                 pollDataToRestore = {
-                  title: msg.pollData.title || (msg.pollData as any).question || "Poll", // Handle old structure
-                  questions: msg.pollData.questions || [], // Handle old structure that might not have 'questions'
-                  studentAnswersHidden: msg.pollData.studentAnswersHidden,
-                  resultsPublished: msg.pollData.resultsPublished,
+                  title: msg.pollData.title,
+                  questions: msg.pollData.questions || [],
+                  studentAnswersHidden: typeof msg.pollData.studentAnswersHidden === 'boolean' ? msg.pollData.studentAnswersHidden : true, // Default true
+                  resultsPublished: typeof msg.pollData.resultsPublished === 'boolean' ? msg.pollData.resultsPublished : false, // Default false
                   results: msg.pollData.results || {},
                   voters: msg.pollData.voters || {},
                 };
-                // If old structure, try to migrate it
-                if (!msg.pollData.questions && (msg.pollData as any).question) {
+
+                // Handle potential old structure (single question poll)
+                 if (msg.pollData.questions && msg.pollData.questions.length === 0 && (msg.pollData as any).question) {
                    const oldPollData = msg.pollData as any;
                    pollDataToRestore.questions = [{
-                       id: `q-${Date.now()}`,
+                       id: `q-${Date.now()}`, // Ensure unique ID for migrated question
                        questionText: oldPollData.question,
-                       pollType: oldPollData.pollType,
+                       pollType: oldPollData.pollType || 'mcq', // Default to mcq if not set
                        options: oldPollData.options,
                        correctOptionId: oldPollData.correctOptionId,
                    }];
@@ -152,75 +156,83 @@ function initializeGlobalMessagesStore(): Map<string, Message[]> {
     }
   } catch (error) {
     console.error("[Service:messages] Error reading messages from localStorage during global init:", error);
+    localStorage.removeItem(MESSAGES_STORAGE_KEY); // Clear corrupted data
   }
 
   const newStore = new Map<string, Message[]>();
   globalThis.mockMessagesData_assigno_messages = newStore;
   globalThis.mockMessagesInitialized_assigno_messages = true;
-  console.log("[Service:messages] Initialized new empty global messages store.");
+  localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify({})); // Save empty store correctly
+  console.log("[Service:messages] Initialized new empty global messages store and saved to localStorage.");
   return newStore;
 }
 
 
 function getMockMessagesData(): Map<string, Message[]> {
-  if (typeof window === 'undefined') {
-    return new Map<string, Message[]>(); // Server-side, return empty
-  }
   if (!globalThis.mockMessagesData_assigno_messages || !globalThis.mockMessagesInitialized_assigno_messages) {
+    console.warn("[Service:messages] getMockMessagesData: Store not initialized. Attempting recovery by initializing.");
     return initializeGlobalMessagesStore();
   }
   return globalThis.mockMessagesData_assigno_messages;
 }
 
 function updateMockMessagesData(newData: Map<string, Message[]>): void {
-  if (typeof window === 'undefined') {
-    return; 
-  }
-  globalThis.mockMessagesData_assigno_messages = newData; // Update global store
-  try {
-    const objectToStore: Record<string, StoredMessage[]> = {};
-    newData.forEach((messages, groupId) => {
-      objectToStore[groupId] = messages.map(msg => {
-        const storedMsg: StoredMessage = {
-          id: msg.id,
-          groupId: msg.groupId,
-          senderId: msg.senderId,
-          senderName: msg.senderName,
-          senderRole: msg.senderRole,
-          senderAvatar: msg.senderAvatar,
-          content: msg.content,
-          timestamp: msg.timestamp.toISOString(), 
-          type: msg.type,
-        };
-        if (msg.pollData) {
-          storedMsg.pollData = { ...msg.pollData };
-        }
-        if (msg.eventData) {
-          storedMsg.eventData = { ...msg.eventData, dateTime: msg.eventData.dateTime };
-        }
-        if (msg.fileData) {
-          storedMsg.fileData = msg.fileData;
-        }
-        return storedMsg;
+  globalThis.mockMessagesData_assigno_messages = newData;
+  globalThis.mockMessagesInitialized_assigno_messages = true;
+  if (typeof window !== 'undefined') {
+    try {
+      const objectToStore: Record<string, StoredMessage[]> = {};
+      newData.forEach((messages, groupId) => {
+        objectToStore[groupId] = messages.map(msg => {
+          const storedMsg: StoredMessage = {
+            id: msg.id,
+            groupId: msg.groupId,
+            senderId: msg.senderId,
+            senderName: msg.senderName,
+            senderRole: msg.senderRole,
+            senderAvatar: msg.senderAvatar,
+            content: msg.content,
+            timestamp: msg.timestamp.toISOString(), 
+            type: msg.type,
+          };
+          if (msg.pollData) {
+            storedMsg.pollData = { ...msg.pollData };
+          }
+          if (msg.eventData) {
+            storedMsg.eventData = { ...msg.eventData, dateTime: msg.eventData.dateTime };
+          }
+          if (msg.fileData) {
+            storedMsg.fileData = msg.fileData;
+          }
+          return storedMsg;
+        });
       });
-    });
-    localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(objectToStore));
-    console.log("[Service:messages] Updated localStorage with messages for", newData.size, "groups.");
-  } catch (error) {
-    console.error("[Service:messages] Error writing messages to localStorage:", error);
+      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(objectToStore));
+      console.log("[Service:messages] Updated localStorage with messages for", newData.size, "groups.");
+    } catch (error) {
+      console.error("[Service:messages] Error writing messages to localStorage:", error);
+    }
   }
+}
+
+export async function ensureMockDataInitialized() {
+    if (typeof window !== 'undefined' && !globalThis.mockMessagesInitialized_assigno_messages) {
+        initializeGlobalMessagesStore();
+    } else if (typeof window === 'undefined' && !globalThis.mockMessagesInitialized_assigno_messages) {
+        initializeGlobalMessagesStore();
+    }
 }
 
 // Initialize on load for client-side
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-  initializeGlobalMessagesStore();
+  ensureMockDataInitialized();
 }
 
 
 export async function getGroupMessages(groupId: string): Promise<Message[]> {
+  await ensureMockDataInitialized();
   console.log(`[Service:messages] Fetching messages for group ${groupId}`);
   
-  await new Promise(resolve => setTimeout(resolve, 10)); 
   const store = getMockMessagesData(); 
   const messages = store.get(groupId) || [];
   console.log(`[Service:messages] Found ${messages.length} messages for group ${groupId} (global/localStorage mock).`);
@@ -240,7 +252,7 @@ export interface NewFileMessageInput extends NewMessageBaseInput {
 }
 export interface NewPollMessageInput extends NewMessageBaseInput {
   type: 'poll';
-  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'>; // correctOptionId is per question now
+  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'>; 
 }
 export interface NewEventMessageInput extends NewMessageBaseInput {
   type: 'event';
@@ -255,6 +267,7 @@ export type NewMessageInput =
 
 
 export async function addMessageToGroup(groupId: string, messageInput: NewMessageInput, sender: User): Promise<Message> {
+  await ensureMockDataInitialized();
   console.log(`[Service:messages] Adding message to group ${groupId} from sender ${sender.id} (${sender.name}) of type ${messageInput.type}`);
   
   const baseMessageData = {
@@ -263,8 +276,8 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     senderId: sender.id,
     senderName: sender.name,
     senderRole: sender.role,
-    senderAvatar: sender.profilePictureUrl, // Use user's profile picture URL directly
-    content: messageInput.content, // For poll, this is the main title
+    senderAvatar: sender.profilePictureUrl, 
+    content: messageInput.content, 
     type: messageInput.type,
   };
   
@@ -273,14 +286,14 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     const questionsWithDefaults = messageInput.pollData.questions.map(q => ({
       ...q,
       options: q.pollType === 'mcq' ? (q.options || []) : undefined,
-      correctOptionId: undefined, // Teacher sets this on publish
+      correctOptionId: undefined, 
     }));
     specificData = { 
         pollData: { 
             ...messageInput.pollData, 
             questions: questionsWithDefaults,
-            results: {}, // Initialize as empty, to be populated per questionId
-            voters: {},  // Initialize as empty, to be populated per questionId
+            results: {}, 
+            voters: {},  
             resultsPublished: false,
         } 
     };
@@ -296,15 +309,12 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     id: `msg-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   } as Message; 
   
-  await new Promise(resolve => setTimeout(resolve, 10));
   const store = getMockMessagesData();
-
   const currentMessages = store.get(groupId) || [];
   const updatedMessages = [...currentMessages, fullMessage];
   
   const newStore = new Map(store); 
   newStore.set(groupId, updatedMessages);
-
   updateMockMessagesData(newStore); 
 
   console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId}. Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
@@ -312,6 +322,7 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
 }
 
 export async function voteOnPoll(groupId: string, messageId: string, questionId: string, submission: string, userId: string): Promise<Message | null> {
+  await ensureMockDataInitialized();
   console.log(`[Service:messages] User ${userId} submitting for question ${questionId} in poll ${messageId} (group ${groupId}). Submission: ${submission}`);
   
   const store = getMockMessagesData();
@@ -328,7 +339,6 @@ export async function voteOnPoll(groupId: string, messageId: string, questionId:
   pollMessage.pollData.voters = { ...(pollMessage.pollData.voters || {}) };
   pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
 
-  // Ensure voters and results for this question exist
   if (!pollMessage.pollData.voters[questionId]) {
     pollMessage.pollData.voters[questionId] = {};
   }
@@ -337,7 +347,7 @@ export async function voteOnPoll(groupId: string, messageId: string, questionId:
   }
 
   const question = pollMessage.pollData.questions.find(q => q.id === questionId);
-  if (!question) return null; // Should not happen if found earlier
+  if (!question) return null; 
 
   if (question.pollType === 'mcq') {
       const optionId = submission; 
@@ -358,8 +368,7 @@ export async function voteOnPoll(groupId: string, messageId: string, questionId:
       const questionVoters = pollMessage.pollData.voters[questionId] as Record<string, string> || {};
       questionVoters[userId] = submission; 
       pollMessage.pollData.voters[questionId] = questionVoters;
-
-      // Short answer results for teacher view are just the voters data itself for that question
+      
       const questionResults = pollMessage.pollData.results[questionId] as Record<string, string> || {};
       questionResults[userId] = submission;
       pollMessage.pollData.results[questionId] = questionResults;
@@ -380,8 +389,9 @@ export async function publishPollResults(
     groupId: string, 
     messageId: string, 
     publisherId: string, 
-    correctAnswers: Record<string, string> // { [questionId]: correctOptionId } for MCQs
+    correctAnswers: Record<string, string> 
 ): Promise<Message | null> {
+  await ensureMockDataInitialized();
   console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}. Correct answers:`, correctAnswers);
   const store = getMockMessagesData();
   const groupMessages = store.get(groupId);
@@ -413,5 +423,3 @@ export async function publishPollResults(
   console.log(`[Service:messages] Poll ${messageId} results published. Updated questions with correct answers.`);
   return pollMessage;
 }
-
-```
