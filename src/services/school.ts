@@ -1,4 +1,3 @@
-
 import type { User } from '@/context/auth-context';
 import { addUser } from './users'; // For creating admin user
 
@@ -45,14 +44,25 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const SINGLE_SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v2_institute'; // v2 for new fields
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v2';
+const SINGLE_SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v2_institute'; 
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v3'; // Version bump
 
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
   if (typeof window === 'undefined') {
-    return []; // Server-side, start empty
+    if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
+        // Simplified server-side default
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [{ 
+            schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', instituteType: 'School', 
+            address: '456 School Road', city: 'Testville', state: 'Test State', pincode: '000000', 
+            contactNumber: '+10000000000', adminEmail: 'antony@school.com', 
+            registrationDate: new Date().toISOString() 
+        }];
+        globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
+        console.log("[Service:school] Server-side: Initialized global institutes LIST with default.");
+    }
+    return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
 
   if (globalThis.mockRegisteredInstitutes_assigno_school_list && globalThis.mockRegisteredInstitutesInitialized_assigno_school_list) {
@@ -72,22 +82,16 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     console.error("[Service:school] Error reading institutes LIST from localStorage:", error);
   }
   
-  const defaultList: SchoolDetails[] = [{ // Keep the default school in the list for backward compatibility/demo
-    schoolCode: 'samp123',
-    schoolName: 'Sample Sr. Sec. School',
-    instituteType: 'School',
-    address: '456 School Road',
-    city: 'Testville',
-    state: 'Test State',
-    pincode: '000000',
-    contactNumber: '+10000000000',
-    adminEmail: 'antony@school.com',
-    registrationDate: new Date().toISOString(),
+  const defaultList: SchoolDetails[] = [{ 
+    schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', instituteType: 'School', 
+    address: '456 School Road', city: 'Testville', state: 'Test State', pincode: '000000', 
+    contactNumber: '+10000000000', adminEmail: 'antony@school.com', 
+    registrationDate: new Date().toISOString() 
   }];
   globalThis.mockRegisteredInstitutes_assigno_school_list = defaultList;
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultList));
-  console.log("[Service:school] Initialized new global institutes LIST and saved to localStorage.");
+  console.log("[Service:school] Initialized new global institutes LIST with default and saved to localStorage.");
   return defaultList;
 }
 
@@ -95,7 +99,7 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
 // Get the list of all registered institutes
 function getMockRegisteredInstitutes(): SchoolDetails[] {
    if (typeof window === 'undefined') {
-     return globalThis.mockRegisteredInstitutes_assigno_school_list || [];
+     return globalThis.mockRegisteredInstitutes_assigno_school_list || initializeGlobalInstitutesListStore();
    }
   if (!globalThis.mockRegisteredInstitutes_assigno_school_list || !globalThis.mockRegisteredInstitutesInitialized_assigno_school_list) {
     return initializeGlobalInstitutesListStore();
@@ -105,25 +109,33 @@ function getMockRegisteredInstitutes(): SchoolDetails[] {
 
 // Update the list of registered institutes
 function updateMockRegisteredInstitutes(list: SchoolDetails[]): void {
+  globalThis.mockRegisteredInstitutes_assigno_school_list = list;
+  globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   if (typeof window !== 'undefined') {
-    globalThis.mockRegisteredInstitutes_assigno_school_list = list;
-    globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
     localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(list));
     console.log("[Service:school] Updated institutes LIST in global store and localStorage:", list.length, "total institutes.");
-  } else {
-    globalThis.mockRegisteredInstitutes_assigno_school_list = list;
-    globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   }
 }
 
 
-// ----- Single School Detail Management (Legacy/Current School Focus) -----
+// ----- Single School Detail Management (Current/Active School Focus) -----
 function initializeGlobalSingleSchoolStore(): SchoolDetails {
-   if (typeof window === 'undefined') {
-    return getMockRegisteredInstitutes()[0] || { // Fallback to first in list or very basic default
-        schoolCode: 'TEMP000', schoolName: 'Temporary School', instituteType: 'School', address: 'N/A', city: 'N/A', state: 'N/A', pincode: '000000', contactNumber: '+0000000000', adminEmail: 'temp@example.com', registrationDate: new Date().toISOString()
+   const institutesList = getMockRegisteredInstitutes(); // Ensure list is loaded/initialized first
+   const defaultSchool: SchoolDetails = institutesList.length > 0 ? institutesList[0] : { 
+        schoolCode: 'TEMP000', schoolName: 'Temporary School', instituteType: 'School', 
+        address: 'N/A', city: 'N/A', state: 'N/A', pincode: '000000', 
+        contactNumber: '+0000000000', adminEmail: 'temp@example.com', 
+        registrationDate: new Date().toISOString()
     };
-  }
+    
+   if (typeof window === 'undefined') {
+     if (!globalThis.mockSchoolDetails_assigno_school) {
+        globalThis.mockSchoolDetails_assigno_school = defaultSchool;
+        globalThis.mockSchoolInitialized_assigno_school = true;
+        console.log("[Service:school] Server-side: Initialized SINGLE school store.");
+     }
+     return globalThis.mockSchoolDetails_assigno_school;
+   }
 
   if (globalThis.mockSchoolDetails_assigno_school && globalThis.mockSchoolInitialized_assigno_school) {
     return globalThis.mockSchoolDetails_assigno_school;
@@ -142,17 +154,11 @@ function initializeGlobalSingleSchoolStore(): SchoolDetails {
     console.error("[Service:school] Error reading SINGLE school details from localStorage:", error);
   }
   
-  // Default to the first school in the list if available, or the SSS school
-  const institutesList = getMockRegisteredInstitutes();
-  const defaultSchoolDetails: SchoolDetails = institutesList.length > 0 ? institutesList[0] : {
-    schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', instituteType: 'School', address: '456 School Road', city: 'Testville', state: 'Test State', pincode: '000000', contactNumber: '+10000000000', adminEmail: 'antony@school.com', registrationDate: new Date().toISOString()
-  };
-
-  globalThis.mockSchoolDetails_assigno_school = defaultSchoolDetails;
+  globalThis.mockSchoolDetails_assigno_school = defaultSchool;
   globalThis.mockSchoolInitialized_assigno_school = true;
-  localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(defaultSchoolDetails));
-  console.log("[Service:school] Initialized new SINGLE school store and saved to localStorage.");
-  return defaultSchoolDetails;
+  localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(defaultSchool));
+  console.log("[Service:school] Initialized new SINGLE school store with default and saved to localStorage.");
+  return defaultSchool;
 }
 
 function getMockSchoolDetails(): SchoolDetails {
@@ -166,14 +172,11 @@ function getMockSchoolDetails(): SchoolDetails {
 }
 
 function updateMockSchoolDetails(details: SchoolDetails): void {
+  globalThis.mockSchoolDetails_assigno_school = details;
+  globalThis.mockSchoolInitialized_assigno_school = true; 
   if (typeof window !== 'undefined') {
-    globalThis.mockSchoolDetails_assigno_school = details;
-    globalThis.mockSchoolInitialized_assigno_school = true; 
     localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(details));
     console.log("[Service:school] Updated SINGLE school details in global store and localStorage:", details);
-  } else {
-     globalThis.mockSchoolDetails_assigno_school = details;
-     globalThis.mockSchoolInitialized_assigno_school = true;
   }
 }
 
@@ -186,19 +189,23 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 
 
 function generateSchoolCode(instituteName: string): string {
-  const namePart = instituteName.replace(/[^a-zA-Z\s]/g, '').slice(0, 3).toUpperCase();
-  const numberPart = Math.floor(1000 + Math.random() * 9000).toString();
-  let schoolCode = `${namePart}${numberPart}`;
+  const namePart = instituteName.replace(/[^a-zA-Z0-9\s]/g, '').slice(0, 3).toUpperCase();
+  let randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+  let schoolCode = `${namePart}${randomPart}`;
   
-  // Mock uniqueness check (simple version)
   const existingCodes = new Set(getMockRegisteredInstitutes().map(s => s.schoolCode));
   let attempts = 0;
-  while (existingCodes.has(schoolCode) && attempts < 10) {
-    const newNumberPart = Math.floor(1000 + Math.random() * 9000).toString();
-    schoolCode = `${namePart}${newNumberPart}`;
+  while (existingCodes.has(schoolCode) && attempts < 20) { // Increased attempts
+    randomPart = Math.floor(1000 + Math.random() * 9000).toString();
+    schoolCode = `${namePart}${randomPart}`;
     attempts++;
   }
-  if (attempts >= 10) console.warn("Could not guarantee school code uniqueness after 10 attempts for mock.");
+  if (attempts >= 20) {
+    console.warn("High attempts for school code uniqueness for mock. Consider a more robust generation if this persists.");
+    // Fallback to longer random string if simple attempts fail
+    schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    if(existingCodes.has(schoolCode)) schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`; // Even longer
+  }
   return schoolCode;
 }
 
@@ -208,12 +215,17 @@ export async function registerInstitute(
   console.log('[Service:school] Attempting to register institute:', input.instituteName);
   await new Promise(resolve => setTimeout(resolve, 200)); // Simulate network delay
 
-  const existingInstitutes = getMockRegisteredInstitutes();
+  const existingInstitutes = getMockRegisteredInstitutes(); // Ensure the list is initialized
   
-  // Basic check if an institute with the same admin email already exists (simple mock check)
   if (existingInstitutes.some(inst => inst.adminEmail.toLowerCase() === input.adminEmail.toLowerCase())) {
+    console.warn(`[Service:school] Registration failed: Admin email ${input.adminEmail} already exists.`);
     return { success: false, message: 'An institute with this admin email is already registered.' };
   }
+  if (existingInstitutes.some(inst => inst.schoolName.toLowerCase() === input.instituteName.toLowerCase())) {
+    console.warn(`[Service:school] Registration failed: Institute name ${input.instituteName} already exists.`);
+    return { success: false, message: 'An institute with this name is already registered.' };
+  }
+
 
   const schoolCode = generateSchoolCode(input.instituteName);
   const registrationDate = new Date().toISOString();
@@ -231,33 +243,28 @@ export async function registerInstitute(
     registrationDate,
   };
 
-  // Add to the list of all institutes
   const updatedInstitutesList = [...existingInstitutes, newSchool];
   updateMockRegisteredInstitutes(updatedInstitutesList);
+  console.log(`[Service:school] New school ${newSchool.schoolName} (Code: ${newSchool.schoolCode}) added to registered list.`);
 
-  // Also, update the "current" school details to this newly registered one.
-  // This makes it the active school for subsequent operations in the mock setup.
-  updateMockSchoolDetails(newSchool);
+  updateMockSchoolDetails(newSchool); // Set this as the "current" active school for mock context
   
-  // Create an admin user for this new school
   try {
     const adminUserData: Omit<User, 'id' | 'schoolName' | 'schoolAddress'> & {schoolName: string, schoolAddress: string} = {
-      name: `${input.instituteName} Admin`, // Or a generic name
+      name: `${input.instituteName} Admin`, 
       email: input.adminEmail,
       role: 'Admin',
       schoolCode: schoolCode,
       schoolName: newSchool.schoolName,
       schoolAddress: `${newSchool.address}, ${newSchool.city}, ${newSchool.state} ${newSchool.pincode}`,
-      designation: 'Administrator', // Default designation for admin
+      designation: 'Administrator', 
     };
-    const adminUser = await addUser(adminUserData);
-    console.log('[Service:school] Admin user created for new institute:', adminUser.name);
+    const adminUser = await addUser(adminUserData); // addUser should handle its own data persistence
+    console.log('[Service:school] Admin user created for new institute:', adminUser.name, adminUser.id);
     return { success: true, schoolCode, message: 'Institute registered successfully.', adminUser };
 
   } catch (userError: any) {
     console.error('[Service:school] Failed to create admin user for new institute:', userError);
-    // Even if admin user creation fails, the institute is registered.
-    // The admin can try signing up manually using the school code and email.
     return { success: true, schoolCode, message: `Institute registered, but admin user creation failed: ${userError.message}. Please try signup manually.` };
   }
 }
@@ -267,66 +274,56 @@ export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolD
   console.log(`[Service:school] Fetching details for school code: ${schoolCodeQuery}`);
   await new Promise(resolve => setTimeout(resolve, 10));
   
-  const institutes = getMockRegisteredInstitutes();
+  // Always fetch from the full list of registered institutes.
+  const institutes = getMockRegisteredInstitutes(); 
   const foundSchool = institutes.find(s => s.schoolCode.toLowerCase() === schoolCodeQuery.toLowerCase());
   
   if (foundSchool) {
-    // If a specific school is found by code, make it the "current" school for the mock.
-    updateMockSchoolDetails(foundSchool);
+    console.log(`[Service:school] Found school: ${foundSchool.schoolName} from registered list.`);
+    // Optionally, if you want to set this found school as the "current" one for other operations:
+    // updateMockSchoolDetails(foundSchool); // This might be useful if subsequent operations rely on a single "active" school context
     return { ...foundSchool };
   }
-  // If not found by code, return the "current" single mock school if its code matches, or null.
-  const currentSchool = getMockSchoolDetails();
-  if (currentSchool && currentSchool.schoolCode.toLowerCase() === schoolCodeQuery.toLowerCase()) {
-     return { ...currentSchool };
-  }
+  
+  console.warn(`[Service:school] School with code ${schoolCodeQuery} not found in the registered list.`);
   return null;
 }
 
 
 export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDetails>): Promise<SchoolDetails | null> {
-  // This function will update the "current" school in the single mock details store,
-  // and also find and update it in the list of registered institutes.
-  
-  const currentSchoolToUpdate = getMockSchoolDetails(); // Get the current single school
-  if (!currentSchoolToUpdate) {
-    console.error("[Service:school] No current school details found to update.");
+  const targetSchoolCode = updatedDetailsInput.schoolCode; // School code must be provided to identify which school to update
+  if (!targetSchoolCode) {
+    console.error("[Service:school] School code is required to update school details.");
     return null;
   }
-  // The schoolCode for update should match the current school's code, or be provided to identify which school in the list.
-  // For simplicity, this mock update will focus on the 'currentSchoolToUpdate'.
-  const targetSchoolCode = updatedDetailsInput.schoolCode || currentSchoolToUpdate.schoolCode;
-
 
   console.log(`[Service:school] Updating school: ${targetSchoolCode}`);
   await new Promise(resolve => setTimeout(resolve, 10));
   
-  let schoolInListUpdated = false;
+  let schoolFoundAndUpdated = false;
   const institutesList = getMockRegisteredInstitutes();
   const updatedInstitutesList = institutesList.map(school => {
     if (school.schoolCode === targetSchoolCode) {
-      schoolInListUpdated = true;
-      return { ...school, ...updatedDetailsInput, schoolCode: targetSchoolCode }; // Ensure schoolCode isn't changed if it's the identifier
+      schoolFoundAndUpdated = true;
+      // Create the new school object, ensuring schoolCode itself is not changed by partial update
+      const updatedSchool = { ...school, ...updatedDetailsInput, schoolCode: targetSchoolCode };
+      
+      // If this updated school is also the "current" single school, update that store too
+      const currentSingleSchool = getMockSchoolDetails();
+      if (currentSingleSchool.schoolCode === targetSchoolCode) {
+        updateMockSchoolDetails(updatedSchool);
+      }
+      return updatedSchool;
     }
     return school;
   });
 
-  if (!schoolInListUpdated) {
+  if (!schoolFoundAndUpdated) {
      console.warn(`[Service:school] School with code ${targetSchoolCode} not found in the registered list for update.`);
-     // Optionally, still update the 'current' single school detail if it matches.
-  } else {
-      updateMockRegisteredInstitutes(updatedInstitutesList);
-  }
-
-  // Update the 'current' single school details if it's the one being targeted
-  if (currentSchoolToUpdate.schoolCode === targetSchoolCode) {
-      const newDetailsForSingleStore = { ...currentSchoolToUpdate, ...updatedDetailsInput, schoolCode: targetSchoolCode };
-      updateMockSchoolDetails(newDetailsForSingleStore);
-      return { ...newDetailsForSingleStore };
-  } else if (schoolInListUpdated) { // If current wasn't target, but list was updated
-      const updatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
-      return updatedSchoolFromList ? { ...updatedSchoolFromList } : null;
+     return null;
   }
   
-  return null; // If no relevant school was updated
+  updateMockRegisteredInstitutes(updatedInstitutesList); // Save the updated list
+  const newlyUpdatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
+  return newlyUpdatedSchoolFromList ? { ...newlyUpdatedSchoolFromList } : null;
 }

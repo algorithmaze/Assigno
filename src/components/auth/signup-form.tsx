@@ -1,4 +1,3 @@
-
 'use client';
 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
@@ -30,6 +29,7 @@ import { getSchoolDetails } from '@/services/school';
 import type { SchoolDetails } from '@/services/school';
 import { useAuth, type User } from '@/context/auth-context'; 
 import { useRouter } from 'next/navigation';
+import { addUser as createUserService } from '@/services/users'; // Renamed for clarity
 
 const signupStep1Schema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
@@ -89,24 +89,29 @@ export function SignupForm() {
     setFormData(data); 
 
     try {
-       // TODO: Firebase - getSchoolDetails might query Firestore 'schools' collection
        const fetchedSchoolDetails = await getSchoolDetails(data.schoolCode);
        if (!fetchedSchoolDetails) {
-         step1Form.setError('schoolCode', { message: 'Invalid school code' });
+         step1Form.setError('schoolCode', { message: 'Invalid or unrecognized school code.' });
          throw new Error('Invalid school code');
        }
        setSchoolDetails(fetchedSchoolDetails);
 
-      // TODO: Firebase - sendOTP might involve a Firebase Cloud Function or third-party service if not using Firebase Auth Phone
+       // If admin role is selected, check if the identifier matches the school's admin email
+       if (data.role === 'Admin' && fetchedSchoolDetails.adminEmail.toLowerCase() !== data.identifier.toLowerCase()) {
+           step1Form.setError('identifier', { message: "For Admin role, email must match the registered institute admin email."});
+           throw new Error("Admin email mismatch.");
+       }
+
       await sendOTP(data.identifier); 
       setStep(2); 
       toast({
         title: 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}.`,
+        description: `An OTP has been sent to ${data.identifier}. Please check your email/phone.`,
       });
     } catch (error: any) {
       console.error('Signup Step 1 Error:', error);
-      if (error.message !== 'Invalid school code') {
+      // Avoid duplicate toast if setError was already called
+      if (error.message !== 'Invalid school code' && error.message !== "Admin email mismatch.") {
         toast({
             title: 'Error',
             description: error.message || 'Failed to send OTP or verify school. Please check details and try again.',
@@ -123,26 +128,13 @@ export function SignupForm() {
     const fullData = { ...formData, ...data } as SignupStep1Data & SignupStep2Data;
 
     try {
-      // TODO: Firebase - verifyOTP might check against a code stored temporarily (e.g. in Firestore) or handled by Firebase Auth
       const otpResponse = await verifyOTP(fullData.identifier, data.otp);
       if (!otpResponse.success) {
         step2Form.setError('otp', { message: otpResponse.message || 'Invalid OTP' });
-        throw new Error('Invalid OTP');
+        throw new Error(otpResponse.message || 'Invalid OTP');
       }
 
-      // TODO: Firebase - This is where you would create the user in Firebase Authentication (if applicable)
-      // and then create their user document in Firestore.
-      // Example with Firebase Auth (email/password, adjust for phone OTP):
-      // const auth = getAuth();
-      // let firebaseUserCredential;
-      // if (fullData.identifier.includes('@')) { // Assuming email
-      //   firebaseUserCredential = await createUserWithEmailAndPassword(auth, fullData.identifier, /* some temporary password or handle differently */);
-      //   await sendEmailVerification(firebaseUserCredential.user); // Optional
-      // } else { /* Handle phone auth if that's the identifier type */ }
-      // const firebaseUserId = firebaseUserCredential?.user.uid || 'mock-uid-' + Date.now(); // Fallback for mock
-
-       const newUser: User = { // This User object structure should match what you store in Firestore
-          id: otpResponse.user?.id || `user-${Date.now()}-${Math.random().toString(16).slice(2)}`, // Use ID from OTP response if available (e.g. pre-created user stub)
+       const newUserInput: Omit<User, 'id'> & { id?: string} = { 
           name: fullData.name,
           email: fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.email,
           phoneNumber: !fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.phoneNumber,
@@ -150,27 +142,30 @@ export function SignupForm() {
           schoolCode: fullData.schoolCode,
           schoolName: schoolDetails?.schoolName,
           schoolAddress: schoolDetails?.address,
-          profilePictureUrl: undefined, // Default to undefined for new users
+          profilePictureUrl: undefined, 
           admissionNumber: fullData.role === 'Student' ? fullData.admissionNumber : undefined,
           class: fullData.role === 'Student' || fullData.role === 'Teacher' ? fullData.class : undefined,
-          designation: fullData.role === 'Teacher' ? fullData.designation : undefined,
+          designation: fullData.role === 'Teacher' ? fullData.designation : (fullData.role === 'Admin' ? 'Administrator' : undefined),
        };
+       
+       // If user came from OTP verification (e.g. login found them), use that ID, else createUserService will generate one.
+       if (otpResponse.user?.id) {
+           newUserInput.id = otpResponse.user.id;
+       }
 
-      // TODO: Firebase - Save newUser object to Firestore 'users' collection with newUser.id as document ID
-      // const firestore = getFirestore();
-      // await setDoc(doc(firestore, 'users', newUser.id), newUser);
+       const createdUser = await createUserService(newUserInput);
 
-       await login(newUser); 
+       await login(createdUser); 
 
       toast({
         title: 'Signup Successful',
-        description: 'Your account has been created. Welcome!',
+        description: `Welcome, ${createdUser.name}! Your account has been created.`,
       });
       router.push('/dashboard'); 
 
     } catch (error: any) {
       console.error('Signup Step 2 Error:', error);
-       if (error.message !== 'Invalid OTP') {
+       if (error.message !== (otpResponse.message || 'Invalid OTP') ) { // Avoid double toast for OTP error
         toast({
             title: 'Signup Failed',
             description: error.message || 'Could not complete signup. Please try again.',
@@ -195,7 +190,7 @@ export function SignupForm() {
               name="schoolCode"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>School Code</FormLabel>
+                  <FormLabel>School Code *</FormLabel>
                   <FormControl>
                     <Input placeholder="Enter your unique school code" {...field} />
                   </FormControl>
@@ -208,7 +203,7 @@ export function SignupForm() {
               name="identifier"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>School Email or Phone Number</FormLabel>
+                  <FormLabel>Your Email or Phone Number *</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., user@school.com or +1234567890" {...field} />
                   </FormControl>
@@ -221,7 +216,7 @@ export function SignupForm() {
                 name="role"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Your Role</FormLabel>
+                    <FormLabel>Your Role *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
@@ -231,7 +226,7 @@ export function SignupForm() {
                         <SelectContent>
                         <SelectItem value="Student">Student</SelectItem>
                         <SelectItem value="Teacher">Teacher</SelectItem>
-                        <SelectItem value="Admin">Admin</SelectItem>
+                        <SelectItem value="Admin">Admin (Requires matching institute admin email)</SelectItem>
                         </SelectContent>
                     </Select>
                     <FormMessage />
@@ -256,7 +251,7 @@ export function SignupForm() {
               name="otp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>OTP Code</FormLabel>
+                  <FormLabel>OTP Code *</FormLabel>
                   <FormControl>
                     <Input
                         placeholder="------"
@@ -275,7 +270,7 @@ export function SignupForm() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>Full Name *</FormLabel>
                   <FormControl>
                     <Input placeholder="Your full name" {...field} />
                   </FormControl>
@@ -290,7 +285,7 @@ export function SignupForm() {
                     name="admissionNumber"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Admission Number</FormLabel>
+                        <FormLabel>Admission Number *</FormLabel>
                         <FormControl>
                             <Input placeholder="Your admission number" {...field} />
                         </FormControl>
@@ -303,7 +298,7 @@ export function SignupForm() {
                     name="class"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Class</FormLabel>
+                        <FormLabel>Class *</FormLabel>
                         <FormControl>
                             <Input placeholder="e.g., 10A, Grade 5B" {...field} />
                         </FormControl>
@@ -320,7 +315,7 @@ export function SignupForm() {
                         name="designation"
                         render={({ field }) => (
                             <FormItem>
-                            <FormLabel>Designation</FormLabel>
+                            <FormLabel>Designation *</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
                                 <SelectTrigger>
@@ -338,7 +333,7 @@ export function SignupForm() {
                     />
                     <FormField
                         control={step2Form.control}
-                        name="class"
+                        name="class" // This field for teachers should be "Classes Handling"
                         render={({ field }) => (
                             <FormItem>
                             <FormLabel>Class(es) Handling (Optional)</FormLabel>
@@ -356,7 +351,7 @@ export function SignupForm() {
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Verify OTP & Complete Signup
             </Button>
-             <Button variant="link" size="sm" onClick={() => setStep(1)} disabled={isLoading} className="w-full">
+             <Button variant="link" size="sm" onClick={() => {setStep(1); step2Form.reset(); /* Keep step1Form values */ }} disabled={isLoading} className="w-full">
                Back to Previous Step
              </Button>
               <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full">
