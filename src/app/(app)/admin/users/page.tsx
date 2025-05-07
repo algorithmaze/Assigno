@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input'; 
 import * as XLSX from 'xlsx'; 
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { CreateUserForm } from '@/components/admin/create-user-form';
 
 // Define the structure for Excel import/export
 export type ExcelUser = {
@@ -35,6 +37,7 @@ export default function AdminUsersPage() {
   const [isUploading, setIsUploading] = React.useState(false);
   const [isDownloadingExisting, setIsDownloadingExisting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -67,8 +70,12 @@ export default function AdminUsersPage() {
   }, [adminUser, loadUsers]);
 
   const handleCreateUser = () => {
-    toast({ title: "Action Required", description: "Manual user creation form to be implemented. Use Excel Upload for now." });
-    console.log("Open create user dialog");
+    setIsCreateUserDialogOpen(true);
+  };
+
+  const handleUserCreated = () => {
+    loadUsers(); // Refresh the user list
+    setIsCreateUserDialogOpen(false); // Close the dialog
   };
 
   const handleEditUser = (userToEdit: User) => {
@@ -253,8 +260,8 @@ export default function AdminUsersPage() {
               accept=".xlsx, .xls"
               onChange={handleFileUpload}
             />
-            <Button onClick={handleCreateUser} disabled>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create User (Manual)
+            <Button onClick={handleCreateUser}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Create User
             </Button>
         </div>
       </div>
@@ -326,6 +333,26 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      {adminUser && (
+        <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+            <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                    <DialogDescription>
+                        Manually add a new student or teacher to {adminUser.schoolName}.
+                    </DialogDescription>
+                </DialogHeader>
+                <CreateUserForm
+                    schoolCode={adminUser.schoolCode}
+                    schoolName={adminUser.schoolName || ''}
+                    schoolAddress={adminUser.schoolAddress || ''}
+                    onUserCreated={handleUserCreated}
+                    onCloseDialog={() => setIsCreateUserDialogOpen(false)}
+                />
+            </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

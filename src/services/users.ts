@@ -179,16 +179,16 @@ export async function addUser(
     const userToProcess: User = {
         id: newUserId,
         name: userData.name,
-        email: userData.email,
-        phoneNumber: userData.phoneNumber,
+        email: userData.email || undefined, // Ensure undefined if empty
+        phoneNumber: userData.phoneNumber || undefined, // Ensure undefined if empty
         role: userData.role,
         schoolCode: userData.schoolCode!,
         schoolName: schoolName,
         schoolAddress: schoolAddress,
-        profilePictureUrl: userData.profilePictureUrl,
-        admissionNumber: userData.role === 'Student' ? userData.admissionNumber : undefined,
-        class: userData.role === 'Student' || (userData.role === 'Teacher' && userData.designation === 'Class Teacher') ? userData.class : (userData.role === 'Teacher' ? userData.class : undefined),
-        designation: userData.role === 'Teacher' ? userData.designation : (userData.role === 'Admin' ? 'Administrator' : undefined),
+        profilePictureUrl: userData.profilePictureUrl || undefined, // Ensure undefined if empty
+        admissionNumber: userData.role === 'Student' ? (userData.admissionNumber || undefined) : undefined,
+        class: userData.role === 'Student' || (userData.role === 'Teacher' && userData.designation === 'Class Teacher') ? (userData.class || undefined) : (userData.role === 'Teacher' ? (userData.class || undefined) : undefined),
+        designation: userData.role === 'Teacher' ? (userData.designation || undefined) : (userData.role === 'Admin' ? 'Administrator' : undefined),
     };
 
     let currentUsers = getMockUsersData();
@@ -205,10 +205,11 @@ export async function addUser(
         console.log("[Service:users] Added mock user:", finalUser.name, "ID:", finalUser.id);
     } else {
         // Preserve existing ID and profile picture if not explicitly provided in updates
+        // Ensure all fields from userToProcess are considered, but default to existingUser's values for certain critical fields like id
         const updatedUser = {
-            ...currentUsers[existingUserIndex],
-            ...userToProcess,
-            id: currentUsers[existingUserIndex].id,
+            ...currentUsers[existingUserIndex], // Base with existing user
+            ...userToProcess, // Apply new/updated fields
+            id: currentUsers[existingUserIndex].id, // Always keep existing ID
             profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl,
         };
         currentUsers[existingUserIndex] = updatedUser;
@@ -411,3 +412,41 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
+
+// OTP_BYPASS_SCHOOL_CODE and OTP_BYPASS_ADMIN_EMAIL should be handled by otp.ts or a config file.
+// These are sample credentials used for OTP bypass testing if needed.
+export const DEFAULT_TEST_SCHOOL_CODE = "SAMP123"; // Example default, NOT the one used by Antony
+export const OTP_BYPASS_ADMIN_EMAIL = 'admin@example.com'; // Matches an email from sample credentials
+
+export const sampleAdminCredentials: User = {
+  id: 'admin-default-001',
+  name: 'Default Admin',
+  email: OTP_BYPASS_ADMIN_EMAIL, 
+  role: 'Admin',
+  schoolCode: DEFAULT_TEST_SCHOOL_CODE, 
+  schoolName: 'Default Sample School', 
+  schoolAddress: '123 Default St, Default City, DS 00000', 
+  designation: 'Administrator',
+  profilePictureUrl: `https://picsum.photos/seed/${DEFAULT_TEST_SCHOOL_CODE}Admin/100/100`,
+};
+
+export const sampleStudentCredentials: Array<Omit<User, 'schoolName' | 'schoolAddress' | 'id'> & {identifier: string}> = [
+    {
+        identifier: 'student1@example.com',
+        name: 'Demo Student One',
+        role: 'Student',
+        schoolCode: DEFAULT_TEST_SCHOOL_CODE,
+        admissionNumber: 'S001',
+        class: '10A',
+        profilePictureUrl: `https://picsum.photos/seed/${DEFAULT_TEST_SCHOOL_CODE}Stud1/100/100`,
+    },
+    {
+        identifier: 'student2@example.com',
+        name: 'Demo Student Two',
+        role: 'Student',
+        schoolCode: DEFAULT_TEST_SCHOOL_CODE,
+        admissionNumber: 'S002',
+        class: '9B',
+        profilePictureUrl: `https://picsum.photos/seed/${DEFAULT_TEST_SCHOOL_CODE}Stud2/100/100`,
+    }
+];
