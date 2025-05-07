@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle } from 'lucide-react';
+import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle, Edit2 } from 'lucide-react';
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
-import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
+import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, type PollQuestion, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
 import {
   Select,
@@ -35,6 +35,7 @@ import { format, isSameDay } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 
 
 interface ChatInterfaceProps {
@@ -63,7 +64,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [filterDate, setFilterDate] = React.useState<Date | undefined>(undefined);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [shortAnswerSubmissions, setShortAnswerSubmissions] = React.useState<Record<string, string>>({});
+  const [shortAnswerSubmissions, setShortAnswerSubmissions] = React.useState<Record<string, Record<string, string>>>({}); // { [messageId]: { [questionId]: answer } }
   const [pollToPublish, setPollToPublish] = React.useState<Message | null>(null);
 
 
@@ -171,17 +172,21 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
     }
   };
 
-  const handleVoteOrSubmitAnswer = async (messageId: string, submission: string) => {
+  const handleVoteOrSubmitAnswer = async (messageId: string, questionId: string, submission: string) => {
     if (!user) return;
     setIsSending(true); 
     try {
-      const updatedPollMessage = await voteOnPoll(groupId, messageId, submission, user.id);
+      const updatedPollMessage = await voteOnPoll(groupId, messageId, questionId, submission, user.id);
       if (updatedPollMessage) {
         setMessages(prev => prev.map(msg => msg.id === messageId ? updatedPollMessage : msg));
-        const pollType = updatedPollMessage.pollData?.pollType;
-        toast({ title: pollType === 'mcq' ? "Vote Cast" : "Answer Submitted", description: `Your ${pollType === 'mcq' ? 'vote' : 'answer'} has been recorded.` });
+        const pollQuestion = updatedPollMessage.pollData?.questions.find(q => q.id === questionId);
+        const pollType = pollQuestion?.pollType;
+        toast({ title: pollType === 'mcq' ? "Vote Cast" : "Answer Submitted", description: `Your ${pollType === 'mcq' ? 'vote' : 'answer'} has been recorded for question: "${pollQuestion?.questionText}".` });
         if (pollType === 'shortAnswer') {
-            setShortAnswerSubmissions(prev => ({...prev, [messageId]: ''})); 
+            setShortAnswerSubmissions(prev => ({
+                ...prev,
+                [messageId]: { ...(prev[messageId] || {}), [questionId]: '' }
+            })); 
         }
       } else {
         toast({ title: "Error", description: "Failed to record submission.", variant: "destructive" });
@@ -194,19 +199,16 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   };
 
   const handleOpenPublishDialog = (message: Message) => {
-    if (message.type === 'poll' && message.pollData?.pollType === 'mcq') {
+    if (message.type === 'poll' && message.pollData) { // Any poll type can be published
         setPollToPublish(message);
-    } else if (message.type === 'poll' && message.pollData?.pollType === 'shortAnswer') {
-        
-        handleConfirmPublishResults(message.id);
     }
   };
 
-  const handleConfirmPublishResults = async (messageId: string, correctOptionId?: string) => {
+  const handleConfirmPublishResults = async (messageId: string, correctAnswers: Record<string, string>) => {
     if(!user || (user.role !== 'Teacher' && user.role !== 'Admin')) return;
     setIsSending(true);
     try {
-        const updatedPollMessage = await publishPollResults(groupId, messageId, user.id, correctOptionId);
+        const updatedPollMessage = await publishPollResults(groupId, messageId, user.id, correctAnswers);
         if (updatedPollMessage) {
             setMessages(prev => prev.map(msg => msg.id === messageId ? updatedPollMessage : msg));
             toast({ title: "Results Published", description: "Poll results are now visible to students."});
@@ -247,7 +249,10 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             let contentToSearch = '';
             if (msg.type === 'text') contentToSearch = msg.content;
             else if (msg.type === 'file' && msg.fileData) contentToSearch = msg.fileData.name;
-            else if (msg.type === 'poll' && msg.pollData) contentToSearch = msg.pollData.question;
+            else if (msg.type === 'poll' && msg.pollData) {
+                contentToSearch = msg.pollData.title;
+                msg.pollData.questions.forEach(q => contentToSearch += ` ${q.questionText}`);
+            }
             else if (msg.type === 'event' && msg.eventData) contentToSearch = msg.eventData.title;
 
             const contentMatch = contentToSearch.toLowerCase().includes(searchTermLower);
@@ -258,8 +263,14 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
     }, [messages, searchTerm, filterMessageType, filterSenderId, filterDate]);
 
-    const handleShortAnswerChange = (messageId: string, value: string) => {
-      setShortAnswerSubmissions(prev => ({...prev, [messageId]: value}));
+    const handleShortAnswerChange = (messageId: string, questionId: string, value: string) => {
+      setShortAnswerSubmissions(prev => ({
+          ...prev,
+          [messageId]: {
+              ...(prev[messageId] || {}),
+              [questionId]: value
+          }
+      }));
     };
 
 
@@ -395,88 +406,103 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
 
                 {msg.type === 'poll' && msg.pollData && (
                     <div className="space-y-3">
-                        <p className="text-sm font-semibold">{msg.pollData.question}</p>
-                        
-                        {msg.pollData.pollType === 'mcq' && msg.pollData.options && (
-                            <RadioGroup
-                                value={msg.pollData.voters?.[user?.id || ''] || ''}
-                                onValueChange={(optionId) => handleVoteOrSubmitAnswer(msg.id, optionId)}
-                                className="space-y-1.5"
-                                disabled={isSending || !!msg.pollData.voters?.[user?.id || ''] || msg.pollData.resultsPublished}
-                            >
-                                {msg.pollData.options.map(option => {
-                                    const canViewIndividualResults = user?.role !== 'Student' || !msg.pollData?.studentAnswersHidden || msg.pollData?.resultsPublished;
-                                    const totalVotes = Object.values(msg.pollData?.results || {}).reduce((sum, count) => sum + count, 0);
-                                    const optionVotes = msg.pollData?.results?.[option.id] || 0;
-                                    const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
-                                    const isCorrect = msg.pollData?.resultsPublished && msg.pollData.correctOptionId === option.id;
-                                    const isIncorrectSelected = msg.pollData?.resultsPublished && msg.pollData.correctOptionId && msg.pollData.correctOptionId !== option.id && msg.pollData.voters?.[user?.id || ''] === option.id;
-                                    const isSelected = msg.pollData.voters?.[user?.id || ''] === option.id;
-                                    
-                                    let optionStyleClasses = "p-1.5 rounded-md";
-                                    if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
-                                    else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
-                                    else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; 
+                        <p className="text-lg font-bold mb-2">{msg.pollData.title}</p>
+                        {msg.pollData.questions.map((question, qIndex) => {
+                            const hasVotedOrSubmitted = !!msg.pollData?.voters?.[question.id]?.[user?.id || ''];
+                            const isResultsViewable = (user?.role !== 'Student' && !msg.pollData?.studentAnswersHidden) || msg.pollData?.resultsPublished;
 
+                            return (
+                            <Card key={question.id} className="p-3 bg-background/10">
+                                <CardHeader className="p-0 pb-2">
+                                   <p className="text-sm font-semibold">{qIndex + 1}. {question.questionText}</p>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                {question.pollType === 'mcq' && question.options && (
+                                    <RadioGroup
+                                        value={msg.pollData?.voters?.[question.id]?.[user?.id || ''] || ''}
+                                        onValueChange={(optionId) => handleVoteOrSubmitAnswer(msg.id, question.id, optionId)}
+                                        className="space-y-1.5"
+                                        disabled={isSending || hasVotedOrSubmitted || msg.pollData?.resultsPublished}
+                                    >
+                                        {question.options.map(option => {
+                                            const questionResults = msg.pollData?.results?.[question.id] as Record<string, number> | undefined;
+                                            const totalVotes = questionResults ? Object.values(questionResults).reduce((sum, count) => sum + count, 0) : 0;
+                                            const optionVotes = questionResults?.[option.id] || 0;
+                                            const percentage = totalVotes > 0 ? (optionVotes / totalVotes) * 100 : 0;
+                                            
+                                            const isCorrect = msg.pollData?.resultsPublished && question.correctOptionId === option.id;
+                                            const isSelected = msg.pollData?.voters?.[question.id]?.[user?.id || ''] === option.id;
+                                            const isIncorrectSelected = msg.pollData?.resultsPublished && question.correctOptionId && question.correctOptionId !== option.id && isSelected;
+                                            
+                                            let optionStyleClasses = "p-1.5 rounded-md";
+                                            if(isCorrect) optionStyleClasses += " bg-success text-success-foreground";
+                                            else if(isIncorrectSelected) optionStyleClasses += " bg-destructive text-destructive-foreground";
+                                            else if(msg.pollData?.resultsPublished && isSelected && !isCorrect) optionStyleClasses += " bg-muted"; 
+                                            
+                                            return (
+                                                <div key={option.id} className={optionStyleClasses}>
+                                                    <div className="flex items-center space-x-2 mb-0.5">
+                                                        <RadioGroupItem value={option.id} id={`${msg.id}-${question.id}-${option.id}`} disabled={isSending || hasVotedOrSubmitted || msg.pollData?.resultsPublished}/>
+                                                        <Label htmlFor={`${msg.id}-${question.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
+                                                        {isResultsViewable && <span className="text-xs opacity-80">{optionVotes} vote(s)</span>}
+                                                    </div>
+                                                    {isResultsViewable && <Progress value={percentage} className="h-1.5"/>}
+                                                </div>
+                                            );
+                                        })}
+                                    </RadioGroup>
+                                )}
 
-                                    return (
-                                        <div key={option.id} className={optionStyleClasses}>
-                                            <div className="flex items-center space-x-2 mb-0.5">
-                                                <RadioGroupItem value={option.id} id={`${msg.id}-${option.id}`} disabled={isSending || !!msg.pollData?.voters?.[user?.id || ''] || msg.pollData.resultsPublished}/>
-                                                <Label htmlFor={`${msg.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
-                                                {canViewIndividualResults && <span className="text-xs opacity-80">{optionVotes} vote(s)</span>}
+                                {question.pollType === 'shortAnswer' && (
+                                    user?.role === 'Student' ? (
+                                        hasVotedOrSubmitted ? (
+                                            <div className="p-2 bg-background/50 rounded text-sm">
+                                                <p className="font-medium">Your Answer:</p>
+                                                <p className="italic">"{msg.pollData?.voters?.[question.id]?.[user.id]}"</p>
                                             </div>
-                                            {canViewIndividualResults && <Progress value={percentage} className="h-1.5"/>}
+                                        ) : (
+                                            <div className="space-y-2">
+                                                <Textarea 
+                                                    placeholder="Type your answer..."
+                                                    value={shortAnswerSubmissions[msg.id]?.[question.id] || ''}
+                                                    onChange={(e) => handleShortAnswerChange(msg.id, question.id, e.target.value)}
+                                                    disabled={isSending}
+                                                    className="text-sm"
+                                                />
+                                                <Button 
+                                                    size="sm" 
+                                                    onClick={() => handleVoteOrSubmitAnswer(msg.id, question.id, shortAnswerSubmissions[msg.id]?.[question.id] || '')}
+                                                    disabled={isSending || !(shortAnswerSubmissions[msg.id]?.[question.id] || '').trim()}
+                                                >
+                                                    {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Submit Answer
+                                                </Button>
+                                            </div>
+                                        )
+                                    ) : ( 
+                                        <div className="text-sm">
+                                            <p className="font-medium">Student Responses:</p>
+                                            {(msg.pollData?.voters?.[question.id] && Object.keys(msg.pollData.voters[question.id]).length > 0) ? (
+                                                <ul className="list-disc list-inside pl-2 mt-1 max-h-32 overflow-y-auto text-xs space-y-0.5">
+                                                    {Object.entries(msg.pollData.voters[question.id] || {}).map(([voterId, answer]) => {
+                                                        const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || 
+                                                                         groupSenders.find(s => s.id === voterId); 
+                                                        const voterName = voterUser ? voterUser.name : (messages.find(m => m.senderId === voterId)?.senderName || `User ${voterId.substring(0,5)}`);
+                                                        return (
+                                                            <li key={voterId}><strong>{voterName}:</strong> "{answer}"</li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            ) : <p className="text-xs text-muted-foreground/80 italic">No responses yet for this question.</p>}
+                                            <p className="text-xs mt-1 text-muted-foreground/80">
+                                                {(msg.pollData?.voters?.[question.id] && Object.keys(msg.pollData.voters[question.id]).length) || 0} response(s) received.
+                                            </p>
                                         </div>
-                                    );
-                                })}
-                            </RadioGroup>
-                        )}
-
-                        {msg.pollData.pollType === 'shortAnswer' && (
-                             user?.role === 'Student' ? (
-                                msg.pollData.voters?.[user.id] ? (
-                                    <div className="p-2 bg-background/50 rounded text-sm">
-                                        <p className="font-medium">Your Answer:</p>
-                                        <p className="italic">"{msg.pollData.voters[user.id]}"</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        <Textarea 
-                                            placeholder="Type your answer..."
-                                            value={shortAnswerSubmissions[msg.id] || ''}
-                                            onChange={(e) => handleShortAnswerChange(msg.id, e.target.value)}
-                                            disabled={isSending}
-                                            className="text-sm"
-                                        />
-                                        <Button 
-                                            size="sm" 
-                                            onClick={() => handleVoteOrSubmitAnswer(msg.id, shortAnswerSubmissions[msg.id] || '')}
-                                            disabled={isSending || !(shortAnswerSubmissions[msg.id] || '').trim()}
-                                        >
-                                            {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Submit Answer
-                                        </Button>
-                                    </div>
-                                )
-                            ) : ( 
-                                <div className="text-sm">
-                                    <p className="font-medium">Student Responses:</p>
-                                    {Object.keys(msg.pollData.voters || {}).length > 0 ? (
-                                        <ul className="list-disc list-inside pl-2 mt-1 max-h-32 overflow-y-auto text-xs space-y-0.5">
-                                            {Object.entries(msg.pollData.voters || {}).map(([voterId, answer]) => {
-                                                const voterUser = messages.find(m => m.senderId === voterId && m.type !== 'poll') || 
-                                                                 groupSenders.find(s => s.id === voterId); 
-                                                const voterName = voterUser ? voterUser.name : (messages.find(m => m.senderId === voterId)?.senderName || `User ${voterId.substring(0,5)}`);
-                                                return (
-                                                    <li key={voterId}><strong>{voterName}:</strong> "{answer}"</li>
-                                                );
-                                            })}
-                                        </ul>
-                                    ) : <p className="text-xs text-muted-foreground/80 italic">No responses yet.</p>}
-                                    <p className="text-xs mt-1 text-muted-foreground/80">{Object.keys(msg.pollData.voters || {}).length} response(s) received.</p>
-                                </div>
-                            )
-                        )}
+                                    )
+                                )}
+                                </CardContent>
+                            </Card>
+                            );
+                        })}
                         
                         {canUseSpecialFeatures && msg.pollData.studentAnswersHidden && !msg.pollData.resultsPublished && (
                             <Button size="sm" variant="secondary" className="mt-2 h-7 text-xs" onClick={() => handleOpenPublishDialog(msg)} disabled={isSending}>
@@ -573,46 +599,99 @@ interface CreatePollDialogProps {
   onSendPoll: (input: NewPollMessageInput) => void;
   disabled?: boolean;
 }
+const MAX_POLL_QUESTIONS = 5;
+
 function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
   const [isOpen, setIsOpen] = React.useState(false);
-  const [question, setQuestion] = React.useState('');
-  const [pollType, setPollType] = React.useState<'mcq' | 'shortAnswer'>('mcq');
-  const [options, setOptions] = React.useState<PollOption[]>([{ id: `opt-${Date.now()}`, text: '' }]);
+  const [pollTitle, setPollTitle] = React.useState('');
+  const [questions, setQuestions] = React.useState<PollQuestion[]>([
+    { id: `q-${Date.now()}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-0`, text: '' }] }
+  ]);
   const [studentAnswersHidden, setStudentAnswersHidden] = React.useState(false);
   const { toast } = useToast(); 
 
-  const handleAddOption = () => setOptions([...options, { id: `opt-${Date.now()}-${options.length}`, text: '' }]);
-  const handleRemoveOption = (id: string) => setOptions(options.filter(opt => opt.id !== id));
-  const handleOptionChange = (id: string, text: string) => {
-    setOptions(options.map(opt => opt.id === id ? { ...opt, text } : opt));
+  const addQuestion = () => {
+    if (questions.length < MAX_POLL_QUESTIONS) {
+      setQuestions([
+        ...questions, 
+        { id: `q-${Date.now()}-${questions.length}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-${questions.length}-0`, text: '' }] }
+      ]);
+    } else {
+      toast({ title: "Limit Reached", description: `You can add a maximum of ${MAX_POLL_QUESTIONS} questions.`, variant: "default" });
+    }
+  };
+  const removeQuestion = (questionId: string) => {
+    if (questions.length > 1) {
+      setQuestions(questions.filter(q => q.id !== questionId));
+    } else {
+      toast({ title: "Cannot Remove", description: "A poll must have at least one question.", variant: "default"});
+    }
+  };
+  const updateQuestion = (questionId: string, field: keyof PollQuestion, value: any) => {
+    setQuestions(questions.map(q => q.id === questionId ? { ...q, [field]: value } : q));
+  };
+  const addOptionToQuestion = (questionId: string) => {
+    setQuestions(questions.map(q => {
+      if (q.id === questionId && q.pollType === 'mcq' && q.options) {
+        return { ...q, options: [...q.options, { id: `opt-${Date.now()}-${q.id}-${q.options.length}`, text: '' }] };
+      }
+      return q;
+    }));
+  };
+  const removeOptionFromQuestion = (questionId: string, optionId: string) => {
+    setQuestions(questions.map(q => {
+      if (q.id === questionId && q.pollType === 'mcq' && q.options && q.options.length > 1) {
+        return { ...q, options: q.options.filter(opt => opt.id !== optionId) };
+      } else if (q.id === questionId && q.pollType === 'mcq' && q.options && q.options.length <=1) {
+        toast({title: "Cannot Remove", description: "An MCQ question must have at least one option.", variant: "default"});
+      }
+      return q;
+    }));
+  };
+  const updateOptionInQuestion = (questionId: string, optionId: string, text: string) => {
+    setQuestions(questions.map(q => {
+      if (q.id === questionId && q.pollType === 'mcq' && q.options) {
+        return { ...q, options: q.options.map(opt => opt.id === optionId ? { ...opt, text } : opt) };
+      }
+      return q;
+    }));
   };
 
   const handleSubmit = () => {
-    if (!question.trim()) {
-      toast({ title: "Invalid Poll", description: "Poll question is required.", variant: "destructive" });
+    if (!pollTitle.trim()) {
+      toast({ title: "Invalid Poll", description: "Poll title is required.", variant: "destructive" });
       return;
     }
-    if (pollType === 'mcq' && (options.some(opt => !opt.text.trim()) || options.length < 2)) {
-      toast({ title: "Invalid Poll", description: "For MCQ, at least two options are required and they cannot be empty.", variant: "destructive" });
-      return;
+    for (const q of questions) {
+        if (!q.questionText.trim()) {
+            toast({ title: "Invalid Poll", description: `Question ${questions.indexOf(q) + 1} text cannot be empty.`, variant: "destructive" });
+            return;
+        }
+        if (q.pollType === 'mcq' && (!q.options || q.options.length < 1 || q.options.some(opt => !opt.text.trim()))) {
+             toast({ title: "Invalid Poll", description: `MCQ Question ${questions.indexOf(q) + 1} must have at least one non-empty option.`, variant: "destructive" });
+            return;
+        }
     }
 
-    const pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished' | 'correctOptionId'> = {
-        question,
-        pollType,
+    const pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'> = {
+        title: pollTitle,
+        questions: questions.map(q => ({
+            id: q.id,
+            questionText: q.questionText,
+            pollType: q.pollType,
+            options: q.pollType === 'mcq' ? q.options?.filter(opt => opt.text.trim()) : undefined,
+        })),
         studentAnswersHidden,
-        options: pollType === 'mcq' ? options.filter(opt => opt.text.trim()) : undefined,
     };
     
     onSendPoll({
       type: 'poll',
-      content: question, 
+      content: pollTitle, // Main title for the message content
       pollData,
     });
     setIsOpen(false);
-    setQuestion('');
-    setPollType('mcq');
-    setOptions([{ id: `opt-${Date.now()}`, text: '' }]);
+    setPollTitle('');
+    setQuestions([{ id: `q-${Date.now()}`, questionText: '', pollType: 'mcq', options: [{ id: `opt-${Date.now()}-0`, text: '' }] }]);
     setStudentAnswersHidden(false);
   };
 
@@ -621,57 +700,91 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
       <DialogTrigger asChild>
         <Button type="button" variant="ghost" size="icon" aria-label="Create poll" disabled={disabled}><ListChecks className="h-5 w-5" /></Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Create New Poll</DialogTitle>
-          <DialogDescription>Ask a question and configure poll type and options.</DialogDescription>
+          <DialogTitle>Create New Poll / Quiz</DialogTitle>
+          <DialogDescription>Craft a multi-question poll, similar to Google Forms.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <ScrollArea className="flex-grow pr-2">
+        <div className="grid gap-6 py-4 ">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="poll-question" className="text-right col-span-1">Question</Label>
-            <Input id="poll-question" value={question} onChange={(e) => setQuestion(e.target.value)} className="col-span-3" placeholder="What's your question?"/>
+            <Label htmlFor="poll-main-title" className="text-right col-span-1">Poll Title</Label>
+            <Input id="poll-main-title" value={pollTitle} onChange={(e) => setPollTitle(e.target.value)} className="col-span-3" placeholder="e.g., Weekly Quiz, Feedback Survey"/>
           </div>
           
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right col-span-1">Poll Type</Label>
-            <RadioGroup value={pollType} onValueChange={(value) => setPollType(value as 'mcq' | 'shortAnswer')} className="col-span-3 flex gap-4">
-                <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="mcq" id="poll-type-mcq"/>
-                    <Label htmlFor="poll-type-mcq">Multiple Choice</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="shortAnswer" id="poll-type-sa"/>
-                    <Label htmlFor="poll-type-sa">Short Answer</Label>
-                </div>
-            </RadioGroup>
-          </div>
+          {questions.map((q, qIndex) => (
+            <Card key={q.id} className="p-4 space-y-3 bg-muted/30">
+              <div className="flex justify-between items-center">
+                <Label className="text-md font-semibold">Question {qIndex + 1}</Label>
+                {questions.length > 1 && (
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(q.id)} aria-label="Remove question">
+                        <Trash2 className="h-4 w-4 text-destructive"/>
+                    </Button>
+                )}
+              </div>
+              <Textarea 
+                id={`q-${q.id}-text`} 
+                value={q.questionText} 
+                onChange={(e) => updateQuestion(q.id, 'questionText', e.target.value)} 
+                placeholder="Type your question here..."
+                className="bg-background"
+              />
+              <RadioGroup 
+                value={q.pollType} 
+                onValueChange={(value) => updateQuestion(q.id, 'pollType', value as 'mcq' | 'shortAnswer')} 
+                className="flex gap-4 py-1"
+              >
+                  <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="mcq" id={`q-${q.id}-type-mcq`}/>
+                      <Label htmlFor={`q-${q.id}-type-mcq`}>Multiple Choice</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="shortAnswer" id={`q-${q.id}-type-sa`}/>
+                      <Label htmlFor={`q-${q.id}-type-sa`}>Short Answer</Label>
+                  </div>
+              </RadioGroup>
 
-          {pollType === 'mcq' && options.map((option, index) => (
-            <div key={option.id} className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor={`poll-option-${index}`} className="text-right col-span-1">Option {index + 1}</Label>
-              <Input id={`poll-option-${index}`} value={option.text} onChange={(e) => handleOptionChange(option.id, e.target.value)} className="col-span-2" placeholder={`Option ${index+1}`}/>
-              {options.length > 1 && (
-                <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveOption(option.id)} className="col-span-1 justify-self-start" aria-label="Remove option">
-                    <Trash2 className="h-4 w-4"/>
-                </Button>
+              {q.pollType === 'mcq' && (
+                <div className="space-y-2 pl-2 border-l-2 border-primary/20">
+                    {q.options?.map((option, optIndex) => (
+                        <div key={option.id} className="flex items-center gap-2">
+                            <Input 
+                                id={`q-${q.id}-opt-${option.id}`} 
+                                value={option.text} 
+                                onChange={(e) => updateOptionInQuestion(q.id, option.id, e.target.value)} 
+                                placeholder={`Option ${optIndex + 1}`}
+                                className="flex-grow bg-background"
+                            />
+                            { (q.options?.length || 0) > 1 && (
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeOptionFromQuestion(q.id, option.id)} aria-label="Remove option">
+                                <XCircle className="h-4 w-4 text-muted-foreground hover:text-destructive"/>
+                            </Button>
+                            )}
+                        </div>
+                    ))}
+                    <Button type="button" variant="outline" size="sm" onClick={() => addOptionToQuestion(q.id)} className="mt-1">
+                        <PlusCircle className="mr-2 h-4 w-4"/> Add Option
+                    </Button>
+                </div>
               )}
-            </div>
+            </Card>
           ))}
-          {pollType === 'mcq' && (
-            <Button type="button" variant="outline" onClick={handleAddOption} className="mt-2 justify-self-start ml-auto mr-auto w-full sm:w-auto col-span-4 sm:col-start-2">
-                <PlusCircle className="mr-2 h-4 w-4"/> Add Option
+
+          {questions.length < MAX_POLL_QUESTIONS && (
+            <Button type="button" variant="outline" onClick={addQuestion} className="mt-2">
+                <PlusCircle className="mr-2 h-4 w-4"/> Add Another Question
             </Button>
           )}
           
-          <div className="flex items-center space-x-2 mt-2 col-span-4">
+          <div className="flex items-center space-x-2 mt-4">
             <Checkbox id="hide-answers" checked={studentAnswersHidden} onCheckedChange={(checked) => setStudentAnswersHidden(checked as boolean)} />
             <Label htmlFor="hide-answers" className="text-sm font-normal cursor-pointer">
-                Hide answers from students until published
+                Hide answers from students until results are published
             </Label>
           </div>
-
         </div>
-        <DialogFooter>
+        </ScrollArea>
+        <DialogFooter className="mt-auto pt-4 border-t">
           <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
           <Button type="button" onClick={handleSubmit}>Create Poll</Button>
         </DialogFooter>
@@ -774,74 +887,102 @@ interface PublishPollResultDialogProps {
     pollMessage: Message;
     isOpen: boolean;
     onClose: () => void;
-    onConfirmPublish: (messageId: string, correctOptionId?: string) => void;
+    onConfirmPublish: (messageId: string, correctAnswers: Record<string, string>) => void;
     isPublishing: boolean;
 }
 
 function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublish, isPublishing }: PublishPollResultDialogProps) {
-    const [selectedCorrectOptionId, setSelectedCorrectOptionId] = React.useState<string | undefined>(pollMessage.pollData?.correctOptionId);
+    const [correctAnswers, setCorrectAnswers] = React.useState<Record<string, string>>({});
     const { toast } = useToast(); 
 
-
     React.useEffect(() => { 
-        setSelectedCorrectOptionId(pollMessage.pollData?.correctOptionId);
-    }, [isOpen, pollMessage.pollData?.correctOptionId]);
+        if (isOpen && pollMessage.pollData) {
+            const initialCorrect: Record<string, string> = {};
+            pollMessage.pollData.questions.forEach(q => {
+                if (q.correctOptionId) {
+                    initialCorrect[q.id] = q.correctOptionId;
+                }
+            });
+            setCorrectAnswers(initialCorrect);
+        }
+    }, [isOpen, pollMessage]);
 
 
-    if (pollMessage.type !== 'poll' || !pollMessage.pollData || pollMessage.pollData.pollType !== 'mcq') {
+    if (pollMessage.type !== 'poll' || !pollMessage.pollData) {
         return null; 
     }
 
-    const { question, options = [] } = pollMessage.pollData;
+    const { title, questions = [] } = pollMessage.pollData;
+
+    const handleCorrectOptionChange = (questionId: string, optionId: string) => {
+        setCorrectAnswers(prev => ({ ...prev, [questionId]: optionId }));
+    };
 
     const handleConfirm = () => {
-        if (!selectedCorrectOptionId) {
-            toast({title: "Selection Required", description: "Please select the correct answer before publishing.", variant: "destructive"});
-            return;
+        // For MCQs, ensure a correct answer is selected if the question is MCQ type
+        for (const q of questions) {
+            if (q.pollType === 'mcq' && !correctAnswers[q.id]) {
+                 toast({title: "Selection Required", description: `Please select the correct answer for question: "${q.questionText}".`, variant: "destructive"});
+                 return;
+            }
         }
-        onConfirmPublish(pollMessage.id, selectedCorrectOptionId);
+        onConfirmPublish(pollMessage.id, correctAnswers);
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
                 <DialogHeader>
-                    <DialogTitle>Publish Poll Results &amp; Mark Correct Answer</DialogTitle>
+                    <DialogTitle>Publish Poll Results: {title}</DialogTitle>
                     <DialogDescription>
-                        Select the correct answer for the poll: "{question}". This will be highlighted for students.
+                        For Multiple Choice Questions, select the correct answer. This will be highlighted for students.
+                        For Short Answer Questions, responses will become visible (if previously hidden).
                     </DialogDescription>
                 </DialogHeader>
-                <div className="py-4 space-y-3">
-                    <Label>Select Correct Option:</Label>
-                    <RadioGroup
-                        value={selectedCorrectOptionId}
-                        onValueChange={setSelectedCorrectOptionId}
-                        className="space-y-1.5"
-                    >
-                        {options.map(option => (
-                            <div key={option.id} className="flex items-center space-x-2">
-                                <RadioGroupItem value={option.id} id={`publish-correct-${option.id}`} />
-                                <Label htmlFor={`publish-correct-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
-                            </div>
+                <ScrollArea className="flex-grow pr-2">
+                    <div className="py-4 space-y-4">
+                        {questions.map((question, qIndex) => (
+                            <Card key={question.id} className="p-3">
+                                <CardHeader className="p-0 pb-2">
+                                    <p className="text-sm font-medium">{qIndex + 1}. {question.questionText}</p>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                {question.pollType === 'mcq' && question.options && (
+                                    <>
+                                        <Label className="text-xs text-muted-foreground">Select Correct Option:</Label>
+                                        <RadioGroup
+                                            value={correctAnswers[question.id]}
+                                            onValueChange={(optionId) => handleCorrectOptionChange(question.id, optionId)}
+                                            className="space-y-1 mt-1"
+                                        >
+                                            {question.options.map(option => (
+                                                <div key={option.id} className="flex items-center space-x-2">
+                                                    <RadioGroupItem value={option.id} id={`publish-correct-${question.id}-${option.id}`} />
+                                                    <Label htmlFor={`publish-correct-${question.id}-${option.id}`} className="text-sm flex-1 cursor-pointer">{option.text}</Label>
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                        {!correctAnswers[question.id] && (
+                                            <p className="text-xs text-destructive mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Please select one option as correct for this MCQ.</p>
+                                        )}
+                                    </>
+                                )}
+                                {question.pollType === 'shortAnswer' && (
+                                    <p className="text-sm text-muted-foreground italic">Short answer responses will be shown/summarized upon publishing.</p>
+                                )}
+                                </CardContent>
+                            </Card>
                         ))}
-                    </RadioGroup>
-                     {!selectedCorrectOptionId && (
-                        <p className="text-xs text-destructive flex items-center gap-1"><AlertTriangle className="h-3 w-3" />Please select an option as correct.</p>
-                    )}
-                </div>
-                <DialogFooter>
+                    </div>
+                </ScrollArea>
+                <DialogFooter className="mt-auto pt-4 border-t">
                     <Button type="button" variant="outline" onClick={onClose} disabled={isPublishing}>Cancel</Button>
-                    <Button type="button" onClick={handleConfirm} disabled={isPublishing || !selectedCorrectOptionId}>
+                    <Button type="button" onClick={handleConfirm} disabled={isPublishing}>
                         {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Confirm &amp; Publish
+                        Confirm &amp; Publish All
                     </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
-
-
-    
-
-

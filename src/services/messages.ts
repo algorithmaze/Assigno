@@ -11,20 +11,28 @@ export interface PollOption {
   text: string;
 }
 
-export interface PollData {
-  question: string;
+export interface PollQuestion {
+  id: string;
+  questionText: string;
   pollType: 'mcq' | 'shortAnswer';
-  options?: PollOption[]; // Optional for short answer
-  studentAnswersHidden: boolean; // If true, students don't see MCQ results until published, or other students' short answers
-  resultsPublished: boolean; // True if teacher published MCQ results or short answer summary
-  correctOptionId?: string; // For MCQ, the ID of the correct option
-  // For MCQ: results map optionId to vote count
-  // For Short Answer: results map userId to their answer string (teachers view this)
-  results?: Record<string, number>; 
-  // For MCQ: voters map userId to optionId
-  // For Short Answer: voters map userId to their answer string (this is what students submit)
-  voters?: Record<string, string>; 
+  options?: PollOption[]; // For MCQ
+  correctOptionId?: string; // Set by teacher upon publishing MCQ
 }
+
+export interface PollData {
+  title: string; // Overall title for the Google Form-like poll
+  questions: PollQuestion[];
+  studentAnswersHidden: boolean; // Global setting for the poll
+  resultsPublished: boolean; // Global setting for the poll
+
+  // Key: questionId, Value: { [optionId]: count } for MCQ
+  // Key: questionId, Value: { [userId]: answerText } for Short Answer (teacher view)
+  results?: Record<string, Record<string, number | string>>;
+
+  // Key: questionId, Value: { [userId]: optionIdOrAnswerText }
+  voters?: Record<string, Record<string, string>>;
+}
+
 
 export interface EventData {
   title: string;
@@ -48,7 +56,7 @@ export interface Message {
   senderName: string;
   senderRole: User['role'];
   senderAvatar?: string;
-  content: string; // For text messages, or title/question for poll/event, or filename for file
+  content: string; // For text messages, or main title for poll/event, or filename for file
   timestamp: Date; // Or Firebase Timestamp
   type: 'text' | 'file' | 'poll' | 'event';
   pollData?: PollData;
@@ -71,7 +79,7 @@ declare global {
   var mockMessagesInitialized_assigno_messages: boolean | undefined;
 }
 
-const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v7'; // Incremented version
+const MESSAGES_STORAGE_KEY = 'assigno_mock_messages_data_v8'; // Incremented version for new PollData
 
 // Initialize from localStorage or create new if not present
 function initializeGlobalMessagesStore(): Map<string, Message[]> {
@@ -92,22 +100,48 @@ function initializeGlobalMessagesStore(): Map<string, Message[]> {
         if (Object.prototype.hasOwnProperty.call(parsedObject, groupId)) {
           messagesMap.set(
             groupId,
-            parsedObject[groupId].map(msg => ({
+            parsedObject[groupId].map(msg => {
+              let pollDataToRestore: PollData | undefined = undefined;
+              if (msg.pollData) {
+                // Basic pollData structure
+                pollDataToRestore = {
+                  title: msg.pollData.title || (msg.pollData as any).question || "Poll", // Handle old structure
+                  questions: msg.pollData.questions || [], // Handle old structure that might not have 'questions'
+                  studentAnswersHidden: msg.pollData.studentAnswersHidden,
+                  resultsPublished: msg.pollData.resultsPublished,
+                  results: msg.pollData.results || {},
+                  voters: msg.pollData.voters || {},
+                };
+                // If old structure, try to migrate it
+                if (!msg.pollData.questions && (msg.pollData as any).question) {
+                   const oldPollData = msg.pollData as any;
+                   pollDataToRestore.questions = [{
+                       id: `q-${Date.now()}`,
+                       questionText: oldPollData.question,
+                       pollType: oldPollData.pollType,
+                       options: oldPollData.options,
+                       correctOptionId: oldPollData.correctOptionId,
+                   }];
+                   // Migrate results and voters if they are not per-questionId
+                   if(oldPollData.results && Object.keys(oldPollData.results).length > 0 && !pollDataToRestore.results?.[pollDataToRestore.questions[0].id]) {
+                        pollDataToRestore.results = { [pollDataToRestore.questions[0].id]: oldPollData.results };
+                   }
+                   if(oldPollData.voters && Object.keys(oldPollData.voters).length > 0 && !pollDataToRestore.voters?.[pollDataToRestore.questions[0].id]) {
+                        pollDataToRestore.voters = { [pollDataToRestore.questions[0].id]: oldPollData.voters };
+                   }
+                }
+              }
+
+              return {
               ...msg,
               timestamp: new Date(msg.timestamp), 
-              pollData: msg.pollData ? {
-                ...msg.pollData,
-                options: msg.pollData.options || (msg.pollData.pollType === 'mcq' ? [] : undefined),
-                results: msg.pollData.results || (msg.pollData.pollType === 'mcq' ? {} : undefined),
-                voters: msg.pollData.voters || {},
-                correctOptionId: msg.pollData.correctOptionId, 
-              } : undefined,
+              pollData: pollDataToRestore,
               eventData: msg.eventData ? {
                 ...msg.eventData,
                 dateTime: msg.eventData.dateTime 
               } : undefined,
               fileData: msg.fileData
-            } as Message)) 
+            } as Message}) 
           );
         }
       }
@@ -206,7 +240,7 @@ export interface NewFileMessageInput extends NewMessageBaseInput {
 }
 export interface NewPollMessageInput extends NewMessageBaseInput {
   type: 'poll';
-  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished' | 'correctOptionId'>; 
+  pollData: Omit<PollData, 'results' | 'voters' | 'resultsPublished'>; // correctOptionId is per question now
 }
 export interface NewEventMessageInput extends NewMessageBaseInput {
   type: 'event';
@@ -230,19 +264,24 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     senderName: sender.name,
     senderRole: sender.role,
     senderAvatar: sender.profilePictureUrl || `https://picsum.photos/40/40?random=${sender.id.replace('-','')}`, 
-    content: messageInput.content, 
+    content: messageInput.content, // For poll, this is the main title
     type: messageInput.type,
   };
   
   let specificData = {};
   if (messageInput.type === 'poll') {
+    const questionsWithDefaults = messageInput.pollData.questions.map(q => ({
+      ...q,
+      options: q.pollType === 'mcq' ? (q.options || []) : undefined,
+      correctOptionId: undefined, // Teacher sets this on publish
+    }));
     specificData = { 
         pollData: { 
             ...messageInput.pollData, 
-            results: messageInput.pollData.pollType === 'mcq' ? {} : undefined, 
-            voters: {}, 
+            questions: questionsWithDefaults,
+            results: {}, // Initialize as empty, to be populated per questionId
+            voters: {},  // Initialize as empty, to be populated per questionId
             resultsPublished: false,
-            correctOptionId: undefined, 
         } 
     };
   } else if (messageInput.type === 'event') {
@@ -263,17 +302,17 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
   const currentMessages = store.get(groupId) || [];
   const updatedMessages = [...currentMessages, fullMessage];
   
-  const newStore = new Map(store); // Create a new map for the overall store
+  const newStore = new Map(store); 
   newStore.set(groupId, updatedMessages);
 
   updateMockMessagesData(newStore); 
 
-  console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId} (global/localStorage mock). Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
+  console.log(`[Service:messages] Message added by ${fullMessage.senderName} to group ${groupId}. Content: "${fullMessage.content}". Total messages: ${updatedMessages.length}`);
   return { ...fullMessage };
 }
 
-export async function voteOnPoll(groupId: string, messageId: string, submission: string, userId: string): Promise<Message | null> {
-  console.log(`[Service:messages] User ${userId} submitting for poll ${messageId} in group ${groupId}. Submission: ${submission}`);
+export async function voteOnPoll(groupId: string, messageId: string, questionId: string, submission: string, userId: string): Promise<Message | null> {
+  console.log(`[Service:messages] User ${userId} submitting for question ${questionId} in poll ${messageId} (group ${groupId}). Submission: ${submission}`);
   
   const store = getMockMessagesData();
   const groupMessages = store.get(groupId);
@@ -283,37 +322,67 @@ export async function voteOnPoll(groupId: string, messageId: string, submission:
   if (messageIndex === -1) return null;
 
   const pollMessage = { ...groupMessages[messageIndex] }; 
-  if (!pollMessage.pollData) return null;
+  if (!pollMessage.pollData || !pollMessage.pollData.questions.find(q => q.id === questionId)) return null;
 
   pollMessage.pollData = { ...pollMessage.pollData }; 
   pollMessage.pollData.voters = { ...(pollMessage.pollData.voters || {}) };
-  
-  if (pollMessage.pollData.pollType === 'mcq') {
-      pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
+  pollMessage.pollData.results = { ...(pollMessage.pollData.results || {}) };
+
+  // Ensure voters and results for this question exist
+  if (!pollMessage.pollData.voters[questionId]) {
+    pollMessage.pollData.voters[questionId] = {};
+  }
+  if (!pollMessage.pollData.results[questionId]) {
+    pollMessage.pollData.results[questionId] = {};
+  }
+
+  const question = pollMessage.pollData.questions.find(q => q.id === questionId);
+  if (!question) return null; // Should not happen if found earlier
+
+  if (question.pollType === 'mcq') {
       const optionId = submission; 
-      const previousVoteOptionId = pollMessage.pollData.voters[userId];
-      if (previousVoteOptionId && pollMessage.pollData.results[previousVoteOptionId]) {
-        pollMessage.pollData.results[previousVoteOptionId] = Math.max(0, (pollMessage.pollData.results[previousVoteOptionId] || 1) - 1);
+      const questionResults = pollMessage.pollData.results[questionId] as Record<string, number> || {};
+      const questionVoters = pollMessage.pollData.voters[questionId] as Record<string, string> || {};
+
+      const previousVoteOptionId = questionVoters[userId];
+      if (previousVoteOptionId && typeof questionResults[previousVoteOptionId] === 'number') {
+        questionResults[previousVoteOptionId] = Math.max(0, (questionResults[previousVoteOptionId] || 1) - 1);
       }
-      pollMessage.pollData.results[optionId] = (pollMessage.pollData.results[optionId] || 0) + 1;
-      pollMessage.pollData.voters[userId] = optionId;
-      console.log(`[Service:messages] MCQ Poll ${messageId} updated. New results:`, pollMessage.pollData.results);
-  } else if (pollMessage.pollData.pollType === 'shortAnswer') {
-      pollMessage.pollData.voters[userId] = submission; 
-      console.log(`[Service:messages] Short Answer Poll ${messageId} submission from ${userId} recorded.`);
+      questionResults[optionId] = (questionResults[optionId] || 0) + 1;
+      questionVoters[userId] = optionId;
+
+      pollMessage.pollData.results[questionId] = questionResults;
+      pollMessage.pollData.voters[questionId] = questionVoters;
+      console.log(`[Service:messages] MCQ Poll ${messageId}, Q ${questionId} updated. New results:`, questionResults);
+  } else if (question.pollType === 'shortAnswer') {
+      const questionVoters = pollMessage.pollData.voters[questionId] as Record<string, string> || {};
+      questionVoters[userId] = submission; 
+      pollMessage.pollData.voters[questionId] = questionVoters;
+
+      // Short answer results for teacher view are just the voters data itself for that question
+      const questionResults = pollMessage.pollData.results[questionId] as Record<string, string> || {};
+      questionResults[userId] = submission;
+      pollMessage.pollData.results[questionId] = questionResults;
+      
+      console.log(`[Service:messages] Short Answer Poll ${messageId}, Q ${questionId} submission from ${userId} recorded.`);
   }
   
-  const newGroupMessages = [...groupMessages]; // Create a new array for the specific group
+  const newGroupMessages = [...groupMessages]; 
   newGroupMessages[messageIndex] = pollMessage;
-  const newStore = new Map(store); // Create a new map for the overall store
+  const newStore = new Map(store); 
   newStore.set(groupId, newGroupMessages);
   updateMockMessagesData(newStore);
 
   return pollMessage;
 }
 
-export async function publishPollResults(groupId: string, messageId: string, publisherId: string, correctOptionId?: string): Promise<Message | null> {
-  console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}. Correct option ID (if any): ${correctOptionId}`);
+export async function publishPollResults(
+    groupId: string, 
+    messageId: string, 
+    publisherId: string, 
+    correctAnswers: Record<string, string> // { [questionId]: correctOptionId } for MCQs
+): Promise<Message | null> {
+  console.log(`[Service:messages] User ${publisherId} publishing results for poll ${messageId} in group ${groupId}. Correct answers:`, correctAnswers);
   const store = getMockMessagesData();
   const groupMessages = store.get(groupId);
   if (!groupMessages) return null;
@@ -327,7 +396,12 @@ export async function publishPollResults(groupId: string, messageId: string, pub
   pollMessage.pollData = { 
     ...pollMessage.pollData, 
     resultsPublished: true,
-    ...(pollMessage.pollData.pollType === 'mcq' && correctOptionId && { correctOptionId: correctOptionId })
+    questions: pollMessage.pollData.questions.map(q => {
+      if (q.pollType === 'mcq' && correctAnswers[q.id]) {
+        return { ...q, correctOptionId: correctAnswers[q.id] };
+      }
+      return q;
+    })
   };
   
   const newGroupMessages = [...groupMessages];
@@ -336,7 +410,6 @@ export async function publishPollResults(groupId: string, messageId: string, pub
   newStore.set(groupId, newGroupMessages);
   updateMockMessagesData(newStore);
 
-  console.log(`[Service:messages] Poll ${messageId} results published. Correct Option: ${pollMessage.pollData.correctOptionId}`);
+  console.log(`[Service:messages] Poll ${messageId} results published. Updated questions with correct answers.`);
   return pollMessage;
 }
-
