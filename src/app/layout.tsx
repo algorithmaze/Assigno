@@ -6,12 +6,10 @@ import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/context/auth-context';
 import { ThemeProvider } from '@/context/theme-context';
 
-// The GeistSans object imported already contains the necessary configuration (like variable name).
-
 export const metadata: Metadata = {
   title: 'Assigno',
   description: 'School Homework Sharing App',
-  manifest: '/manifest.json', // Added manifest link for PWA
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
@@ -31,8 +29,7 @@ export default function RootLayout({
         <meta name="msapplication-config" content="/icons/browserconfig.xml" />
         <meta name="msapplication-TileColor" content="#3498db" />
         <meta name="msapplication-tap-highlight" content="no" />
-        <meta name="theme-color" content="#ffffff" /> {/* Default theme color, can be overridden by role themes via JS */}
-        {/* Add placeholder icon links. In a real PWA, these would be actual icon files. */}
+        <meta name="theme-color" content="#ffffff" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512x512.png" />
@@ -49,4 +46,3 @@ export default function RootLayout({
     </html>
   );
 }
-
