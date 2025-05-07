@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle } from 'lucide-react';
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
 import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -45,7 +45,7 @@ interface ChatInterfaceProps {
 type MessageTypeFilter = Message['type'] | 'all';
 type SenderIdFilter = AuthUserType['id'] | 'all'; 
 
-const POLLING_INTERVAL = 3000; // Changed from 5000 to 3000 (3 seconds)
+const POLLING_INTERVAL = 3000; 
 
 export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -60,6 +60,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [filterMessageType, setFilterMessageType] = React.useState<MessageTypeFilter>('all');
   const [filterSenderId, setFilterSenderId] = React.useState<SenderIdFilter>('all');
+  const [filterDate, setFilterDate] = React.useState<Date | undefined>(undefined);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [shortAnswerSubmissions, setShortAnswerSubmissions] = React.useState<Record<string, string>>({});
@@ -69,7 +70,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const fetchAndSetMessages = React.useCallback(async (isPoll: boolean = false) => {
     if (!groupId) return;
     if (!isPoll) setIsLoadingMessages(true);
-    isPollingRef.current = true; // Set polling flag before fetching
+    isPollingRef.current = true; 
     try {
       const fetchedMessages = await getGroupMessages(groupId);
       setMessages(prevMessages => {
@@ -84,7 +85,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         else console.warn("Polling for messages failed, suppressing UI error.");
     } finally {
         if (!isPoll) setIsLoadingMessages(false);
-        isPollingRef.current = false; // Clear polling flag after fetching
+        isPollingRef.current = false; 
     }
   }, [groupId, toast]);
 
@@ -121,7 +122,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
       const sentMessage = await addMessageToGroup(groupId, input, user);
       setMessages(prev => [...prev, sentMessage].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()));
       if (input.type === 'text') setNewMessage(''); 
-      // Scroll to bottom after sending new message
+      
       setTimeout(() => {
          if(scrollAreaRef.current){ 
             const scrollViewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -240,6 +241,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
         return messages.filter(msg => {
             const typeMatch = filterMessageType === 'all' || msg.type === filterMessageType;
             const senderMatch = filterSenderId === 'all' || msg.senderId === filterSenderId;
+            const dateMatch = !filterDate || isSameDay(new Date(msg.timestamp), filterDate);
             const searchTermLower = searchTerm.toLowerCase();
             
             let contentToSearch = '';
@@ -252,9 +254,9 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             const senderNameMatch = msg.senderName.toLowerCase().includes(searchTermLower);
             const searchMatch = searchTerm.trim() === '' || contentMatch || senderNameMatch;
 
-            return typeMatch && senderMatch && searchMatch;
+            return typeMatch && senderMatch && dateMatch && searchMatch;
         }).sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()); 
-    }, [messages, searchTerm, filterMessageType, filterSenderId]);
+    }, [messages, searchTerm, filterMessageType, filterSenderId, filterDate]);
 
     const handleShortAnswerChange = (messageId: string, value: string) => {
       setShortAnswerSubmissions(prev => ({...prev, [messageId]: value}));
@@ -264,51 +266,79 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   return (
     <div className="flex h-full flex-col bg-card border rounded-lg shadow-md overflow-hidden">
       <div className="p-2 sm:p-3 border-b bg-background sticky top-0 z-10">
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-            <div className="relative w-full sm:flex-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 items-center gap-2">
+            <div className="relative w-full col-span-1 sm:col-span-2 md:col-span-1">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 text-muted-foreground -translate-y-1/2" />
                 <Input
                     type="search"
-                    placeholder="Search messages or senders..."
+                    placeholder="Search messages..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-8 w-full h-9"
                 />
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-                <div className="flex-1 sm:flex-initial">
-                    <Label htmlFor="filter-type" className="sr-only">Filter by Type</Label>
-                    <Select value={filterMessageType} onValueChange={(value) => setFilterMessageType(value as MessageTypeFilter)}>
-                        <SelectTrigger id="filter-type" className="h-9 text-xs sm:text-sm w-full">
-                            <SelectValue placeholder="Filter by Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Types</SelectItem>
-                            <SelectItem value="text">Text</SelectItem>
-                            <SelectItem value="file">File</SelectItem>
-                            <SelectItem value="poll">Poll</SelectItem>
-                            <SelectItem value="event">Event</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="flex-1 sm:flex-initial">
-                     <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
-                     <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
-                        <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
-                            <SelectValue placeholder="Filter by Sender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Senders</SelectItem>
-                            {groupSenders
-                                .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') // Only show teachers/admins in filter
-                                .map(sender => (
-                                <SelectItem key={sender.id} value={sender.id}>
-                                    {sender.name} ({sender.role})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
+            
+            <div className="w-full">
+                <Label htmlFor="filter-type" className="sr-only">Filter by Type</Label>
+                <Select value={filterMessageType} onValueChange={(value) => setFilterMessageType(value as MessageTypeFilter)}>
+                    <SelectTrigger id="filter-type" className="h-9 text-xs sm:text-sm w-full">
+                        <SelectValue placeholder="Filter by Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Types</SelectItem>
+                        <SelectItem value="text">Text</SelectItem>
+                        <SelectItem value="file">File</SelectItem>
+                        <SelectItem value="poll">Poll</SelectItem>
+                        <SelectItem value="event">Event</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            
+            <div className="w-full">
+                    <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
+                    <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
+                    <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
+                        <SelectValue placeholder="Filter by Sender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All Senders</SelectItem>
+                        {groupSenders
+                            .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') 
+                            .map(sender => (
+                            <SelectItem key={sender.id} value={sender.id}>
+                                {sender.name} ({sender.role})
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="w-full">
+                 <Popover>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant={"outline"}
+                        className="h-9 w-full justify-start text-left font-normal text-xs sm:text-sm"
+                        >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filterDate ? format(filterDate, "PPP") : <span>Filter by Date</span>}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                        mode="single"
+                        selected={filterDate}
+                        onSelect={(date) => {setFilterDate(date);}}
+                        initialFocus
+                        />
+                         {filterDate && (
+                            <div className="p-2 border-t">
+                                <Button variant="ghost" size="sm" className="w-full text-destructive" onClick={() => setFilterDate(undefined)}>
+                                    <XCircle className="mr-2 h-4 w-4" /> Clear Date Filter
+                                </Button>
+                            </div>
+                        )}
+                    </PopoverContent>
+                </Popover>
             </div>
         </div>
       </div>
@@ -813,3 +843,4 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
 
 
     
+
