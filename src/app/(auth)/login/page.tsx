@@ -1,7 +1,7 @@
 import { LoginForm } from '@/components/auth/login-form';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { Building } from 'lucide-react'; // Icon for branding
+import { Building, School } from 'lucide-react'; // Icon for branding, added School
 
 export default function LoginPage() {
   return (
@@ -21,6 +21,12 @@ export default function LoginPage() {
             New to Assigno?{' '}
             <Link href="/signup" className="font-semibold text-primary hover:underline">
               Create an account
+            </Link>
+          </p>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Is your institute not yet registered?{' '}
+            <Link href="/institute-registration" className="font-semibold text-primary hover:underline flex items-center justify-center">
+              <School className="mr-1 h-4 w-4" /> Register Your Institute
             </Link>
           </p>
       </CardContent>
