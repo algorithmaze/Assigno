@@ -18,9 +18,11 @@ export interface OTPVerificationResponse {
 // For a more robust mock, consider sessionStorage or a global Map managed carefully.
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_TEST_OTP = "123456"; // Default OTP for testing
 
 export async function sendOTP(identifier: string): Promise<void> {
-  const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit OTP
+  // Use the default test OTP instead of generating a random one
+  const generatedOtp = DEFAULT_TEST_OTP; 
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
   
   // --- Real Email Sending Logic Would Go Here ---
@@ -52,7 +54,7 @@ export async function sendOTP(identifier: string): Promise<void> {
   // }
   // --- End of Real Email Sending Logic ---
 
-  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
+  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: Using DEFAULT TEST OTP. This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
   
   await new Promise(resolve => setTimeout(resolve, 50)); 
   return;
@@ -87,7 +89,11 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
         }
         const allUsers = await usersModule.fetchAllUsers(); // Fetch all users (mock, might need schoolCode)
                                                         // Or better, a new service users.findUserByIdentifier(identifier)
-        const existingUser = allUsers.find(u => u.email === identifier || u.phoneNumber === identifier);
+        const existingUser = allUsers.find(u => 
+          (u.email && u.email.toLowerCase() === identifier.toLowerCase()) || 
+          (u.phoneNumber && u.phoneNumber === identifier)
+        );
+
 
         if (existingUser) {
             return { success: true, message: 'OTP verification successful.', user: existingUser };
