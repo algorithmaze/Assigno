@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';

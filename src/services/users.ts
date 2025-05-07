@@ -9,7 +9,7 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v15_no_dummies'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v16_no_dummies_strict'; // Incremented version
 
 
 // Defines the default set of users. This is the source of truth for these specific users.
@@ -28,7 +28,7 @@ function initializeGlobalUsersStore(): User[] {
         const serverInitialUsers: User[] = [...defaultInitialUsers];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store with defaults.", serverInitialUsers.length, "users.");
+        console.log("[Service:users] Server-side: Initialized global users store (empty by default).");
         return serverInitialUsers;
     }
 
@@ -43,7 +43,6 @@ function initializeGlobalUsersStore(): User[] {
             const parsedJson = JSON.parse(storedData);
             if (Array.isArray(parsedJson)) {
                 const usersFromStorage: User[] = parsedJson.map((u: any) => {
-                    // Basic validation and defaulting for each field
                     const schoolCode = String(u.schoolCode || 'UNKNOWN_SC'); 
                     const schoolName = String(u.schoolName || 'Unknown School');
                     const schoolAddress = String(u.schoolAddress || 'N/A');
@@ -57,44 +56,26 @@ function initializeGlobalUsersStore(): User[] {
                         schoolCode: schoolCode,
                         schoolName: schoolName,
                         schoolAddress: schoolAddress,
-                        profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined, // Let avatar fallback handle it
+                        profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined,
                         admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
                         class: typeof u.class === 'string' ? u.class : undefined,
                         designation: typeof u.designation === 'string' ? u.designation : undefined,
                     };
                 });
-
                 finalUserList = [...usersFromStorage];
-                
-                // Merging defaults is no longer needed as there are no predefined default users.
-                // However, if there were any other default users (e.g., super admin), they would be merged here.
-                // defaultInitialUsers.forEach(defaultUser => {
-                //     const existingUserIndex = finalUserList.findIndex(u => u.id === defaultUser.id);
-                //     if (existingUserIndex === -1) {
-                //         finalUserList.push({...defaultUser}); 
-                //     } else {
-                //         // Update existing user with default values if needed, usually for specific fields
-                //         finalUserList[existingUserIndex] = {
-                //             ...finalUserList[existingUserIndex], 
-                //             // Example of updating specific fields from default
-                //             // role: defaultUser.role, 
-                //         };
-                //     }
-                // });
-                
                 console.log("[Service:users] Client-side: Initialized global users store from localStorage.", finalUserList.length, "users loaded.");
             } else {
-                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");
-                 finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
+                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing as empty.");
+                 finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
             }
         } else {
-             finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
-             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store with defaults (empty).");
+             finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
+             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store (empty).");
         }
     } catch (error) {
-        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
+        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing as empty:", error);
         localStorage.removeItem(USERS_STORAGE_KEY); 
-        finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
+        finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
     }
     
     globalThis.mockUsersData_assigno_users = finalUserList;
@@ -114,7 +95,7 @@ function getMockUsersData(): User[] {
 
 function updateMockUsersData(newData: User[]): void {
   globalThis.mockUsersData_assigno_users = newData;
-  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
+  globalThis.mockUsersInitialized_assigno_users = true;
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
@@ -129,14 +110,12 @@ export async function ensureMockDataInitialized() {
     if (typeof window !== 'undefined' && !globalThis.mockUsersInitialized_assigno_users) {
         initializeGlobalUsersStore();
     } else if (typeof window === 'undefined' && !globalThis.mockUsersInitialized_assigno_users) {
-        // For server-side calls, ensure it's initialized if not already.
         initializeGlobalUsersStore();
     }
 }
 
 
-// Initialize on load for client-side
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') { // ensure this only runs client side in dev
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   ensureMockDataInitialized();
 }
 
@@ -210,7 +189,7 @@ export async function addUser(
         schoolCode: userData.schoolCode!, 
         schoolName: schoolName,
         schoolAddress: schoolAddress,
-        profilePictureUrl: userData.profilePictureUrl, // Allow undefined, AvatarFallback will handle it
+        profilePictureUrl: userData.profilePictureUrl,
         admissionNumber: userData.role === 'Student' ? userData.admissionNumber : undefined,
         class: userData.role === 'Student' || (userData.role === 'Teacher' && userData.designation === 'Class Teacher') ? userData.class : (userData.role === 'Teacher' ? userData.class : undefined),
         designation: userData.role === 'Teacher' ? userData.designation : (userData.role === 'Admin' ? 'Administrator' : undefined),
@@ -269,8 +248,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     
     const existingUser = currentUsers[userIndex];
     let newProfilePictureUrl = updates.profilePictureUrl;
-    // Retain existing picture if updates.profilePictureUrl is undefined (meaning not changed)
-    // If explicitly set to null or empty string, it means remove picture.
+
     if (updates.profilePictureUrl === undefined) { 
         newProfilePictureUrl = existingUser.profilePictureUrl; 
     }

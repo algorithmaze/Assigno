@@ -40,44 +40,20 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v7_multi_school'; 
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v8_no_dummies'; // Incremented version
 
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
-  const stAntonySchool: SchoolDetails = {
-    schoolCode: "STA987",
-    schoolName: "ST.ANTONY SR. SEC SCHOOL",
-    instituteType: "School",
-    address: "456 Church Road, Vatican City",
-    city: "Metropolis",
-    state: "NY",
-    pincode: "10001",
-    contactNumber: "+1555010101",
-    adminEmail: "admin@stantony.school", 
-    registrationDate: new Date("2023-01-15T10:00:00.000Z").toISOString(),
-  };
-
-  const dummySchool: SchoolDetails = {
-    schoolCode: "SAMP123", // Changed to SAMP123 as requested
-    schoolName: "Sample Sr. Sec. School", // Changed name
-    instituteType: "School",
-    address: "123 Sample Street, Testville",
-    city: "Mock City",
-    state: "TS", 
-    pincode: "00001",
-    contactNumber: "+0123456789",
-    adminEmail: "admin@sampleschool.app", 
-    registrationDate: new Date("2023-02-01T11:00:00.000Z").toISOString(),
-  };
-
-  const defaultInitialSchools = [stAntonySchool, dummySchool];
+  // No default schools are pre-defined anymore.
+  // All schools will come from institute registration or localStorage.
+  const defaultInitialSchools: SchoolDetails[] = [];
 
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
         globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools.map(s => ({...s}))];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST with defaults.");
+        console.log("[Service:school] Server-side: Initialized global institutes LIST (empty by default).");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -93,6 +69,8 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
       const institutesListFromStorage = JSON.parse(storedData) as SchoolDetails[];
       finalInstitutesList = [...institutesListFromStorage];
       
+      // Merging logic with an empty defaultInitialSchools will effectively do nothing,
+      // which is fine as we only want data from localStorage if it exists.
       defaultInitialSchools.forEach(defaultSchool => {
         const existingIndex = finalInstitutesList.findIndex(s => s.schoolCode === defaultSchool.schoolCode);
         if (existingIndex !== -1) {
@@ -102,15 +80,15 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
         }
       });
       
-      console.log("[Service:school] Initialized global institutes LIST from localStorage and merged defaults:", finalInstitutesList.length, "institutes loaded.");
+      console.log("[Service:school] Initialized global institutes LIST from localStorage:", finalInstitutesList.length, "institutes loaded.");
     } else {
-        finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))];
-        console.log("[Service:school] Initialized new global institutes LIST with defaults (localStorage was empty).");
+        finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))]; // Will be empty initially
+        console.log("[Service:school] Initialized new global institutes LIST (localStorage was empty).");
     }
   } catch (error) {
-    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with defaults:", error);
+    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing as empty:", error);
     localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY); 
-    finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))];
+    finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))]; // Will be empty
   }
   
   globalThis.mockRegisteredInstitutes_assigno_school_list = finalInstitutesList;
