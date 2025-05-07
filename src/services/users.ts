@@ -12,79 +12,15 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v8_institute_admin'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v9_no_dummies'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
-        const serverInitialUsers: User[] = [
-            // Admin for Sample School
-            {
-              id: 'admin-antony-samp123', // Unique ID for Antony
-              name: 'Antony Admin',
-              email: 'antony@school.com',
-              role: 'Admin',
-              schoolCode: 'samp123',
-              schoolName: 'Sample Sr. Sec. School',
-              schoolAddress: '456 School Road, Testville, Test State 000000',
-              profilePictureUrl: undefined,
-              designation: 'Administrator',
-            },
-             // Dummy Student 1 (No group)
-            {
-              id: 'student-001-samp123',
-              name: 'Alice Wonderland',
-              email: 'alice@school.com',
-              role: 'Student',
-              schoolCode: 'samp123',
-              schoolName: 'Sample Sr. Sec. School',
-              schoolAddress: '456 School Road, Testville, Test State 000000',
-              admissionNumber: 'S001',
-              class: '10A',
-              profilePictureUrl: undefined,
-            },
-            // Dummy Student 2 (No group)
-            {
-              id: 'student-002-samp123',
-              name: 'Bob The Builder',
-              email: 'bob@school.com',
-              role: 'Student',
-              schoolCode: 'samp123',
-              schoolName: 'Sample Sr. Sec. School',
-              schoolAddress: '456 School Road, Testville, Test State 000000',
-              admissionNumber: 'S002',
-              class: '9B',
-              profilePictureUrl: undefined,
-            },
-            // Dummy Teacher 1 (No group)
-            {
-              id: 'teacher-001-samp123',
-              name: 'Charles Xavier',
-              email: 'charles@school.com',
-              role: 'Teacher',
-              schoolCode: 'samp123',
-              schoolName: 'Sample Sr. Sec. School',
-              schoolAddress: '456 School Road, Testville, Test State 000000',
-              designation: 'Subject Teacher',
-              class: 'Physics - 10A, 10B', // Example classes handling
-              profilePictureUrl: undefined,
-            },
-            // Dummy Teacher 2 (No group)
-            {
-              id: 'teacher-002-samp123',
-              name: 'Diana Prince',
-              email: 'diana@school.com',
-              role: 'Teacher',
-              schoolCode: 'samp123',
-              schoolName: 'Sample Sr. Sec. School',
-              schoolAddress: '456 School Road, Testville, Test State 000000',
-              designation: 'Class Teacher',
-              class: '8A', // Class teacher for 8A
-              profilePictureUrl: undefined,
-            },
-        ];
+        // No default users for server-side initialization if all dummy users are removed
+        const serverInitialUsers: User[] = [];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store with default users.");
+        console.log("[Service:users] Server-side: Initialized global users store (empty).");
         return serverInitialUsers;
     }
 
@@ -104,8 +40,8 @@ function initializeGlobalUsersStore(): User[] {
                     phoneNumber: typeof u.phoneNumber === 'string' ? u.phoneNumber : undefined,
                     role: ['Student', 'Teacher', 'Admin'].includes(u.role) ? u.role : 'Student',
                     schoolCode: String(u.schoolCode || DEFAULT_SCHOOL_CODE),
-                    schoolName: typeof u.schoolName === 'string' ? u.schoolName : "Sample Sr. Sec. School",
-                    schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : "456 School Road, Testville",
+                    schoolName: typeof u.schoolName === 'string' ? u.schoolName : "Default School Name",
+                    schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : "Default School Address",
                     profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined,
                     admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
                     class: typeof u.class === 'string' ? u.class : undefined,
@@ -121,31 +57,15 @@ function initializeGlobalUsersStore(): User[] {
         }
     } catch (error) {
         console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing:", error);
-        localStorage.removeItem(USERS_STORAGE_KEY); 
+        localStorage.removeItem(USERS_STORAGE_KEY);
     }
 
-    // If no valid stored data on client, initialize with defaults (same as server for consistency)
-    const clientInitialUsers: User[] = [
-            {
-              id: 'admin-antony-samp123', name: 'Antony Admin', email: 'antony@school.com', role: 'Admin', schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', schoolAddress: '456 School Road, Testville, Test State 000000', profilePictureUrl: undefined, designation: 'Administrator',
-            },
-            {
-              id: 'student-001-samp123', name: 'Alice Wonderland', email: 'alice@school.com', role: 'Student', schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', schoolAddress: '456 School Road, Testville, Test State 000000', admissionNumber: 'S001', class: '10A', profilePictureUrl: undefined,
-            },
-            {
-              id: 'student-002-samp123', name: 'Bob The Builder', email: 'bob@school.com', role: 'Student', schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', schoolAddress: '456 School Road, Testville, Test State 000000', admissionNumber: 'S002', class: '9B', profilePictureUrl: undefined,
-            },
-            {
-              id: 'teacher-001-samp123', name: 'Charles Xavier', email: 'charles@school.com', role: 'Teacher', schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', schoolAddress: '456 School Road, Testville, Test State 000000', designation: 'Subject Teacher', class: 'Physics - 10A, 10B', profilePictureUrl: undefined,
-            },
-            {
-              id: 'teacher-002-samp123', name: 'Diana Prince', email: 'diana@school.com', role: 'Teacher', schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', schoolAddress: '456 School Road, Testville, Test State 000000', designation: 'Class Teacher', class: '8A', profilePictureUrl: undefined,
-            },
-    ];
+    // If no valid stored data on client, initialize with empty array
+    const clientInitialUsers: User[] = [];
     globalThis.mockUsersData_assigno_users = clientInitialUsers;
     globalThis.mockUsersInitialized_assigno_users = true;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(clientInitialUsers));
-    console.log("[Service:users] Client-side: Initialized new global users store with defaults and saved to localStorage.");
+    console.log("[Service:users] Client-side: Initialized new empty global users store and saved to localStorage.");
     return clientInitialUsers;
 }
 
@@ -153,7 +73,7 @@ function initializeGlobalUsersStore(): User[] {
 function getMockUsersData(): User[] {
   if (typeof window === 'undefined') {
     if (!globalThis.mockUsersInitialized_assigno_users) {
-        initializeGlobalUsersStore(); // Server uses this too now
+        initializeGlobalUsersStore(); 
     }
     return globalThis.mockUsersData_assigno_users || [];
   }
@@ -165,8 +85,8 @@ function getMockUsersData(): User[] {
 }
 
 function updateMockUsersData(newData: User[]): void {
-  globalThis.mockUsersData_assigno_users = newData; 
-  globalThis.mockUsersInitialized_assigno_users = true; 
+  globalThis.mockUsersData_assigno_users = newData;
+  globalThis.mockUsersInitialized_assigno_users = true;
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
@@ -177,7 +97,6 @@ function updateMockUsersData(newData: User[]): void {
   }
 }
 
-// Initialize on load for client-side, server does it in getMockUsersData if needed
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
     initializeGlobalUsersStore();
 }
@@ -185,7 +104,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 
 export async function ensureMockDataInitialized() {
     if (!globalThis.mockUsersInitialized_assigno_users) {
-        initializeGlobalUsersStore(); 
+        initializeGlobalUsersStore();
     }
 }
 
@@ -194,17 +113,17 @@ export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10)); 
+    await new Promise(resolve => setTimeout(resolve, 10));
     const users = getMockUsersData().filter(user => userIds.includes(user.id));
     console.log(`[Service:users] Found ${users.length} users for IDs (mock): ${userIds.join(', ')}`);
-    return users.map(u => ({...u})); 
+    return users.map(u => ({...u}));
 }
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
     
-    await new Promise(resolve => setTimeout(resolve, 10)); 
+    await new Promise(resolve => setTimeout(resolve, 10));
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
     const filterByTerm = lowerSearchTerm.length > 0;
 
@@ -214,8 +133,8 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
         if (!matchesSchool || isExcluded) {
             return false;
         }
-        if (!filterByTerm) { 
-             return true; 
+        if (!filterByTerm) {
+             return true;
         }
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
@@ -227,8 +146,8 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
 }
 
 export async function addUser(
-    userData: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & { 
-        id?: string; schoolName?: string; schoolAddress?: string; profilePictureUrl?: string 
+    userData: Omit<User, 'id' | 'schoolName' | 'schoolAddress' | 'profilePictureUrl'> & {
+        id?: string; schoolName?: string; schoolAddress?: string; profilePictureUrl?: string
     }
 ): Promise<User> {
     await ensureMockDataInitialized();
@@ -267,9 +186,9 @@ export async function addUser(
     };
 
     const currentUsers = getMockUsersData();
-    const existingUserIndex = currentUsers.findIndex(existingUser => 
+    const existingUserIndex = currentUsers.findIndex(existingUser =>
         existingUser.id === userToProcess.id ||
-        (userToProcess.email && existingUser.email === userToProcess.email && existingUser.schoolCode === userToProcess.schoolCode) ||
+        (userToProcess.email && existingUser.email && existingUser.email.toLowerCase() === userToProcess.email.toLowerCase() && existingUser.schoolCode === userToProcess.schoolCode) ||
         (userToProcess.phoneNumber && existingUser.phoneNumber === userToProcess.phoneNumber && existingUser.schoolCode === userToProcess.schoolCode)
     );
 
@@ -281,7 +200,7 @@ export async function addUser(
     } else {
         const updatedUser = { ...currentUsers[existingUserIndex], ...userToProcess };
         currentUsers[existingUserIndex] = updatedUser;
-        updateMockUsersData([...currentUsers]); 
+        updateMockUsersData([...currentUsers]);
         console.log("[Service:users] Updated existing mock user:", userToProcess.name, "ID:", userToProcess.id);
         return {...updatedUser};
     }
@@ -292,7 +211,7 @@ export async function fetchAllUsers(schoolCode?: string): Promise<User[]> {
      await ensureMockDataInitialized();
      console.log(`[Service:users] Fetching all users. School filter: "${schoolCode || 'All Schools'}"`);
      
-     await new Promise(resolve => setTimeout(resolve, 10)); 
+     await new Promise(resolve => setTimeout(resolve, 10));
      const allUsers = getMockUsersData();
      const users = schoolCode ? allUsers.filter(user => user.schoolCode === schoolCode) : allUsers;
 
@@ -304,7 +223,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     await ensureMockDataInitialized();
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
     
-    await new Promise(resolve => setTimeout(resolve, 10)); 
+    await new Promise(resolve => setTimeout(resolve, 10));
     let currentUsers = getMockUsersData();
     const userIndex = currentUsers.findIndex(u => u.id === userId);
     
@@ -316,17 +235,17 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     const updatedUser = { ...currentUsers[userIndex], ...updates };
     
     currentUsers[userIndex] = updatedUser;
-    updateMockUsersData([...currentUsers]); 
+    updateMockUsersData([...currentUsers]);
     
     console.log("[Service:users] Updated user (mock):", updatedUser.name);
-    return { ...updatedUser }; 
+    return { ...updatedUser };
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Deleting user ${userId}`);
     
-    await new Promise(resolve => setTimeout(resolve, 10)); 
+    await new Promise(resolve => setTimeout(resolve, 10));
     const currentUsers = getMockUsersData();
     const initialLength = currentUsers.length;
     const updatedUsers = currentUsers.filter(u => u.id !== userId);
@@ -343,10 +262,10 @@ export async function deleteUser(userId: string): Promise<boolean> {
 
 export type ExcelUserImport = {
     Name: string;
-    'Email or Phone'?: string; 
+    'Email or Phone'?: string;
     Role: 'Student' | 'Teacher';
     'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string;
-    'Class Handling (Teacher Only)'?: string; 
+    'Class Handling (Teacher Only)'?: string;
     'Admission Number (Student Only)'?: string;
     'Class (Student Only)'?: string;
 };
@@ -376,7 +295,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                     if (sheetName && workbook.Sheets[sheetName]) {
                         const worksheet = workbook.Sheets[sheetName];
                         jsonData.push(...XLSX.utils.sheet_to_json<ExcelUserImport>(worksheet));
-                        foundSheet = true; 
+                        foundSheet = true;
                     }
                 }
                 

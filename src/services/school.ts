@@ -44,23 +44,18 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const SINGLE_SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v2_institute'; 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v3'; // Version bump
+const SINGLE_SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v2_institute';
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v4_empty_default'; // Version bump
 
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        // Simplified server-side default
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [{ 
-            schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', instituteType: 'School', 
-            address: '456 School Road', city: 'Testville', state: 'Test State', pincode: '000000', 
-            contactNumber: '+10000000000', adminEmail: 'antony@school.com', 
-            registrationDate: new Date().toISOString() 
-        }];
+        // Server-side default is an empty list
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST with default.");
+        console.log("[Service:school] Server-side: Initialized global institutes LIST (empty).");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -82,16 +77,12 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     console.error("[Service:school] Error reading institutes LIST from localStorage:", error);
   }
   
-  const defaultList: SchoolDetails[] = [{ 
-    schoolCode: 'samp123', schoolName: 'Sample Sr. Sec. School', instituteType: 'School', 
-    address: '456 School Road', city: 'Testville', state: 'Test State', pincode: '000000', 
-    contactNumber: '+10000000000', adminEmail: 'antony@school.com', 
-    registrationDate: new Date().toISOString() 
-  }];
+  // Default to an empty list if nothing is stored
+  const defaultList: SchoolDetails[] = [];
   globalThis.mockRegisteredInstitutes_assigno_school_list = defaultList;
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultList));
-  console.log("[Service:school] Initialized new global institutes LIST with default and saved to localStorage.");
+  console.log("[Service:school] Initialized new empty global institutes LIST and saved to localStorage.");
   return defaultList;
 }
 
@@ -121,10 +112,11 @@ function updateMockRegisteredInstitutes(list: SchoolDetails[]): void {
 // ----- Single School Detail Management (Current/Active School Focus) -----
 function initializeGlobalSingleSchoolStore(): SchoolDetails {
    const institutesList = getMockRegisteredInstitutes(); // Ensure list is loaded/initialized first
-   const defaultSchool: SchoolDetails = institutesList.length > 0 ? institutesList[0] : { 
-        schoolCode: 'TEMP000', schoolName: 'Temporary School', instituteType: 'School', 
-        address: 'N/A', city: 'N/A', state: 'N/A', pincode: '000000', 
-        contactNumber: '+0000000000', adminEmail: 'temp@example.com', 
+   // Default to a temporary placeholder if no institutes are registered.
+   const defaultSchool: SchoolDetails = institutesList.length > 0 ? institutesList[0] : {
+        schoolCode: 'TEMP000', schoolName: 'Temporary School', instituteType: 'School',
+        address: 'N/A', city: 'N/A', state: 'N/A', pincode: '000000',
+        contactNumber: '+0000000000', adminEmail: 'temp@example.com',
         registrationDate: new Date().toISOString()
     };
     
@@ -173,7 +165,7 @@ function getMockSchoolDetails(): SchoolDetails {
 
 function updateMockSchoolDetails(details: SchoolDetails): void {
   globalThis.mockSchoolDetails_assigno_school = details;
-  globalThis.mockSchoolInitialized_assigno_school = true; 
+  globalThis.mockSchoolInitialized_assigno_school = true;
   if (typeof window !== 'undefined') {
     localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(details));
     console.log("[Service:school] Updated SINGLE school details in global store and localStorage:", details);
@@ -251,13 +243,13 @@ export async function registerInstitute(
   
   try {
     const adminUserData: Omit<User, 'id' | 'schoolName' | 'schoolAddress'> & {schoolName: string, schoolAddress: string} = {
-      name: `${input.instituteName} Admin`, 
+      name: `${input.instituteName} Admin`,
       email: input.adminEmail,
       role: 'Admin',
       schoolCode: schoolCode,
       schoolName: newSchool.schoolName,
       schoolAddress: `${newSchool.address}, ${newSchool.city}, ${newSchool.state} ${newSchool.pincode}`,
-      designation: 'Administrator', 
+      designation: 'Administrator',
     };
     const adminUser = await addUser(adminUserData); // addUser should handle its own data persistence
     console.log('[Service:school] Admin user created for new institute:', adminUser.name, adminUser.id);
@@ -275,13 +267,11 @@ export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolD
   await new Promise(resolve => setTimeout(resolve, 10));
   
   // Always fetch from the full list of registered institutes.
-  const institutes = getMockRegisteredInstitutes(); 
+  const institutes = getMockRegisteredInstitutes();
   const foundSchool = institutes.find(s => s.schoolCode.toLowerCase() === schoolCodeQuery.toLowerCase());
   
   if (foundSchool) {
     console.log(`[Service:school] Found school: ${foundSchool.schoolName} from registered list.`);
-    // Optionally, if you want to set this found school as the "current" one for other operations:
-    // updateMockSchoolDetails(foundSchool); // This might be useful if subsequent operations rely on a single "active" school context
     return { ...foundSchool };
   }
   

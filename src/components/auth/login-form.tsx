@@ -19,8 +19,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, UserCheck, CornerDownLeft, Users, Mail, Phone } from 'lucide-react';
-import { sendOTP, verifyOTP } from '@/services/otp'; 
-import type { User } from '@/context/auth-context'; 
+import { sendOTP, verifyOTP } from '@/services/otp';
+import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -46,7 +46,7 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
-  const [identifierValue, setIdentifierValue] = React.useState(''); 
+  const [identifierValue, setIdentifierValue] = React.useState('');
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -66,21 +66,21 @@ export function LoginForm() {
   });
 
   const handleLoginSubmit = async (data: LoginFormData) => {
-    const isResend = otpSent; 
+    const isResend = otpSent;
     if (!isResend) setIsLoading(true);
     else setIsResendingOtp(true);
 
     try {
       await sendOTP(data.identifier);
       setIdentifierValue(data.identifier);
-      setOtpSent(true); 
+      setOtpSent(true);
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
         description: `An OTP has been sent to ${data.identifier}. (MOCK: In a real app, an email/SMS would be sent. For testing, check browser console for OTP).`,
         duration: 7000,
       });
       otpForm.clearErrors('otp');
-      otpForm.resetField('otp'); 
+      otpForm.resetField('otp');
     } catch (error) {
       console.error('Error sending OTP:', error);
       toast({
@@ -105,9 +105,11 @@ export function LoginForm() {
             description: `Welcome back, ${response.user.name}!`,
           });
       } else if (response.success && !response.user) {
+        // This can happen if it's a signup flow or if the user was deleted post-OTP request
+        // For login, this implies the user doesn't exist or wasn't found by verifyOTP.
         toast({
           title: 'OTP Verified, User Not Found',
-          description: 'OTP is correct, but no user account is associated with this identifier.',
+          description: 'OTP is correct, but no user account is associated with this identifier. Please ensure you have signed up.',
           variant: 'destructive',
         });
       } else {
@@ -148,10 +150,10 @@ export function LoginForm() {
                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                            {field.value?.includes('@') ? <Mail className="h-5 w-5 text-muted-foreground" /> : <Phone className="h-5 w-5 text-muted-foreground" />}
                          </div>
-                        <Input 
+                        <Input
                             type="text"
-                            placeholder="e.g., user@school.com or +1234567890" 
-                            {...field} 
+                            placeholder="e.g., user@school.com or +1234567890"
+                            {...field}
                             className="text-base py-6 pl-10" // Added pl-10 for icon padding
                             aria-describedby="identifier-description"
                          />
@@ -170,6 +172,7 @@ export function LoginForm() {
                 </Button>
             </form>
             </Form>
+            {/* Quick Logins section removed as sampleCredentials are removed */}
          </>
       ) : (
         <div className="space-y-6">
@@ -208,12 +211,12 @@ export function LoginForm() {
                 Verify &amp; Login
                 </Button>
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-2">
-                    <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => { setOtpSent(false); loginForm.reset({ identifier: identifierValue }); }} 
-                        disabled={isLoading || isResendingOtp} 
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setOtpSent(false); loginForm.reset({ identifier: identifierValue }); }}
+                        disabled={isLoading || isResendingOtp}
                         className="w-full sm:w-auto"
                     >
                         <CornerDownLeft className="mr-2 h-4 w-4"/> Change Email/Phone
