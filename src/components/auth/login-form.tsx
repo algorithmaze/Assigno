@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Users } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp'; 
 import type { User } from '@/context/auth-context'; 
 import { useAuth } from '@/context/auth-context';
@@ -70,8 +70,9 @@ export function LoginForm() {
       setIdentifierValue(data.identifier);
       setOtpSent(true); 
       toast({
-        title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (Mock OTP for testing).`,
+        title: isResend ? 'OTP Resent (Mock)' : 'OTP Sent (Mock)',
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check browser console for OTP).`,
+        duration: 7000,
       });
       otpForm.clearErrors('otp');
       otpForm.resetField('otp'); 
@@ -168,6 +169,7 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
+                (MOCK: Check console for OTP)
                 </p>
             </div>
             <Form {...otpForm}>

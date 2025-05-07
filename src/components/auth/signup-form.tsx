@@ -1,3 +1,4 @@
+
 'use client';
 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
@@ -105,8 +106,9 @@ export function SignupForm() {
       await sendOTP(data.identifier); 
       setStep(2); 
       toast({
-        title: 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. Please check your email/phone.`,
+        title: 'OTP Sent (Mock)',
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check browser console for OTP).`,
+        duration: 7000,
       });
     } catch (error: any) {
       console.error('Signup Step 1 Error:', error);
@@ -144,7 +146,7 @@ export function SignupForm() {
           schoolAddress: schoolDetails?.address,
           profilePictureUrl: undefined, 
           admissionNumber: fullData.role === 'Student' ? fullData.admissionNumber : undefined,
-          class: fullData.role === 'Student' || fullData.role === 'Teacher' ? fullData.class : undefined,
+          class: fullData.role === 'Student' || (fullData.role === 'Teacher' && fullData.designation === 'Class Teacher') ? fullData.class : (fullData.role === 'Teacher' ? fullData.class : undefined),
           designation: fullData.role === 'Teacher' ? fullData.designation : (fullData.role === 'Admin' ? 'Administrator' : undefined),
        };
        
@@ -165,7 +167,7 @@ export function SignupForm() {
 
     } catch (error: any) {
       console.error('Signup Step 2 Error:', error);
-       if (error.message !== (otpResponse.message || 'Invalid OTP') ) { // Avoid double toast for OTP error
+       if (error.message !== (formData.otp || 'Invalid OTP') ) { // Avoid double toast for OTP error
         toast({
             title: 'Signup Failed',
             description: error.message || 'Could not complete signup. Please try again.',
@@ -244,7 +246,7 @@ export function SignupForm() {
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
              <p className="text-sm text-muted-foreground">
-              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}.
+              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}. (MOCK: Check console)
             </p>
             <FormField
               control={step2Form.control}
