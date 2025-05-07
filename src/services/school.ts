@@ -35,27 +35,35 @@ export interface InstituteRegistrationResult {
 
 // Use a global variable for mock data in non-production environments
 declare global {
-  // For single school details (legacy, might be phased out or used for 'current' school)
-  var mockSchoolDetails_assigno_school: SchoolDetails | undefined;
-  var mockSchoolInitialized_assigno_school: boolean | undefined;
-
   // For list of all registered institutes
   var mockRegisteredInstitutes_assigno_school_list: SchoolDetails[] | undefined;
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const SINGLE_SCHOOL_STORAGE_KEY = 'assigno_mock_school_details_v2_institute';
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v4_empty_default'; // Version bump
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v5_stantony_default'; // Version bump
 
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
+  const stAntonySchool: SchoolDetails = {
+    schoolCode: "STA987",
+    schoolName: "ST.ANTONY SR. SEC SCHOOL",
+    instituteType: "School",
+    address: "456 Church Road, Vatican City",
+    city: "Metropolis",
+    state: "NY",
+    pincode: "10001",
+    contactNumber: "+1555010101",
+    adminEmail: "admin@stantony.school",
+    registrationDate: new Date().toISOString(),
+  };
+
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        // Server-side default is an empty list
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [];
+        // Server-side default includes St. Antony if list is not initialized
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [stAntonySchool];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST (empty).");
+        console.log("[Service:school] Server-side: Initialized global institutes LIST with St. Antony.");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -77,12 +85,12 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     console.error("[Service:school] Error reading institutes LIST from localStorage:", error);
   }
   
-  // Default to an empty list if nothing is stored
-  const defaultList: SchoolDetails[] = [];
+  // Default to a list containing St. Antony school if nothing is stored
+  const defaultList: SchoolDetails[] = [stAntonySchool];
   globalThis.mockRegisteredInstitutes_assigno_school_list = defaultList;
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultList));
-  console.log("[Service:school] Initialized new empty global institutes LIST and saved to localStorage.");
+  console.log("[Service:school] Initialized new global institutes LIST with St. Antony and saved to localStorage.");
   return defaultList;
 }
 
@@ -109,74 +117,9 @@ function updateMockRegisteredInstitutes(list: SchoolDetails[]): void {
 }
 
 
-// ----- Single School Detail Management (Current/Active School Focus) -----
-function initializeGlobalSingleSchoolStore(): SchoolDetails {
-   const institutesList = getMockRegisteredInstitutes(); // Ensure list is loaded/initialized first
-   // Default to a temporary placeholder if no institutes are registered.
-   const defaultSchool: SchoolDetails = institutesList.length > 0 ? institutesList[0] : {
-        schoolCode: 'TEMP000', schoolName: 'Temporary School', instituteType: 'School',
-        address: 'N/A', city: 'N/A', state: 'N/A', pincode: '000000',
-        contactNumber: '+0000000000', adminEmail: 'temp@example.com',
-        registrationDate: new Date().toISOString()
-    };
-    
-   if (typeof window === 'undefined') {
-     if (!globalThis.mockSchoolDetails_assigno_school) {
-        globalThis.mockSchoolDetails_assigno_school = defaultSchool;
-        globalThis.mockSchoolInitialized_assigno_school = true;
-        console.log("[Service:school] Server-side: Initialized SINGLE school store.");
-     }
-     return globalThis.mockSchoolDetails_assigno_school;
-   }
-
-  if (globalThis.mockSchoolDetails_assigno_school && globalThis.mockSchoolInitialized_assigno_school) {
-    return globalThis.mockSchoolDetails_assigno_school;
-  }
-
-  try {
-    const storedData = localStorage.getItem(SINGLE_SCHOOL_STORAGE_KEY);
-    if (storedData) {
-      const schoolDetails = JSON.parse(storedData) as SchoolDetails;
-      globalThis.mockSchoolDetails_assigno_school = schoolDetails;
-      globalThis.mockSchoolInitialized_assigno_school = true;
-      console.log("[Service:school] Initialized SINGLE school store from localStorage.");
-      return schoolDetails;
-    }
-  } catch (error) {
-    console.error("[Service:school] Error reading SINGLE school details from localStorage:", error);
-  }
-  
-  globalThis.mockSchoolDetails_assigno_school = defaultSchool;
-  globalThis.mockSchoolInitialized_assigno_school = true;
-  localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(defaultSchool));
-  console.log("[Service:school] Initialized new SINGLE school store with default and saved to localStorage.");
-  return defaultSchool;
-}
-
-function getMockSchoolDetails(): SchoolDetails {
-   if (typeof window === 'undefined') {
-     return globalThis.mockSchoolDetails_assigno_school || initializeGlobalSingleSchoolStore();
-   }
-  if (!globalThis.mockSchoolDetails_assigno_school || !globalThis.mockSchoolInitialized_assigno_school) {
-    return initializeGlobalSingleSchoolStore();
-  }
-  return globalThis.mockSchoolDetails_assigno_school;
-}
-
-function updateMockSchoolDetails(details: SchoolDetails): void {
-  globalThis.mockSchoolDetails_assigno_school = details;
-  globalThis.mockSchoolInitialized_assigno_school = true;
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(SINGLE_SCHOOL_STORAGE_KEY, JSON.stringify(details));
-    console.log("[Service:school] Updated SINGLE school details in global store and localStorage:", details);
-  }
-}
-
-
 // Initialize stores on load for client-side
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
   initializeGlobalInstitutesListStore();
-  initializeGlobalSingleSchoolStore();
 }
 
 
@@ -238,8 +181,6 @@ export async function registerInstitute(
   const updatedInstitutesList = [...existingInstitutes, newSchool];
   updateMockRegisteredInstitutes(updatedInstitutesList);
   console.log(`[Service:school] New school ${newSchool.schoolName} (Code: ${newSchool.schoolCode}) added to registered list.`);
-
-  updateMockSchoolDetails(newSchool); // Set this as the "current" active school for mock context
   
   try {
     const adminUserData: Omit<User, 'id' | 'schoolName' | 'schoolAddress'> & {schoolName: string, schoolAddress: string} = {
@@ -266,7 +207,6 @@ export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolD
   console.log(`[Service:school] Fetching details for school code: ${schoolCodeQuery}`);
   await new Promise(resolve => setTimeout(resolve, 10));
   
-  // Always fetch from the full list of registered institutes.
   const institutes = getMockRegisteredInstitutes();
   const foundSchool = institutes.find(s => s.schoolCode.toLowerCase() === schoolCodeQuery.toLowerCase());
   
@@ -281,7 +221,7 @@ export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolD
 
 
 export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDetails>): Promise<SchoolDetails | null> {
-  const targetSchoolCode = updatedDetailsInput.schoolCode; // School code must be provided to identify which school to update
+  const targetSchoolCode = updatedDetailsInput.schoolCode; 
   if (!targetSchoolCode) {
     console.error("[Service:school] School code is required to update school details.");
     return null;
@@ -295,14 +235,7 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
   const updatedInstitutesList = institutesList.map(school => {
     if (school.schoolCode === targetSchoolCode) {
       schoolFoundAndUpdated = true;
-      // Create the new school object, ensuring schoolCode itself is not changed by partial update
       const updatedSchool = { ...school, ...updatedDetailsInput, schoolCode: targetSchoolCode };
-      
-      // If this updated school is also the "current" single school, update that store too
-      const currentSingleSchool = getMockSchoolDetails();
-      if (currentSingleSchool.schoolCode === targetSchoolCode) {
-        updateMockSchoolDetails(updatedSchool);
-      }
       return updatedSchool;
     }
     return school;
@@ -313,7 +246,7 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
      return null;
   }
   
-  updateMockRegisteredInstitutes(updatedInstitutesList); // Save the updated list
+  updateMockRegisteredInstitutes(updatedInstitutesList); 
   const newlyUpdatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
   return newlyUpdatedSchoolFromList ? { ...newlyUpdatedSchoolFromList } : null;
 }

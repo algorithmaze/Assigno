@@ -12,11 +12,11 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v9_no_dummies'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v10_no_dummies_at_all'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
-        // No default users for server-side initialization if all dummy users are removed
+        // Server-side: Initialize with an empty array. No default users.
         const serverInitialUsers: User[] = [];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
@@ -33,7 +33,7 @@ function initializeGlobalUsersStore(): User[] {
         if (storedData) {
             const parsedJson = JSON.parse(storedData);
             if (Array.isArray(parsedJson)) {
-                const users: User[] = parsedJson.map((u: any) => ({
+                const users: User[] = parsedJson.map((u: any) => ({ // Added type annotation for 'u'
                     id: String(u.id || `temp-id-${Math.random()}`),
                     name: String(u.name || 'Unknown User'),
                     email: typeof u.email === 'string' ? u.email : undefined,
@@ -134,7 +134,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
             return false;
         }
         if (!filterByTerm) {
-             return true;
+             return true; // Return all users for the school if search term is empty (excluding those in excludeIds)
         }
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
@@ -198,7 +198,12 @@ export async function addUser(
         console.log("[Service:users] Added mock user:", userToProcess.name, "ID:", userToProcess.id);
         return {...userToProcess};
     } else {
-        const updatedUser = { ...currentUsers[existingUserIndex], ...userToProcess };
+        // Preserve existing profilePictureUrl if not provided in updates
+        const updatedUser = { 
+            ...currentUsers[existingUserIndex], 
+            ...userToProcess,
+            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl
+        };
         currentUsers[existingUserIndex] = updatedUser;
         updateMockUsersData([...currentUsers]);
         console.log("[Service:users] Updated existing mock user:", userToProcess.name, "ID:", userToProcess.id);
@@ -232,7 +237,13 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
         return null;
     }
     
-    const updatedUser = { ...currentUsers[userIndex], ...updates };
+    // Ensure profilePictureUrl is not accidentally cleared if not in updates
+    const existingUser = currentUsers[userIndex];
+    const updatedUser = { 
+      ...existingUser, 
+      ...updates,
+      profilePictureUrl: updates.profilePictureUrl === undefined ? existingUser.profilePictureUrl : updates.profilePictureUrl
+    };
     
     currentUsers[userIndex] = updatedUser;
     updateMockUsersData([...currentUsers]);
@@ -263,8 +274,8 @@ export async function deleteUser(userId: string): Promise<boolean> {
 export type ExcelUserImport = {
     Name: string;
     'Email or Phone'?: string;
-    Role: 'Student' | 'Teacher';
-    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string;
+    Role: 'Student' | 'Teacher'; // Admin role cannot be bulk added via Excel
+    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string; // Allow string for flexibility
     'Class Handling (Teacher Only)'?: string;
     'Admission Number (Student Only)'?: string;
     'Class (Student Only)'?: string;
@@ -339,7 +350,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             name: row.Name,
                             email: row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
                             phoneNumber: row['Email or Phone'] && !row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
-                            role: row.Role,
+                            role: row.Role, // Safe cast because we validated above
                             schoolCode: schoolCode,
                         };
                         

@@ -19,16 +19,19 @@ export interface OTPVerificationResponse {
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing
-const ADMIN_EXAMPLE_EMAIL = "admin@example.com";
-const ADMIN_EXAMPLE_OTP = "000000";
+const ADMIN_EXAMPLE_EMAIL_DEPRECATED = "admin@example.com"; // Kept for reference, but not actively used by new schools
+const ADMIN_STANTONY_EMAIL = "admin@stantony.school";
+
 
 export async function sendOTP(identifier: string): Promise<void> {
   let generatedOtp: string;
 
-  if (identifier.toLowerCase() === ADMIN_EXAMPLE_EMAIL.toLowerCase()) {
-    generatedOtp = ADMIN_EXAMPLE_OTP;
-  } else {
+  // Check for specific admin emails to use the default test OTP
+  const lowerIdentifier = identifier.toLowerCase();
+  if (lowerIdentifier === ADMIN_EXAMPLE_EMAIL_DEPRECATED.toLowerCase() || lowerIdentifier === ADMIN_STANTONY_EMAIL.toLowerCase()) {
     generatedOtp = DEFAULT_TEST_OTP;
+  } else {
+    generatedOtp = DEFAULT_TEST_OTP; // Default OTP for all other users in mock environment
   }
   
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
@@ -119,4 +122,3 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
 
   return { success: false, message: 'The OTP entered is incorrect.' };
 }
-
