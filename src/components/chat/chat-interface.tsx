@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle, Edit2 } from 'lucide-react';
+import { Paperclip, Smile, Send, MessageSquareIcon, Loader2, Search, Filter, CalendarDays, ListChecks, FileText, CheckSquare, Trash2, PlusCircle, Eye, EyeOff, CheckCircle, AlertTriangle, CalendarIcon, XCircle, Edit2, User as UserIcon } from 'lucide-react'; // Added UserIcon
 import { useAuth, type User as AuthUserType } from '@/context/auth-context';
 import { getGroupMessages, addMessageToGroup, type Message, type NewMessageInput, type PollData, type EventData, type FileData, voteOnPoll, type PollOption, type PollQuestion, NewPollMessageInput, NewEventMessageInput, NewFileMessageInput, publishPollResults } from '@/services/messages';
 import { useToast } from '@/hooks/use-toast';
@@ -379,8 +379,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
             >
                 {msg.senderId !== user?.id && (
                     <Avatar className="h-8 w-8 self-start flex-shrink-0">
-                    <AvatarImage src={msg.senderAvatar || `https://picsum.photos/40/40?random=${msg.senderId}`} data-ai-hint="sender avatar"/>
-                    <AvatarFallback>{msg.senderName?.charAt(0)?.toUpperCase() || '?'}</AvatarFallback>
+                    <AvatarImage src={msg.senderAvatar || undefined} data-ai-hint="sender avatar"/>
+                    <AvatarFallback>{msg.senderName?.charAt(0)?.toUpperCase() || <UserIcon />}</AvatarFallback>
                     </Avatar>
                 )}
                 <div
@@ -541,8 +541,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 </div>
                 {msg.senderId === user?.id && (
                     <Avatar className="h-8 w-8 self-start flex-shrink-0">
-                    <AvatarImage src={msg.senderAvatar || `https://picsum.photos/40/40?random=${msg.senderId}`} data-ai-hint="your avatar"/>
-                    <AvatarFallback>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</AvatarFallback>
+                    <AvatarImage src={msg.senderAvatar || undefined} data-ai-hint="your avatar"/>
+                    <AvatarFallback>{user?.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}</AvatarFallback>
                     </Avatar>
                 )}
             </div>
@@ -1018,3 +1018,5 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
         </Dialog>
     );
 }
+
+```

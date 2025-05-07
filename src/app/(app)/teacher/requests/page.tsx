@@ -187,7 +187,7 @@ export default function TeacherJoinRequestsPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={student.profilePictureUrl || `https://picsum.photos/40/40?random=${student.id}`} alt={student.name} data-ai-hint="student avatar"/>
+                              <AvatarImage src={student.profilePictureUrl || undefined} alt={student.name} data-ai-hint="student avatar"/>
                               <AvatarFallback>
                                 {student.name ? student.name.charAt(0).toUpperCase() : <UserIcon/>}
                               </AvatarFallback>
@@ -235,3 +235,4 @@ export default function TeacherJoinRequestsPage() {
 }
 
 
+```

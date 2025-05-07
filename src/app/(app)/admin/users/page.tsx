@@ -287,7 +287,7 @@ export default function AdminUsersPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9">
-                          <AvatarImage src={user.profilePictureUrl || `https://picsum.photos/40/40?random=${user.id}`} alt={user.name} data-ai-hint="user avatar" />
+                          <AvatarImage src={user.profilePictureUrl || undefined} alt={user.name} data-ai-hint="user avatar" />
                           <AvatarFallback>
                             {user.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}
                           </AvatarFallback>
@@ -330,3 +330,4 @@ export default function AdminUsersPage() {
   );
 }
 
+```

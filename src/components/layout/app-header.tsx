@@ -51,7 +51,7 @@ export function AppHeader() {
               <Avatar className="h-10 w-10">
                 <AvatarImage src={user?.profilePictureUrl || undefined} alt={user?.name || 'User Avatar'} data-ai-hint="profile avatar" />
                 <AvatarFallback>
-                    {user?.name?.charAt(0).toUpperCase() || <UserIcon />}
+                    {user?.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}
                 </AvatarFallback>
               </Avatar>
             </Button>
@@ -82,4 +82,3 @@ export function AppHeader() {
     </header>
   );
 }
-

@@ -263,7 +263,7 @@ export async function addMessageToGroup(groupId: string, messageInput: NewMessag
     senderId: sender.id,
     senderName: sender.name,
     senderRole: sender.role,
-    senderAvatar: sender.profilePictureUrl || `https://picsum.photos/40/40?random=${sender.id.replace('-','')}`, 
+    senderAvatar: sender.profilePictureUrl, // Use user's profile picture URL directly
     content: messageInput.content, // For poll, this is the main title
     type: messageInput.type,
   };
@@ -413,3 +413,5 @@ export async function publishPollResults(
   console.log(`[Service:messages] Poll ${messageId} results published. Updated questions with correct answers.`);
   return pollMessage;
 }
+
+```

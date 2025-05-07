@@ -150,9 +150,9 @@ export function SignupForm() {
           schoolCode: fullData.schoolCode,
           schoolName: schoolDetails?.schoolName,
           schoolAddress: schoolDetails?.address,
+          profilePictureUrl: undefined, // Default to undefined for new users
           admissionNumber: fullData.role === 'Student' ? fullData.admissionNumber : undefined,
           class: fullData.role === 'Student' || fullData.role === 'Teacher' ? fullData.class : undefined,
-          profilePictureUrl: `https://picsum.photos/100/100?random=${fullData.name.split(' ')[0].toLowerCase()}`, // Default pic
           designation: fullData.role === 'Teacher' ? fullData.designation : undefined,
        };
 

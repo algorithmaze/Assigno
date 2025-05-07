@@ -10,10 +10,7 @@ import * as XLSX from 'xlsx';
 
 // Define sampleCredentials and related constants first
 const SCHOOL_CODE = 'samp123';
-const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
-
-// Removed sampleCredentials object
-// export const sampleCredentials = { ... };
+// const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random='; // Removed
 
 
 // Use a global variable for mock data in non-production environments
@@ -22,7 +19,7 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v4_no_dummy'; // Incremented version and indicating no dummy
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v5_no_dummy_initials'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
@@ -45,7 +42,7 @@ function initializeGlobalUsersStore(): User[] {
                     schoolCode: String(u.schoolCode || SCHOOL_CODE),
                     schoolName: typeof u.schoolName === 'string' ? u.schoolName : "Sample Sr. Sec. School",
                     schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : "456 School Road, Testville",
-                    profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : `${DEFAULT_PROFILE_URL_BASE}${u.id || 'default'}`,
+                    profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined, // Default to undefined
                     admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
                     class: typeof u.class === 'string' ? u.class : undefined,
                     designation: typeof u.designation === 'string' ? u.designation : undefined,
@@ -184,7 +181,7 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
         schoolCode: user.schoolCode,
         schoolName: schoolDetails?.schoolName,
         schoolAddress: schoolDetails?.address,
-        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId.replace(/-/g,'')}`,
+        profilePictureUrl: undefined, // Default to undefined
         admissionNumber: user.role === 'Student' ? user.admissionNumber : undefined,
         class: user.role === 'Student' || user.role === 'Teacher' ? user.class : undefined,
         designation: user.role === 'Teacher' ? user.designation : (user.role === 'Admin' ? 'Administrator' : undefined),
@@ -391,3 +388,5 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
+
+```

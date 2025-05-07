@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -11,7 +10,7 @@ import { fetchGroupDetails, type Group, addMembersToGroup, removeMemberFromGroup
 import { fetchUsersByIds, searchUsers, fetchAllUsers } from '@/services/users'; // Added fetchAllUsers
 import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
-import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle, Search as SearchIcon } from 'lucide-react';
+import { Loader2, UserPlus, Trash2, X, Settings, Copy, AlertTriangle, Search as SearchIcon, User as UserIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -425,7 +424,10 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                             {availableUsers.map(userRes => (
                                                 <div key={userRes.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <Avatar className="h-6 w-6"><AvatarImage src={userRes.profilePictureUrl || `https://picsum.photos/30/30?random=${userRes.id}`} data-ai-hint="user avatar"/><AvatarFallback>{userRes.name.charAt(0)}</AvatarFallback></Avatar>
+                                                        <Avatar className="h-6 w-6">
+                                                            <AvatarImage src={userRes.profilePictureUrl || undefined} data-ai-hint="user avatar"/>
+                                                            <AvatarFallback>{userRes.name ? userRes.name.charAt(0).toUpperCase() : <UserIcon />}</AvatarFallback>
+                                                        </Avatar>
                                                         <span>{userRes.name} ({userRes.role})</span>
                                                     </div>
                                                     <Button variant="ghost" size="sm" onClick={() => addMemberToStaging(userRes)}><UserPlus className="h-4 w-4" /></Button>
@@ -455,7 +457,10 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                                             {members.map(member => (
                                                 <div key={member.id} className="flex items-center justify-between p-1 rounded hover:bg-muted text-sm">
                                                     <div className="flex items-center gap-2">
-                                                        <Avatar className="h-6 w-6"><AvatarImage src={member.profilePictureUrl || `https://picsum.photos/30/30?random=${member.id}`} data-ai-hint="member avatar"/><AvatarFallback>{member.name.charAt(0)}</AvatarFallback></Avatar>
+                                                        <Avatar className="h-6 w-6">
+                                                            <AvatarImage src={member.profilePictureUrl || undefined} data-ai-hint="member avatar"/>
+                                                            <AvatarFallback>{member.name ? member.name.charAt(0).toUpperCase() : <UserIcon />}</AvatarFallback>
+                                                        </Avatar>
                                                         <span>{member.name} ({member.role})</span>
                                                         {(member.role === 'Teacher' || member.role === 'Admin') && <Badge variant="outline" size="sm" className="text-xs">{member.role === 'Admin' && group.teacherIds.includes(member.id) ? 'Admin Lead' : 'Teacher'}</Badge>}
                                                     </div>
@@ -492,3 +497,4 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
   );
 }
 
+```
