@@ -41,7 +41,7 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v6_dummy_school'; // Version bump
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v7_multi_school'; // Version bump
 
 
 // Initialize global store for a LIST of registered institutes
@@ -76,43 +76,53 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
 
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools];
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools.map(s => ({...s}))];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
         console.log("[Service:school] Server-side: Initialized global institutes LIST with defaults.");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
 
+  // Client-side initialization
   if (globalThis.mockRegisteredInstitutes_assigno_school_list && globalThis.mockRegisteredInstitutesInitialized_assigno_school_list) {
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
 
+  let finalInstitutesList: SchoolDetails[] = [];
   try {
     const storedData = localStorage.getItem(REGISTERED_INSTITUTES_STORAGE_KEY);
     if (storedData) {
-      const institutesList = JSON.parse(storedData) as SchoolDetails[];
-       // Ensure default schools are present if not already in stored data
-      const currentSchoolCodes = new Set(institutesList.map(s => s.schoolCode));
+      const institutesListFromStorage = JSON.parse(storedData) as SchoolDetails[];
+       // Ensure default schools are present, update if they exist, or add if missing
+      finalInstitutesList = [...institutesListFromStorage];
+      const storedSchoolCodes = new Set(finalInstitutesList.map(s => s.schoolCode));
+
       defaultInitialSchools.forEach(defaultSchool => {
-        if (!currentSchoolCodes.has(defaultSchool.schoolCode)) {
-          institutesList.push(defaultSchool);
+        const existingIndex = finalInstitutesList.findIndex(s => s.schoolCode === defaultSchool.schoolCode);
+        if (existingIndex !== -1) {
+            // Update existing default school with canonical details, useful for migrations
+            finalInstitutesList[existingIndex] = {...defaultSchool};
+        } else {
+            finalInstitutesList.push({...defaultSchool});
         }
       });
-      globalThis.mockRegisteredInstitutes_assigno_school_list = institutesList;
-      globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-      console.log("[Service:school] Initialized global institutes LIST from localStorage:", institutesList.length, "institutes loaded.");
-      localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(institutesList)); // Save back if modified
-      return institutesList;
+      
+      console.log("[Service:school] Initialized global institutes LIST from localStorage and merged defaults:", finalInstitutesList.length, "institutes loaded.");
+    } else {
+        // localStorage is empty, initialize with defaults
+        finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))];
+        console.log("[Service:school] Initialized new global institutes LIST with defaults (localStorage was empty).");
     }
   } catch (error) {
-    console.error("[Service:school] Error reading institutes LIST from localStorage:", error);
+    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with defaults:", error);
+    localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY); // Clear potentially corrupted data
+    finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))];
   }
   
-  globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools];
+  globalThis.mockRegisteredInstitutes_assigno_school_list = finalInstitutesList;
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-  localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(defaultInitialSchools));
-  console.log("[Service:school] Initialized new global institutes LIST with defaults and saved to localStorage.");
-  return defaultInitialSchools;
+  localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(finalInstitutesList));
+  return finalInstitutesList;
 }
 
 
@@ -121,6 +131,7 @@ function getMockRegisteredInstitutes(): SchoolDetails[] {
    if (typeof window === 'undefined') {
      return globalThis.mockRegisteredInstitutes_assigno_school_list || initializeGlobalInstitutesListStore();
    }
+  // Client-side
   if (!globalThis.mockRegisteredInstitutes_assigno_school_list || !globalThis.mockRegisteredInstitutesInitialized_assigno_school_list) {
     return initializeGlobalInstitutesListStore();
   }
@@ -274,3 +285,4 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
   const newlyUpdatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
   return newlyUpdatedSchoolFromList ? { ...newlyUpdatedSchoolFromList } : null;
 }
+
