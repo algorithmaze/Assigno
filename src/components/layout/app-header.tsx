@@ -1,3 +1,4 @@
+
 'use client';
 
 import { SidebarTrigger } from '@/components/ui/sidebar';
@@ -48,8 +49,7 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="relative h-10 w-10 rounded-full">
               <Avatar className="h-10 w-10">
-                {/* TODO: Replace with actual user profile picture */}
-                <AvatarImage src={user?.profilePictureUrl || `https://picsum.photos/100/100?random=${user?.id}`} alt={user?.name} data-ai-hint="profile avatar" />
+                <AvatarImage src={user?.profilePictureUrl || undefined} alt={user?.name || 'User Avatar'} data-ai-hint="profile avatar" />
                 <AvatarFallback>
                     {user?.name?.charAt(0).toUpperCase() || <UserIcon />}
                 </AvatarFallback>
@@ -59,13 +59,13 @@ export function AppHeader() {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>{user?.name || 'User'}</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <Link href="/profile" passHref>
+            <Link href="/profile" passHref legacyBehavior>
               <DropdownMenuItem>
                 <UserIcon className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
             </Link>
-            <Link href="/settings" passHref>
+            <Link href="/settings" passHref legacyBehavior>
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
@@ -82,3 +82,4 @@ export function AppHeader() {
     </header>
   );
 }
+

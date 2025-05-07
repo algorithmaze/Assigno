@@ -208,6 +208,24 @@ export async function ensureMockDataInitialized() {
         }
     } else if (typeof window === 'undefined') {
         if (!globalThis.mockUsersInitialized_assigno_users) {
+             console.log("[Service:users] Server-side ensureMockDataInitialized called. Initializing mock users for server context if needed.");
+             // For server-side, you might not want to initialize from localStorage.
+             // Instead, just ensure the globalThis.mockUsersData_assigno_users has the default sample credentials.
+             const safeSampleCredentials = sampleCredentials || {};
+             const initialUsers = Object.values(safeSampleCredentials).map(cred => {
+                 if (!cred || typeof cred.id === 'undefined' || typeof cred.name === 'undefined' || typeof cred.role === 'undefined' || typeof cred.schoolCode === 'undefined') {
+                     return null;
+                 }
+                 return {
+                     id: cred.id, name: cred.name, email: cred.email, phoneNumber: cred.phoneNumber, role: cred.role,
+                     schoolCode: cred.schoolCode, schoolName: "Sample Sr. Sec. School", schoolAddress: "456 School Road, Testville",
+                     profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
+                     admissionNumber: cred.admissionNumber, class: cred.class, designation: cred.designation,
+                 };
+             }).filter(user => user !== null) as User[];
+             globalThis.mockUsersData_assigno_users = initialUsers;
+             globalThis.mockUsersInitialized_assigno_users = true;
+             console.log("[Service:users] Initialized global users store with sample credentials for server context.");
         }
     }
 }
@@ -263,7 +281,7 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
         schoolCode: user.schoolCode,
         schoolName: schoolDetails?.schoolName,
         schoolAddress: schoolDetails?.address,
-        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId}`,
+        profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId.replace('-','')}`,
         admissionNumber: user.role === 'Student' ? user.admissionNumber : undefined,
         class: user.role === 'Student' || user.role === 'Teacher' ? user.class : undefined,
         designation: user.role === 'Teacher' ? user.designation : (user.role === 'Admin' ? 'Administrator' : undefined),
@@ -301,16 +319,27 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
     
     await new Promise(resolve => setTimeout(resolve, 10)); 
-    const currentUsers = getMockUsersData();
+    let currentUsers = getMockUsersData();
     const userIndex = currentUsers.findIndex(u => u.id === userId);
+    
     if (userIndex === -1) {
         console.error(`[Service:users] User ${userId} not found for update (mock).`);
         return null;
     }
-    currentUsers[userIndex] = { ...currentUsers[userIndex], ...updates };
-    updateMockUsersData([...currentUsers]); 
-    console.log("[Service:users] Updated user (mock):", currentUsers[userIndex].name);
-    return { ...currentUsers[userIndex] }; 
+    
+    // Create a new user object with the updates applied
+    const updatedUser = { ...currentUsers[userIndex], ...updates };
+    
+    // Create a new array for the users list, replacing the old user object with the updated one
+    const updatedUsersList = [
+        ...currentUsers.slice(0, userIndex),
+        updatedUser,
+        ...currentUsers.slice(userIndex + 1),
+    ];
+    
+    updateMockUsersData(updatedUsersList); 
+    console.log("[Service:users] Updated user (mock):", updatedUser.name);
+    return { ...updatedUser }; 
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
