@@ -3,69 +3,73 @@ import type { User } from '@/context/auth-context';
 import { getSchoolDetails } from './school';
 import * as XLSX from 'xlsx';
 
-const DEFAULT_SCHOOL_CODE = 'samp123'; // Default if none is found for a user (should be rare)
-
-
 // Use a global variable for mock data in non-production environments
 declare global {
   var mockUsersData_assigno_users: User[] | undefined;
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v11_dummy_school_users'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v12_st_antony_school_users'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
+    const stAntonySchoolDetails = {
+        schoolCode: "STA987",
+        schoolName: "ST.ANTONY SR. SEC SCHOOL",
+        schoolAddress: "456 Church Road, Vatican City, Metropolis, NY 10001", // Consistent address
+    };
+
     const stAntonyAdmin: User = {
         id: 'admin-sta987-001',
         name: 'Antony (Admin St. Antony)',
         email: 'admin@stantony.school',
         role: 'Admin',
-        schoolCode: 'STA987',
-        schoolName: 'ST.ANTONY SR. SEC SCHOOL',
-        schoolAddress: '456 Church Road, Vatican City, Metropolis, NY 10001',
+        schoolCode: stAntonySchoolDetails.schoolCode,
+        schoolName: stAntonySchoolDetails.schoolName,
+        schoolAddress: stAntonySchoolDetails.schoolAddress,
         designation: 'Administrator',
         profilePictureUrl: 'https://picsum.photos/100/100?random=adminsta987',
     };
 
-    const dummySchoolAdmin: User = {
-        id: 'admin-dummysc-001',
-        name: 'Dummy Admin',
-        email: 'dummy.admin@assigno.app',
+    // Dummy users now also belong to St. Antony
+    const dummyAdmin: User = {
+        id: 'admin-dummysc-001', // ID can remain for uniqueness, but user data points to St. Antony
+        name: 'Dummy Admin (St. Antony)', // Clarify name
+        email: 'dummy.admin@assigno.app', // Login identifier remains
         role: 'Admin',
-        schoolCode: 'DUMMYSC',
-        schoolName: 'Dummy School of Excellence',
-        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
+        schoolCode: stAntonySchoolDetails.schoolCode,
+        schoolName: stAntonySchoolDetails.schoolName,
+        schoolAddress: stAntonySchoolDetails.schoolAddress,
         designation: 'Administrator',
         profilePictureUrl: 'https://picsum.photos/100/100?random=admindummy',
     };
 
-    const dummySchoolTeacher: User = {
+    const dummyTeacher: User = {
         id: 'teacher-dummysc-001',
-        name: 'Dummy Teacher',
+        name: 'Dummy Teacher (St. Antony)',
         email: 'dummy.teacher@assigno.app',
         role: 'Teacher',
-        schoolCode: 'DUMMYSC',
-        schoolName: 'Dummy School of Excellence',
-        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
+        schoolCode: stAntonySchoolDetails.schoolCode,
+        schoolName: stAntonySchoolDetails.schoolName,
+        schoolAddress: stAntonySchoolDetails.schoolAddress,
         designation: 'Subject Teacher',
-        class: 'Various Classes', // Example
+        class: 'Various Classes', 
         profilePictureUrl: 'https://picsum.photos/100/100?random=teacherdummy',
     };
     
-    const dummySchoolStudent: User = {
+    const dummyStudent: User = {
         id: 'student-dummysc-001',
-        name: 'Dummy Student',
+        name: 'Dummy Student (St. Antony)',
         email: 'dummy.student@assigno.app',
         role: 'Student',
-        schoolCode: 'DUMMYSC',
-        schoolName: 'Dummy School of Excellence',
-        schoolAddress: '123 Dummy Street, Mocksville, Faketown, DS 00000',
-        admissionNumber: 'DUM001',
-        class: 'Grade X',
+        schoolCode: stAntonySchoolDetails.schoolCode,
+        schoolName: stAntonySchoolDetails.schoolName,
+        schoolAddress: stAntonySchoolDetails.schoolAddress,
+        admissionNumber: 'STA001', // Admission number relevant to St. Antony
+        class: 'Grade X (St. Antony)',
         profilePictureUrl: 'https://picsum.photos/100/100?random=studentdummy',
     };
 
-    const defaultInitialUsers = [stAntonyAdmin, dummySchoolAdmin, dummySchoolTeacher, dummySchoolStudent];
+    const defaultInitialUsers = [stAntonyAdmin, dummyAdmin, dummyTeacher, dummyStudent];
 
 
     if (typeof window === 'undefined') {
@@ -92,9 +96,9 @@ function initializeGlobalUsersStore(): User[] {
                     email: typeof u.email === 'string' ? u.email : undefined,
                     phoneNumber: typeof u.phoneNumber === 'string' ? u.phoneNumber : undefined,
                     role: ['Student', 'Teacher', 'Admin'].includes(u.role) ? u.role : 'Student',
-                    schoolCode: String(u.schoolCode || DEFAULT_SCHOOL_CODE),
-                    schoolName: typeof u.schoolName === 'string' ? u.schoolName : "Default School Name",
-                    schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : "Default School Address",
+                    schoolCode: String(u.schoolCode || stAntonySchoolDetails.schoolCode), // Default to St Antony's
+                    schoolName: typeof u.schoolName === 'string' ? u.schoolName : stAntonySchoolDetails.schoolName,
+                    schoolAddress: typeof u.schoolAddress === 'string' ? u.schoolAddress : stAntonySchoolDetails.schoolAddress,
                     profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined,
                     admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
                     class: typeof u.class === 'string' ? u.class : undefined,
@@ -106,6 +110,16 @@ function initializeGlobalUsersStore(): User[] {
                 defaultInitialUsers.forEach(defaultUser => {
                     if (!currentUserIds.has(defaultUser.id)) {
                         users.push(defaultUser);
+                    } else { // If user exists, update its school details if they are not St. Antony's
+                        const index = users.findIndex(u => u.id === defaultUser.id);
+                        if (index !== -1 && users[index].schoolCode !== stAntonySchoolDetails.schoolCode) {
+                            users[index] = {
+                                ...users[index],
+                                schoolCode: stAntonySchoolDetails.schoolCode,
+                                schoolName: stAntonySchoolDetails.schoolName,
+                                schoolAddress: stAntonySchoolDetails.schoolAddress,
+                            };
+                        }
                     }
                 });
 
@@ -165,7 +179,10 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 
 
 export async function ensureMockDataInitialized() {
-    if (!globalThis.mockUsersInitialized_assigno_users) {
+    if (typeof window !== 'undefined' && !globalThis.mockUsersInitialized_assigno_users) {
+        initializeGlobalUsersStore();
+    } else if (typeof window === 'undefined' && !globalThis.mockUsersInitialized_assigno_users) {
+        // For server-side scenarios where it might be called before window is available
         initializeGlobalUsersStore();
     }
 }
@@ -225,8 +242,10 @@ export async function addUser(
         console.log(`[Service:users] Fetched school details for ${userData.schoolCode}: ${schoolName}`);
     } else if (!userData.schoolCode) {
         console.warn("[Service:users] User data missing schoolCode, cannot reliably fetch school details.");
-        schoolName = schoolName || 'Unknown School (No Code Provided)';
-        schoolAddress = schoolAddress || 'N/A (No Code Provided)';
+        const stAntonySchool = await getSchoolDetails("STA987"); // Fallback to St. Antony
+        schoolName = schoolName || stAntonySchool?.schoolName || 'ST.ANTONY SR. SEC SCHOOL';
+        schoolAddress = schoolAddress || stAntonySchool?.address || '456 Church Road, Vatican City, Metropolis, NY 10001';
+        userData.schoolCode = "STA987"; // Assign fallback school code
     }
 
 
@@ -241,16 +260,15 @@ export async function addUser(
         schoolCode: userData.schoolCode,
         schoolName: schoolName,
         schoolAddress: schoolAddress,
-        profilePictureUrl: userData.profilePictureUrl || undefined,
+        profilePictureUrl: userData.profilePictureUrl || `https://picsum.photos/seed/${newUserId}/100/100`, // Default random avatar if none
         admissionNumber: userData.role === 'Student' ? userData.admissionNumber : undefined,
         class: userData.role === 'Student' || (userData.role === 'Teacher' && userData.designation === 'Class Teacher') ? userData.class : (userData.role === 'Teacher' ? userData.class : undefined),
         designation: userData.role === 'Teacher' ? userData.designation : (userData.role === 'Admin' ? 'Administrator' : undefined),
     };
 
     const currentUsers = getMockUsersData();
-    // More robust check for existing user: by ID if provided, or by email/phone within the same schoolCode.
     const existingUserIndex = currentUsers.findIndex(existingUser =>
-        (userData.id && existingUser.id === userData.id) || // If an ID was passed in (e.g. for an update)
+        (userData.id && existingUser.id === userData.id) || 
         (userToProcess.email && existingUser.email && existingUser.email.toLowerCase() === userToProcess.email.toLowerCase() && existingUser.schoolCode === userToProcess.schoolCode) ||
         (userToProcess.phoneNumber && existingUser.phoneNumber === userToProcess.phoneNumber && existingUser.schoolCode === userToProcess.schoolCode)
     );
@@ -262,12 +280,11 @@ export async function addUser(
         console.log("[Service:users] Added mock user:", userToProcess.name, "ID:", userToProcess.id);
         return {...userToProcess};
     } else {
-        // Preserve existing profilePictureUrl if not provided in updates
         const updatedUser = { 
             ...currentUsers[existingUserIndex], 
             ...userToProcess,
-            id: currentUsers[existingUserIndex].id, // Crucially, keep the existing ID if found by email/phone
-            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl
+            id: currentUsers[existingUserIndex].id, 
+            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : (userToProcess.profilePictureUrl || `https://picsum.photos/seed/${currentUsers[existingUserIndex].id}/100/100`)
         };
         currentUsers[existingUserIndex] = updatedUser;
         updateMockUsersData([...currentUsers]);
@@ -302,12 +319,11 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
         return null;
     }
     
-    // Ensure profilePictureUrl is not accidentally cleared if not in updates
     const existingUser = currentUsers[userIndex];
     const updatedUser = { 
       ...existingUser, 
       ...updates,
-      profilePictureUrl: updates.profilePictureUrl === undefined ? existingUser.profilePictureUrl : updates.profilePictureUrl
+      profilePictureUrl: updates.profilePictureUrl === undefined ? existingUser.profilePictureUrl : (updates.profilePictureUrl || `https://picsum.photos/seed/${userId}/100/100`)
     };
     
     currentUsers[userIndex] = updatedUser;
@@ -339,8 +355,8 @@ export async function deleteUser(userId: string): Promise<boolean> {
 export type ExcelUserImport = {
     Name: string;
     'Email or Phone'?: string;
-    Role: 'Student' | 'Teacher'; // Admin role cannot be bulk added via Excel
-    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string; // Allow string for flexibility
+    Role: 'Student' | 'Teacher'; 
+    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string;
     'Class Handling (Teacher Only)'?: string;
     'Admission Number (Student Only)'?: string;
     'Class (Student Only)'?: string;
@@ -369,8 +385,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
 
                 for (const sheetName of sheetNamesToTry) {
                     if (sheetName && workbook.Sheets[sheetName]) {
-                        const worksheet = workbook.Sheets[sheetName];
-                        jsonData.push(...XLSX.utils.sheet_to_json<ExcelUserImport>(worksheet));
+                        jsonData.push(...XLSX.utils.sheet_to_json<ExcelUserImport>(workbook.Sheets[sheetName]));
                         foundSheet = true;
                     }
                 }
@@ -415,7 +430,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             name: row.Name,
                             email: row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
                             phoneNumber: row['Email or Phone'] && !row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
-                            role: row.Role, // Safe cast because we validated above
+                            role: row.Role, 
                             schoolCode: schoolCode,
                         };
                         

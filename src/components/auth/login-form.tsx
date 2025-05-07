@@ -44,7 +44,7 @@ type OtpFormData = z.infer<typeof otpSchema>;
 // Define types for dummy users for quick login
 interface DummyUserCredential {
   label: string;
-  identifier: string; // Email for these dummies
+  identifier: string; 
   note?: string;
 }
 
@@ -55,19 +55,19 @@ const dummyLoginDetails: Record<string, DummyUserCredential> = {
     note: 'School: STA987'
   },
   dummyAdmin: {
-    label: 'Dummy Admin',
+    label: 'Dummy Admin (St. Antony)',
     identifier: 'dummy.admin@assigno.app',
-    note: 'School: DUMMYSC'
+    note: 'School: STA987' // Updated to reflect belonging to St. Antony
   },
   dummyTeacher: {
-    label: 'Dummy Teacher',
+    label: 'Dummy Teacher (St. Antony)',
     identifier: 'dummy.teacher@assigno.app',
-    note: 'School: DUMMYSC'
+    note: 'School: STA987' // Updated to reflect belonging to St. Antony
   },
   dummyStudent: {
-    label: 'Dummy Student',
+    label: 'Dummy Student (St. Antony)',
     identifier: 'dummy.student@assigno.app',
-    note: 'School: DUMMYSC'
+    note: 'School: STA987' // Updated to reflect belonging to St. Antony
   },
 };
 type DummyUserKey = keyof typeof dummyLoginDetails;
@@ -130,7 +130,7 @@ export function LoginForm() {
     try {
       const response = await verifyOTP(identifierValue, data.otp);
       if (response.success && response.user) {
-          await login(response.user); // AuthProvider will redirect
+          await login(response.user); 
           toast({
             title: 'Login Successful',
             description: `Welcome back, ${response.user.name}!`,
@@ -161,7 +161,6 @@ export function LoginForm() {
     }
   };
 
-   // Function to quickly fill form for sample users
   const fillDummyUser = (key: DummyUserKey) => {
      loginForm.setValue('identifier', dummyLoginDetails[key].identifier);
   }
