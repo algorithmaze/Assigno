@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -18,8 +17,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users } from 'lucide-react';
-import { sendOTP, verifyOTP } from '@/services/otp';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users, ShieldAlert } from 'lucide-react';
+import { sendOTP, verifyOTP, DEFAULT_TEST_OTP } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -39,6 +38,8 @@ const otpSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
+
+const TEST_ADMIN_EMAIL = "admin@assigno.test";
 
 
 export function LoginForm() {
@@ -64,39 +65,10 @@ export function LoginForm() {
     },
   });
 
-  const handleLoginSubmit = async (data: LoginFormData) => {
-    const isResend = otpSent;
-    if (!isResend) setIsLoading(true);
-    else setIsResendingOtp(true);
-
-    try {
-      await sendOTP(data.identifier);
-      setIdentifierValue(data.identifier);
-      setOtpSent(true);
-      toast({
-        title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "000000" or check browser console).`,
-        duration: 7000,
-      });
-      otpForm.clearErrors('otp');
-      otpForm.resetField('otp');
-    } catch (error) {
-      console.error('Error sending OTP:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to send OTP. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-       if (!isResend) setIsLoading(false);
-       else setIsResendingOtp(false);
-    }
-  };
-
-  const handleOtpSubmit = async (data: OtpFormData) => {
+  const verifyAndLogin = async (identifier: string, otp: string) => {
     setIsLoading(true);
     try {
-      const response = await verifyOTP(identifierValue, data.otp);
+      const response = await verifyOTP(identifier, otp);
       if (response.success && response.user) {
           await login(response.user); 
           toast({
@@ -110,6 +82,7 @@ export function LoginForm() {
           description: 'OTP is correct, but no user account is associated with this identifier. Please ensure you have signed up.',
           variant: 'destructive',
         });
+         setOtpSent(false); // Go back to identifier step if user not found
       } else {
         toast({
           title: 'Invalid OTP',
@@ -128,6 +101,65 @@ export function LoginForm() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+
+  const handleLoginSubmit = async (data: LoginFormData) => {
+    if (data.identifier === TEST_ADMIN_EMAIL) {
+      setIsLoading(true);
+      setIdentifierValue(data.identifier);
+      toast({
+        title: 'Admin Test Login',
+        description: `Bypassing OTP entry for ${TEST_ADMIN_EMAIL}. Auto-verifying with default OTP...`,
+        duration: 5000,
+      });
+      // Simulate OTP being sent and immediately verify with the default OTP
+      try {
+        await sendOTP(data.identifier); // This will log the OTP and store it in mockOtpStore
+        // No need to setOtpSent(true) as we are bypassing the form
+        await verifyAndLogin(data.identifier, DEFAULT_TEST_OTP);
+      } catch (error) {
+        console.error('Error during admin test login bypass:', error);
+        toast({
+          title: 'Admin Login Error',
+          description: 'Failed to complete admin test login.',
+          variant: 'destructive',
+        });
+         setIsLoading(false);
+      }
+      return; // End execution for admin bypass
+    }
+
+    const isResend = otpSent;
+    if (!isResend) setIsLoading(true);
+    else setIsResendingOtp(true);
+
+    try {
+      await sendOTP(data.identifier);
+      setIdentifierValue(data.identifier);
+      setOtpSent(true);
+      toast({
+        title: isResend ? 'OTP Resent' : 'OTP Sent',
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`,
+        duration: 7000,
+      });
+      otpForm.clearErrors('otp');
+      otpForm.resetField('otp');
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send OTP. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+       if (!isResend) setIsLoading(false);
+       else setIsResendingOtp(false);
+    }
+  };
+
+  const handleOtpSubmit = async (data: OtpFormData) => {
+    await verifyAndLogin(identifierValue, data.otp);
   };
 
 
@@ -158,7 +190,8 @@ export function LoginForm() {
                         </div>
                     </FormControl>
                     <FormDescription id="identifier-description">
-                        Enter your registered credential to receive an OTP. (MOCK: Use OTP "000000" or check console).
+                        Enter your registered credential to receive an OTP. 
+                        (Admin Test Email: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_ADMIN_EMAIL}</code> for OTP bypass. Others: Use OTP "{DEFAULT_TEST_OTP}" or check console).
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -166,7 +199,7 @@ export function LoginForm() {
                 />
                 <Button type="submit" className="w-full py-6 text-base" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <KeyRound className="mr-2 h-5 w-5" />}
-                Send OTP
+                Send OTP / Login
                 </Button>
             </form>
             </Form>
@@ -178,7 +211,7 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                (MOCK: Use OTP "000000" or check browser console).
+                (MOCK: Use OTP "{DEFAULT_TEST_OTP}" or check browser console).
                 </p>
             </div>
             <Form {...otpForm}>
