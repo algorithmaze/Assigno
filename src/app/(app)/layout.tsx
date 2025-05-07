@@ -9,11 +9,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <Sidebar>
          <AppSidebar />
       </Sidebar>
-      <SidebarInset>
+      {/* SidebarInset is the main content area, it renders a <main> tag and handles flex layout */}
+      <SidebarInset> 
         <AppHeader />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+        {/* This div is for the scrollable content within the main area */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
             {children}
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
