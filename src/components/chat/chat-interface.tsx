@@ -266,8 +266,8 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   return (
     <div className="flex h-full flex-col bg-card border rounded-lg shadow-md overflow-hidden">
       <div className="p-2 sm:p-3 border-b bg-background sticky top-0 z-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 items-center gap-2">
-            <div className="relative w-full col-span-1 sm:col-span-2 md:col-span-1">
+        <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-grow min-w-[200px]">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 text-muted-foreground -translate-y-1/2" />
                 <Input
                     type="search"
@@ -278,7 +278,7 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 />
             </div>
             
-            <div className="w-full">
+            <div className="min-w-[150px]">
                 <Label htmlFor="filter-type" className="sr-only">Filter by Type</Label>
                 <Select value={filterMessageType} onValueChange={(value) => setFilterMessageType(value as MessageTypeFilter)}>
                     <SelectTrigger id="filter-type" className="h-9 text-xs sm:text-sm w-full">
@@ -294,25 +294,25 @@ export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
                 </Select>
             </div>
             
-            <div className="w-full">
-                    <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
-                    <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
-                    <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
-                        <SelectValue placeholder="Filter by Sender" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Senders</SelectItem>
-                        {groupSenders
-                            .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') 
-                            .map(sender => (
-                            <SelectItem key={sender.id} value={sender.id}>
-                                {sender.name} ({sender.role})
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <div className="min-w-[180px]">
+                <Label htmlFor="filter-sender" className="sr-only">Filter by Sender</Label>
+                <Select value={filterSenderId} onValueChange={(value) => setFilterSenderId(value as SenderIdFilter)}>
+                <SelectTrigger id="filter-sender" className="h-9 text-xs sm:text-sm w-full">
+                    <SelectValue placeholder="Filter by Sender" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Senders</SelectItem>
+                    {groupSenders
+                        .filter(sender => sender.role === 'Teacher' || sender.role === 'Admin') 
+                        .map(sender => (
+                        <SelectItem key={sender.id} value={sender.id}>
+                            {sender.name} ({sender.role})
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
             </div>
-            <div className="w-full">
+            <div className="min-w-[180px]">
                  <Popover>
                     <PopoverTrigger asChild>
                         <Button
@@ -843,4 +843,5 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
 
 
     
+
 
