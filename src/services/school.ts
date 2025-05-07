@@ -40,20 +40,29 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v8_no_dummies'; // Incremented version
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v9_default_school'; // Incremented version
 
+const DEFAULT_TEST_SCHOOL: SchoolDetails = {
+  schoolCode: "KV5287",
+  schoolName: "Kendriya Vidyalaya Test School",
+  instituteType: "School",
+  address: "Knowledge Park III",
+  city: "Test City",
+  state: "Test State",
+  pincode: "123456",
+  contactNumber: "+919999988888",
+  adminEmail: "admin@assigno.test", // For OTP bypass login
+  registrationDate: new Date("2024-01-01T10:00:00.000Z").toISOString(),
+};
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
-  // No default schools are pre-defined anymore.
-  // All schools will come from institute registration or localStorage.
-  const defaultInitialSchools: SchoolDetails[] = [];
-
+  
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [...defaultInitialSchools.map(s => ({...s}))];
+        globalThis.mockRegisteredInstitutes_assigno_school_list = [{...DEFAULT_TEST_SCHOOL}];
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST (empty by default).");
+        console.log("[Service:school] Server-side: Initialized global institutes LIST with default test school.");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -69,26 +78,22 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
       const institutesListFromStorage = JSON.parse(storedData) as SchoolDetails[];
       finalInstitutesList = [...institutesListFromStorage];
       
-      // Merging logic with an empty defaultInitialSchools will effectively do nothing,
-      // which is fine as we only want data from localStorage if it exists.
-      defaultInitialSchools.forEach(defaultSchool => {
-        const existingIndex = finalInstitutesList.findIndex(s => s.schoolCode === defaultSchool.schoolCode);
-        if (existingIndex !== -1) {
-            finalInstitutesList[existingIndex] = {...defaultSchool};
-        } else {
-            finalInstitutesList.push({...defaultSchool});
-        }
-      });
+      // Ensure default test school is present
+      const defaultSchoolExists = finalInstitutesList.some(s => s.schoolCode === DEFAULT_TEST_SCHOOL.schoolCode);
+      if (!defaultSchoolExists) {
+        finalInstitutesList.push({...DEFAULT_TEST_SCHOOL});
+        console.log("[Service:school] Default test school added to list from localStorage.");
+      }
       
       console.log("[Service:school] Initialized global institutes LIST from localStorage:", finalInstitutesList.length, "institutes loaded.");
     } else {
-        finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))]; // Will be empty initially
-        console.log("[Service:school] Initialized new global institutes LIST (localStorage was empty).");
+        finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}]; 
+        console.log("[Service:school] Initialized new global institutes LIST with default test school (localStorage was empty).");
     }
   } catch (error) {
-    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing as empty:", error);
+    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with default:", error);
     localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY); 
-    finalInstitutesList = [...defaultInitialSchools.map(s => ({...s}))]; // Will be empty
+    finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}]; 
   }
   
   globalThis.mockRegisteredInstitutes_assigno_school_list = finalInstitutesList;
@@ -148,6 +153,7 @@ function generateSchoolCode(instituteName: string): string {
   }
   if (attempts >= 20) {
     console.warn("High attempts for school code uniqueness for mock. Consider a more robust generation if this persists.");
+    // Fallback to longer random part if collisions persist
     schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     if(existingCodes.has(schoolCode)) schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`; 
   }
@@ -166,10 +172,11 @@ export async function registerInstitute(
     console.warn(`[Service:school] Registration failed: Admin email ${input.adminEmail} already exists.`);
     return { success: false, message: 'An institute with this admin email is already registered.' };
   }
-  if (existingInstitutes.some(inst => inst.schoolName.toLowerCase() === input.instituteName.toLowerCase())) {
-    console.warn(`[Service:school] Registration failed: Institute name ${input.instituteName} already exists.`);
-    return { success: false, message: 'An institute with this name is already registered.' };
-  }
+  // Allow same institute name, but admin email must be unique.
+  // if (existingInstitutes.some(inst => inst.schoolName.toLowerCase() === input.instituteName.toLowerCase())) {
+  //   console.warn(`[Service:school] Registration failed: Institute name ${input.instituteName} already exists.`);
+  //   return { success: false, message: 'An institute with this name is already registered.' };
+  // }
 
 
   const schoolCode = generateSchoolCode(input.instituteName);
@@ -215,6 +222,8 @@ export async function registerInstitute(
 
   } catch (userError: any) {
     console.error('[Service:school] Failed to create admin user for new institute:', userError);
+    // Rollback school registration if admin creation fails? For mock, maybe not critical.
+    // For production, transactional behavior would be needed.
     return { success: true, schoolCode, message: `Institute registered, but admin user creation failed: ${userError.message}. Please try signup manually.` };
   }
 }
@@ -252,7 +261,9 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
   const updatedInstitutesList = institutesList.map(school => {
     if (school.schoolCode === targetSchoolCode) {
       schoolFoundAndUpdated = true;
-      const updatedSchool = { ...school, ...updatedDetailsInput, schoolCode: targetSchoolCode };
+      // Ensure only allowed fields are updated and schoolCode itself is not changed via this route
+      const { schoolCode, registrationDate, ...updatableFields } = updatedDetailsInput;
+      const updatedSchool = { ...school, ...updatableFields };
       return updatedSchool;
     }
     return school;

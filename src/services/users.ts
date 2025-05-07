@@ -1,6 +1,6 @@
 
 import type { User } from '@/context/auth-context';
-import { getSchoolDetails } from './school';
+import { getSchoolDetails } from './school'; // Import to get school details for consistency
 import * as XLSX from 'xlsx';
 
 // Use a global variable for mock data in non-production environments
@@ -9,26 +9,38 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v16_no_dummies_strict'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v17_default_admin'; // Incremented version
+
+// Default admin user for OTP bypass, linked to the default test school
+const DEFAULT_ADMIN_USER_FOR_OTP_BYPASS: User = {
+  id: 'admin-kv5287-test',
+  name: 'KV Test Admin',
+  email: 'admin@assigno.test', // Matches OTP bypass email
+  role: 'Admin',
+  schoolCode: 'KV5287', // Matches default test school code
+  schoolName: 'Kendriya Vidyalaya Test School', // Matches default test school name
+  schoolAddress: 'Knowledge Park III, Test City, Test State 123456', // Matches default test school address
+  designation: 'Administrator',
+  profilePictureUrl: 'https://picsum.photos/100/100?random=kvadmin',
+};
 
 
 // Defines the default set of users. This is the source of truth for these specific users.
 function getDefaultInitialUsers(): User[] {
-    // No default dummy users are created here anymore.
-    // Institute registration will create the first admin user for that institute.
-    // Other users are added via admin panel or signup.
-    return [];
+    return [
+      {...DEFAULT_ADMIN_USER_FOR_OTP_BYPASS}
+    ];
 }
 
 
 function initializeGlobalUsersStore(): User[] {
-    const defaultInitialUsers = getDefaultInitialUsers(); // Will be an empty array now
+    const defaultInitialUsers = getDefaultInitialUsers(); 
 
     if (typeof window === 'undefined') {
-        const serverInitialUsers: User[] = [...defaultInitialUsers];
+        const serverInitialUsers: User[] = [...defaultInitialUsers.map(u => ({...u}))];
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store (empty by default).");
+        console.log("[Service:users] Server-side: Initialized global users store with default admin.");
         return serverInitialUsers;
     }
 
@@ -63,17 +75,26 @@ function initializeGlobalUsersStore(): User[] {
                     };
                 });
                 finalUserList = [...usersFromStorage];
+
+                // Ensure default admin user is present
+                const defaultAdminExists = finalUserList.some(
+                  u => u.email === DEFAULT_ADMIN_USER_FOR_OTP_BYPASS.email && u.schoolCode === DEFAULT_ADMIN_USER_FOR_OTP_BYPASS.schoolCode
+                );
+                if (!defaultAdminExists) {
+                  finalUserList.push({...DEFAULT_ADMIN_USER_FOR_OTP_BYPASS});
+                  console.log("[Service:users] Default admin user added to list from localStorage.");
+                }
                 console.log("[Service:users] Client-side: Initialized global users store from localStorage.", finalUserList.length, "users loaded.");
             } else {
-                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing as empty.");
+                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");
                  finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
             }
         } else {
              finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
-             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store (empty).");
+             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store with defaults.");
         }
     } catch (error) {
-        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing as empty:", error);
+        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
         localStorage.removeItem(USERS_STORAGE_KEY); 
         finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
     }
@@ -208,11 +229,12 @@ export async function addUser(
         currentUsers = [...currentUsers, finalUser];
         console.log("[Service:users] Added mock user:", finalUser.name, "ID:", finalUser.id);
     } else {
+        // Preserve existing ID and profile picture if not explicitly provided in updates
         const updatedUser = { 
             ...currentUsers[existingUserIndex], 
             ...userToProcess, 
             id: currentUsers[existingUserIndex].id, 
-            profilePictureUrl: userToProcess.profilePictureUrl, 
+            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl, 
         };
         currentUsers[existingUserIndex] = updatedUser;
         finalUser = {...updatedUser};
@@ -249,14 +271,16 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     const existingUser = currentUsers[userIndex];
     let newProfilePictureUrl = updates.profilePictureUrl;
 
+    // If profilePictureUrl is explicitly set to null or a new string, use it.
+    // If it's undefined in updates, keep the existing one.
     if (updates.profilePictureUrl === undefined) { 
         newProfilePictureUrl = existingUser.profilePictureUrl; 
     }
 
     const updatedUser = { 
       ...existingUser, 
-      ...updates,
-      profilePictureUrl: newProfilePictureUrl
+      ...updates, // Apply all updates
+      profilePictureUrl: newProfilePictureUrl // Ensure profilePictureUrl logic is correctly applied
     };
     
     currentUsers[userIndex] = updatedUser;
@@ -324,13 +348,13 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                 
                 if (!foundSheet) {
                     errors.push("Excel file is empty or has no data in the expected sheets (Teachers_Template, Students_Template, Existing_Staff, Existing_Students or first sheet).");
-                    errorCount = 1;
+                    errorCount = 1; // Or jsonData.length if you consider all rows failed due to no sheet
                     resolve({ successCount, errorCount, errors });
                     return;
                 }
                 if (jsonData.length === 0 && foundSheet){
                      errors.push("Found expected sheet(s), but they contained no data rows.");
-                     errorCount = 1;
+                     errorCount = 1; // No rows to process means 1 structural error
                      resolve({ successCount, errorCount, errors });
                      return;
                 }
@@ -339,7 +363,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                 if (!schoolDetails) {
                      errors.push(`Invalid school code "${schoolCode}" provided for bulk import.`);
                      jsonData.forEach(row => errors.push(`Skipping row for "${row.Name || 'N/A'}": Invalid school code.`));
-                     errorCount = jsonData.length;
+                     errorCount += jsonData.length; // All rows fail due to invalid school code
                      resolve({ successCount, errorCount, errors });
                      return;
                 }
@@ -381,7 +405,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                                 continue;
                             }
                             baseUser.designation = row['Designation (Teacher Only)'] as 'Class Teacher' | 'Subject Teacher';
-                            baseUser.class = row['Class Handling (Teacher Only)'];
+                            baseUser.class = row['Class Handling (Teacher Only)']; // Can be multiple, comma-separated
                         } else if (row.Role === 'Student') {
                             if(!row['Admission Number (Student Only)'] || !row['Class (Student Only)']){
                                  errors.push(`Skipping Student "${row.Name}": Missing "Admission Number (Student Only)" or "Class (Student Only)".`);
@@ -412,3 +436,4 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
+
