@@ -46,7 +46,7 @@ interface ChatInterfaceProps {
 type MessageTypeFilter = Message['type'] | 'all';
 type SenderIdFilter = AuthUserType['id'] | 'all'; 
 
-const POLLING_INTERVAL = 7000; // Increased polling interval for less frequent updates
+const POLLING_INTERVAL = 7000; 
 
 export function ChatInterface({ groupId, groupSenders }: ChatInterfaceProps) {
   const [messages, setMessages] = React.useState<Message[]>([]);
@@ -627,12 +627,12 @@ function CreatePollDialog({ onSendPoll, disabled }: CreatePollDialogProps) {
   };
 
   React.useEffect(() => {
-    if (isOpen && pollDialogScrollAreaRef.current) {
-        const viewport = pollDialogScrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+    if (isOpen && pollDialogScrollAreaRef.current && questions.length > 0) {
+        const viewport = pollDialogScrollAreaRef.current.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
         if (viewport) {
             setTimeout(() => { // Use timeout to ensure DOM update and scrollHeight calculation
                 viewport.scrollTop = viewport.scrollHeight;
-            }, 0);
+            }, 100); // Increased timeout for better reliability
         }
     }
   }, [questions.length, isOpen]);
@@ -929,12 +929,12 @@ function PublishPollResultDialog({ pollMessage, isOpen, onClose, onConfirmPublis
 
     // Scroll to bottom when new questions are added or dialog opens
     React.useEffect(() => {
-        if (isOpen && publishDialogScrollAreaRef.current) {
-            const viewport = publishDialogScrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (isOpen && publishDialogScrollAreaRef.current && pollMessage.pollData?.questions.length) {
+            const viewport = publishDialogScrollAreaRef.current.querySelector<HTMLElement>('[data-radix-scroll-area-viewport]');
             if (viewport) {
                 setTimeout(() => { // Ensure DOM update
                     viewport.scrollTop = viewport.scrollHeight;
-                }, 0);
+                }, 100); // Increased timeout for better reliability
             }
         }
     }, [isOpen, pollMessage.pollData?.questions.length]);
