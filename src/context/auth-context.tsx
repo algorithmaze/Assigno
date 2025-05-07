@@ -38,8 +38,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // TODO: Firebase - If using Firebase Auth, localStorage might not be needed for the primary user object,
 // as Firebase Auth SDK handles session persistence. You'd still store app-specific user details from Firestore.
 const AUTH_STORAGE_KEY = 'assigno_user_details'; // Changed key to reflect it's app user details
-const AUTH_PROTECTED_ROUTES_PREFIX = '/';
-const AUTH_PUBLIC_ROUTES = ['/login', '/signup'];
+const AUTH_PROTECTED_ROUTES_PREFIX = '/'; // Base for app routes, actual check is more specific
+const AUTH_PUBLIC_ROUTES = ['/login', '/signup']; // Explicitly public auth routes
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -90,14 +90,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const isPublicRoute = AUTH_PUBLIC_ROUTES.includes(pathname);
-    const isAppRoute = pathname.startsWith(AUTH_PROTECTED_ROUTES_PREFIX) && !isPublicRoute;
+    // Define which routes are considered public or semi-public
+    const isLoginOrSignup = AUTH_PUBLIC_ROUTES.includes(pathname);
+    const isInstituteRegistration = pathname === '/institute-registration';
+    const isRootPath = pathname === '/';
+    
+    // A route is considered public if it's login, signup, institute registration, or the root landing page.
+    const isGenerallyPublicRoute = isLoginOrSignup || isInstituteRegistration || isRootPath;
+
+    // An app route is anything not generally public and typically starts with a common prefix (though here we check by exclusion)
+    // Example: /dashboard, /profile, /groups/* are app routes.
+    const isAppRoute = !isGenerallyPublicRoute;
+
 
     if (!user && isAppRoute) {
+      // If not logged in and trying to access a protected app route, redirect to login.
+      console.log(`User not logged in, accessing app route ${pathname}, redirecting to /login`);
       router.replace('/login');
-    } else if (user && isPublicRoute) {
+    } else if (user && (isLoginOrSignup || isRootPath)) {
+       // If user is logged in and on login, signup, or root page, redirect to dashboard.
+       console.log(`User is logged in and on public route ${pathname} (login/signup/root), redirecting to /dashboard`);
        router.replace('/dashboard');
     }
+    // Note: We are NOT redirecting logged-in users away from /institute-registration here.
+    // This allows a logged-in user (e.g., an admin) to access the institute registration form.
+    
   }, [user, loading, pathname, router]);
 
 
@@ -177,3 +194,4 @@ export function useAuth() {
 //   }
 //   return null;
 // }
+
