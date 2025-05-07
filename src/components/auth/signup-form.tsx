@@ -1,4 +1,5 @@
 
+
 'use client';
 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
@@ -246,7 +247,7 @@ export function SignupForm() {
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
              <p className="text-sm text-muted-foreground">
-              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}. (MOCK: Check console)
+              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}. (MOCK: Check console for OTP)
             </p>
             <FormField
               control={step2Form.control}
@@ -365,3 +366,4 @@ export function SignupForm() {
     </>
   );
 }
+
