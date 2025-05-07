@@ -12,106 +12,8 @@ import * as XLSX from 'xlsx';
 const SCHOOL_CODE = 'samp123';
 const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random=';
 
-export const sampleCredentials = {
-    adminAntony: {
-        id: 'admin-antony-001',
-        name: 'Antony Admin',
-        identifier: 'antony@school.com',
-        email: 'antony@school.com',
-        phoneNumber: undefined,
-        role: 'Admin' as 'Admin',
-        otp: '000000',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}adminantony001`,
-        admissionNumber: undefined,
-        class: undefined,
-        designation: 'Administrator' as 'Administrator', // Explicitly Admin designation
-     },
-    teacherZara: {
-        id: 'teacher-zara-001',
-        name: 'Zara Teacher',
-        identifier: 'zara@school.com',
-        email: 'zara@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '111111',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherzara001`,
-        admissionNumber: undefined,
-        class: 'Class 10A',
-        designation: 'Class Teacher' as 'Class Teacher',
-     },
-    teacherLeo: {
-        id: 'teacher-leo-002',
-        name: 'Leo Teacher',
-        identifier: 'leo@school.com',
-        email: 'leo@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '222222',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teacherleo002`,
-        admissionNumber: undefined,
-        class: 'Class 9B, Class 10B',
-        designation: 'Subject Teacher' as 'Subject Teacher',
-     },
-    studentMia: {
-        id: 'student-mia-001',
-        name: 'Mia Student',
-        identifier: 'mia@school.com',
-        email: 'mia@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '333333',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentmia001`,
-        admissionNumber: 'SAMP9001',
-        class: 'Class 8A',
-        designation: undefined,
-     },
-    studentOmar: {
-        id: 'student-omar-002',
-        name: 'Omar Student',
-        identifier: 'omar@school.com',
-        email: 'omar@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '444444',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentomar002`,
-        admissionNumber: 'SAMP9002',
-        class: 'Class 7C',
-        designation: undefined,
-     },
-     teacherEva: {
-        id: 'teacher-eva-003',
-        name: 'Eva Teacher',
-        identifier: 'eva@school.com',
-        email: 'eva@school.com',
-        phoneNumber: undefined,
-        role: 'Teacher' as 'Teacher',
-        otp: '555555',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}teachereva003`,
-        admissionNumber: undefined,
-        class: 'Class 11 Science',
-        designation: 'Class Teacher' as 'Class Teacher',
-    },
-    studentKen: {
-        id: 'student-ken-003',
-        name: 'Ken Student',
-        identifier: 'ken@school.com',
-        email: 'ken@school.com',
-        phoneNumber: undefined,
-        role: 'Student' as 'Student',
-        otp: '666666',
-        schoolCode: SCHOOL_CODE,
-        profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}studentken003`,
-        admissionNumber: 'SAMP9003',
-        class: 'Class 6B',
-        designation: undefined,
-    },
-};
+// Removed sampleCredentials object
+// export const sampleCredentials = { ... };
 
 
 // Use a global variable for mock data in non-production environments
@@ -120,11 +22,11 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v3'; 
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v4_no_dummy'; // Incremented version and indicating no dummy
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
-        return []; 
+        return [];
     }
     if (globalThis.mockUsersData_assigno_users && globalThis.mockUsersInitialized_assigno_users) {
         return globalThis.mockUsersData_assigno_users;
@@ -153,41 +55,20 @@ function initializeGlobalUsersStore(): User[] {
                 console.log("[Service:users] Initialized global users store from localStorage.", users.length, "users loaded.");
                 return users;
             } else {
-                 console.warn("[Service:users] localStorage data is not an array. Initializing with sample credentials.");
+                 console.warn("[Service:users] localStorage data is not an array. Initializing with an empty array.");
             }
         }
     } catch (error) {
-        console.error("[Service:users] Error reading/parsing users from localStorage. Initializing with sample credentials:", error);
-        // Clear potentially corrupted data
+        console.error("[Service:users] Error reading/parsing users from localStorage. Initializing with an empty array:", error);
         localStorage.removeItem(USERS_STORAGE_KEY);
     }
 
-    const safeSampleCredentials = sampleCredentials || {};
-    const initialUsers = Object.values(safeSampleCredentials).map(cred => {
-        if (!cred || typeof cred.id === 'undefined' || typeof cred.name === 'undefined' || typeof cred.role === 'undefined' || typeof cred.schoolCode === 'undefined') {
-            console.warn("[Service:users] Malformed or incomplete credential in sampleCredentials, skipping:", cred);
-            return null; 
-        }
-        return {
-            id: cred.id,
-            name: cred.name,
-            email: cred.email,
-            phoneNumber: cred.phoneNumber,
-            role: cred.role,
-            schoolCode: cred.schoolCode,
-            schoolName: "Sample Sr. Sec. School", 
-            schoolAddress: "456 School Road, Testville", 
-            profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
-            admissionNumber: cred.admissionNumber,
-            class: cred.class,
-            designation: cred.designation,
-        };
-    }).filter(user => user !== null) as User[];
+    const initialUsers: User[] = []; // Initialize with empty array
     
     globalThis.mockUsersData_assigno_users = initialUsers;
     globalThis.mockUsersInitialized_assigno_users = true;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(initialUsers));
-    console.log("[Service:users] Initialized new global users store with sample credentials and saved to localStorage.");
+    console.log("[Service:users] Initialized new empty global users store and saved to localStorage.");
     return initialUsers;
 }
 
@@ -233,32 +114,12 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 function ensureMockDataInitialized_server() {
     if (globalThis.mockUsersInitialized_assigno_users) return;
 
-    console.log("[Service:users] Server-side ensureMockDataInitialized_server: Initializing mock users store.");
-    const safeSampleCredentials = sampleCredentials || {};
-    const initialUsers = Object.values(safeSampleCredentials).map(cred => {
-        if (!cred || typeof cred.id !== 'string' || typeof cred.name !== 'string' || typeof cred.role !== 'string' || typeof cred.schoolCode !== 'string') {
-            console.warn("[Service:users] Server-init: Malformed credential, skipping:", cred);
-            return null;
-        }
-        return {
-            id: cred.id,
-            name: cred.name,
-            email: typeof cred.email === 'string' ? cred.email : undefined,
-            phoneNumber: typeof cred.phoneNumber === 'string' ? cred.phoneNumber : undefined,
-            role: cred.role as User['role'],
-            schoolCode: cred.schoolCode,
-            schoolName: "Sample Sr. Sec. School",
-            schoolAddress: "456 School Road, Testville",
-            profilePictureUrl: typeof cred.profilePictureUrl === 'string' ? cred.profilePictureUrl : `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
-            admissionNumber: typeof cred.admissionNumber === 'string' ? cred.admissionNumber : undefined,
-            class: typeof cred.class === 'string' ? cred.class : undefined,
-            designation: typeof cred.designation === 'string' ? cred.designation : undefined,
-        };
-    }).filter(user => user !== null) as User[];
+    console.log("[Service:users] Server-side ensureMockDataInitialized_server: Initializing mock users store as empty.");
+    const initialUsers: User[] = []; // Initialize with empty array
 
     globalThis.mockUsersData_assigno_users = initialUsers;
     globalThis.mockUsersInitialized_assigno_users = true;
-    console.log("[Service:users] Initialized global users store with sample credentials for server context. Count:", initialUsers.length);
+    console.log("[Service:users] Initialized empty global users store for server context. Count:", initialUsers.length);
 }
 
 
@@ -270,8 +131,6 @@ export async function ensureMockDataInitialized() {
             initializeGlobalUsersStore(); 
         }
     }
-    // For production client-side, data should be loaded from actual DB, not localStorage primarily.
-    // The check inside getMockUsersData will handle initial localStorage load if it exists.
 }
 
 
@@ -476,9 +335,6 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             continue;
                         }
                          if (row.Role !== 'Student' && row.Role !== 'Teacher') {
-                            // Admins are typically not bulk-added or managed this way. They are special users.
-                            // If an 'Admin' role is in the Excel, we skip it for bulk *addition*.
-                            // Existing admins might be updated if an ID match happens in addUser, but new admins aren't created via bulk.
                             errors.push(`Skipping row for "${row.Name}": Invalid Role "${row.Role}" for bulk addition. Only 'Student' or 'Teacher' can be bulk added.`);
                             errorCount++;
                             continue;
@@ -535,4 +391,3 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
-

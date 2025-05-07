@@ -18,14 +18,14 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, Users, UserCheck, CornerDownLeft, Info } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Info } from 'lucide-react'; // Removed Users icon
 import { sendOTP, verifyOTP } from '@/services/otp'; 
-import { sampleCredentials } from '@/services/users'; // Corrected import path
+// import { sampleCredentials } from '@/services/users'; // Removed import
 import type { User } from '@/context/auth-context'; 
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+// import { Separator } from '@/components/ui/separator'; // Not needed if Quick Logins removed
+// import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Not needed if OTP hints removed
 
 const loginSchema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
@@ -38,16 +38,14 @@ const otpSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
-type SampleUserKey = keyof typeof sampleCredentials;
-type SampleCredentialType = typeof sampleCredentials[SampleUserKey];
-
+// Removed SampleUserKey and SampleCredentialType types
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
   const [identifierValue, setIdentifierValue] = React.useState(''); 
-  const [currentSampleUser, setCurrentSampleUser] = React.useState<SampleCredentialType | null>(null);
+  // const [currentSampleUser, setCurrentSampleUser] = React.useState<SampleCredentialType | null>(null); // Removed
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -76,12 +74,10 @@ export function LoginForm() {
       setIdentifierValue(data.identifier);
       setOtpSent(true); 
 
-      const matchedSampleUser = Object.values(sampleCredentials).find(cred => cred.identifier.toLowerCase() === data.identifier.toLowerCase());
-      setCurrentSampleUser(matchedSampleUser || null);
-
+      // Removed logic for matchedSampleUser and OTP hints
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. ${matchedSampleUser ? `(For ${matchedSampleUser.name}, use OTP: ${matchedSampleUser.otp})` : '(Use a generic OTP for other identifiers or check console).'}`,
+        description: `An OTP has been sent to ${data.identifier}.`,
       });
       otpForm.clearErrors('otp');
       otpForm.resetField('otp'); 
@@ -129,35 +125,9 @@ export function LoginForm() {
     }
   };
 
-  const fillSampleUser = (roleKey: SampleUserKey) => {
-    const userCred = sampleCredentials[roleKey];
-    if (userCred) {
-      loginForm.setValue('identifier', userCred.identifier);
-      setCurrentSampleUser(userCred); // Set this state so the OTP hint shows
-    } else {
-      toast({
-        title: "Sample User Not Configured",
-        description: `Quick login for '${roleKey}' role is not set up correctly.`,
-        variant: "destructive"
-      });
-    }
-  }
+  // Removed fillSampleUser function
 
-  // Update currentSampleUser if identifier changes manually
-  React.useEffect(() => {
-    const currentIdentifier = loginForm.getValues('identifier');
-    if (otpSent) return; // Don't change if OTP already sent for a different identifier
-
-    if (currentIdentifier) {
-        const matchedUser = Object.values(sampleCredentials).find(
-            (cred) => cred.identifier.toLowerCase() === currentIdentifier.toLowerCase()
-        );
-        setCurrentSampleUser(matchedUser || null);
-    } else {
-        setCurrentSampleUser(null);
-    }
-  }, [loginForm.watch('identifier'), otpSent, loginForm]);
-
+  // Removed useEffect for currentSampleUser
 
   return (
     <div className="space-y-6">
@@ -194,35 +164,7 @@ export function LoginForm() {
             </form>
             </Form>
             
-            <Separator />
-
-            <div className="space-y-3 text-center">
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Users className="h-4 w-4"/>Quick Logins (Demo Users)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {(Object.keys(sampleCredentials) as SampleUserKey[]).map((key) => (
-                        <Button 
-                            key={key}
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => fillSampleUser(key)}
-                            className="py-3 text-xs sm:text-sm"
-                        >
-                           {sampleCredentials[key].name.split(' ')[0]} ({sampleCredentials[key].role})
-                        </Button>
-                    ))}
-                </div>
-                 {currentSampleUser && (
-                    <Alert variant="default" className="mt-4 text-left text-sm">
-                        <Info className="h-4 w-4" />
-                        <AlertTitle>Demo User: {currentSampleUser.name}</AlertTitle>
-                        <AlertDescription>
-                            Identifier <code className="bg-muted px-1 rounded">{currentSampleUser.identifier}</code> is ready.
-                            <br />
-                            Click "Send OTP" then use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
-                        </AlertDescription>
-                    </Alert>
-                 )}
-            </div>
+            {/* Removed Quick Logins section */}
          </>
       ) : (
         <div className="space-y-6">
@@ -232,15 +174,7 @@ export function LoginForm() {
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
                 </p>
             </div>
-            {currentSampleUser && ( // Show OTP hint on OTP screen if it's a sample user
-                 <Alert variant="default" className="text-sm">
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Demo User: {currentSampleUser.name}</AlertTitle>
-                    <AlertDescription>
-                        Use OTP: <strong className="text-primary">{currentSampleUser.otp}</strong>
-                    </AlertDescription>
-                </Alert>
-            )}
+            {/* Removed OTP hint Alert for sample users */}
             <Form {...otpForm}>
             <form onSubmit={otpForm.handleSubmit(handleOtpSubmit)} className="space-y-6">
                 <FormField
@@ -273,7 +207,7 @@ export function LoginForm() {
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => { setOtpSent(false); setCurrentSampleUser(null); /* Keep loginForm identifier */ }} 
+                        onClick={() => { setOtpSent(false); /* Removed setCurrentSampleUser(null) */ }} 
                         disabled={isLoading || isResendingOtp} 
                         className="w-full sm:w-auto"
                     >
@@ -298,4 +232,3 @@ export function LoginForm() {
     </div>
   );
 }
-
