@@ -2,8 +2,6 @@
 import type { User } from '@/context/auth-context';
 import { getSchoolDetails } from './school'; // Import to get school details for consistency
 import * as XLSX from 'xlsx';
-import { OTP_BYPASS_ADMIN_EMAIL, OTP_BYPASS_STUDENT_EMAIL } from './otp'; // Import test emails
-import { DEFAULT_TEST_SCHOOL_CONST } from './defaults'; // Import from new defaults file
 
 // Use a global variable for mock data in non-production environments
 declare global {
@@ -11,58 +9,22 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v19_default_users'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v20_no_default_users'; // Incremented version
 
-// Base definitions for default users
-const DEFAULT_ADMIN_USER_BASE = {
-  id: 'admin-kv5287-test',
-  name: 'Assigno Admin (Test)',
-  email: OTP_BYPASS_ADMIN_EMAIL,
-  role: 'Admin',
-  designation: 'Administrator',
-  profilePictureUrl: 'https://picsum.photos/100/100?random=kvadmin',
-};
-
-const DEFAULT_STUDENT_USER_BASE = {
-  id: 'student-kv5287-test',
-  name: 'Assigno Student (Test)',
-  email: OTP_BYPASS_STUDENT_EMAIL,
-  role: 'Student',
-  admissionNumber: 'S-TEST01',
-  class: '10-Demo',
-  profilePictureUrl: 'https://picsum.photos/100/100?random=kvstudent',
-};
-
-
-// Defines the default set of users. This is the source of truth for these specific users.
+// Defines the default set of users - now empty.
 function getDefaultInitialUsers(): User[] {
-    const adminUser: User = {
-      ...DEFAULT_ADMIN_USER_BASE,
-      schoolCode: DEFAULT_TEST_SCHOOL_CONST.schoolCode,
-      schoolName: DEFAULT_TEST_SCHOOL_CONST.schoolName,
-      schoolAddress: DEFAULT_TEST_SCHOOL_CONST.address,
-    };
-    const studentUser: User = {
-      ...DEFAULT_STUDENT_USER_BASE,
-      schoolCode: DEFAULT_TEST_SCHOOL_CONST.schoolCode,
-      schoolName: DEFAULT_TEST_SCHOOL_CONST.schoolName,
-      schoolAddress: DEFAULT_TEST_SCHOOL_CONST.address,
-    };
-    return [
-      {...adminUser},
-      {...studentUser}
-    ];
+    return [];
 }
 
 
 function initializeGlobalUsersStore(): User[] {
-    const defaultInitialUsers = getDefaultInitialUsers();
+    const defaultInitialUsers = getDefaultInitialUsers(); // This will be an empty array
 
     if (typeof window === 'undefined') {
-        const serverInitialUsers: User[] = [...defaultInitialUsers.map(u => ({...u}))];
+        const serverInitialUsers: User[] = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty
         globalThis.mockUsersData_assigno_users = serverInitialUsers;
         globalThis.mockUsersInitialized_assigno_users = true;
-        console.log("[Service:users] Server-side: Initialized global users store with default users.");
+        console.log("[Service:users] Server-side: Initialized global users store (empty).");
         return serverInitialUsers;
     }
 
@@ -97,34 +59,19 @@ function initializeGlobalUsersStore(): User[] {
                     };
                 });
                 finalUserList = [...usersFromStorage];
-
-                // Ensure default users are present and up-to-date based on current DEFAULT_TEST_SCHOOL_CONST
-                defaultInitialUsers.forEach(defaultUser => {
-                    const existingIndex = finalUserList.findIndex(
-                        u => u.email === defaultUser.email && u.schoolCode === DEFAULT_TEST_SCHOOL_CONST.schoolCode // Match by email and current default school code
-                    );
-                    if (existingIndex !== -1) {
-                        // Update existing default user if details differ (e.g., school name changed)
-                        finalUserList[existingIndex] = {...defaultUser, id: finalUserList[existingIndex].id }; // Keep original ID
-                        console.log(`[Service:users] Default user (${defaultUser.email}) updated in list from localStorage.`);
-                    } else {
-                        finalUserList.push({...defaultUser});
-                        console.log(`[Service:users] Default user (${defaultUser.email}) added to list from localStorage.`);
-                    }
-                });
                 console.log("[Service:users] Client-side: Initialized global users store from localStorage.", finalUserList.length, "users loaded.");
             } else {
-                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");
-                 finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
+                 console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing (empty).");
+                 finalUserList = [];
             }
         } else {
-             finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
-             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store with defaults.");
+             finalUserList = []; // Start empty if localStorage is empty
+             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store (empty).");
         }
     } catch (error) {
-        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
+        console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing (empty):", error);
         localStorage.removeItem(USERS_STORAGE_KEY);
-        finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
+        finalUserList = [];
     }
 
     globalThis.mockUsersData_assigno_users = finalUserList;

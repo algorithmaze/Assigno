@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users, ShieldAlert, GraduationCap } from 'lucide-react';
-import { sendOTP, verifyOTP, DEFAULT_TEST_OTP, TEST_ADMIN_EMAIL, TEST_STUDENT_EMAIL } from '@/services/otp';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone } from 'lucide-react';
+import { sendOTP, verifyOTP, DEFAULT_TEST_OTP } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -103,34 +103,6 @@ export function LoginForm() {
 
 
   const handleLoginSubmit = async (data: LoginFormData) => {
-    const isTestAdmin = data.identifier === TEST_ADMIN_EMAIL;
-    const isTestStudent = data.identifier === TEST_STUDENT_EMAIL;
-
-    if (isTestAdmin || isTestStudent) {
-      setIsLoading(true);
-      setIdentifierValue(data.identifier);
-      toast({
-        title: `${isTestAdmin ? 'Admin' : 'Student'} Test Login`,
-        description: `Bypassing OTP entry for ${data.identifier}. Auto-verifying with default OTP...`,
-        duration: 5000,
-      });
-      // Simulate OTP being sent and immediately verify with the default OTP
-      try {
-        await sendOTP(data.identifier); // This will log the OTP and store it in mockOtpStore
-        // No need to setOtpSent(true) as we are bypassing the form
-        await verifyAndLogin(data.identifier, DEFAULT_TEST_OTP);
-      } catch (error) {
-        console.error(`Error during ${isTestAdmin ? 'admin' : 'student'} test login bypass:`, error);
-        toast({
-          title: `${isTestAdmin ? 'Admin' : 'Student'} Login Error`,
-          description: `Failed to complete ${isTestAdmin ? 'admin' : 'student'} test login.`,
-          variant: 'destructive',
-        });
-         setIsLoading(false);
-      }
-      return; // End execution for test user bypass
-    }
-
     const isResend = otpSent;
     if (!isResend) setIsLoading(true);
     else setIsResendingOtp(true);
@@ -191,10 +163,7 @@ export function LoginForm() {
                         </div>
                     </FormControl>
                     <FormDescription id="identifier-description" className="text-xs">
-                        Enter your registered credential. For testing, use:<br/>
-                        Admin: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_ADMIN_EMAIL}</code> (OTP bypass)<br/>
-                        Student: <code className="bg-muted px-1 py-0.5 rounded text-xs">{TEST_STUDENT_EMAIL}</code> (OTP bypass)<br/>
-                        Others: Use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check console.
+                        Enter your registered credential. For testing, use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check console.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -274,4 +243,3 @@ export function LoginForm() {
     </div>
   );
 }
-

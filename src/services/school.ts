@@ -1,7 +1,6 @@
 
 import type { User } from '@/context/auth-context';
 import { addUser } from './users'; // For creating admin user
-import { DEFAULT_TEST_SCHOOL_CONST } from './defaults'; // Import from new defaults file
 
 export interface SchoolDetails {
   schoolCode: string;
@@ -41,9 +40,7 @@ declare global {
   var mockRegisteredInstitutesInitialized_assigno_school_list: boolean | undefined;
 }
 
-const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v9_default_school'; // Incremented version
-
-const DEFAULT_TEST_SCHOOL: SchoolDetails = {...DEFAULT_TEST_SCHOOL_CONST}; // Use the imported constant
+const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v10_no_default'; // Incremented version
 
 
 // Initialize global store for a LIST of registered institutes
@@ -51,9 +48,9 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
 
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
-        globalThis.mockRegisteredInstitutes_assigno_school_list = [{...DEFAULT_TEST_SCHOOL}];
+        globalThis.mockRegisteredInstitutes_assigno_school_list = []; // Start with empty list
         globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
-        console.log("[Service:school] Server-side: Initialized global institutes LIST with default test school.");
+        console.log("[Service:school] Server-side: Initialized empty global institutes LIST.");
     }
     return globalThis.mockRegisteredInstitutes_assigno_school_list;
   }
@@ -68,30 +65,15 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     if (storedData) {
       const institutesListFromStorage = JSON.parse(storedData) as SchoolDetails[];
       finalInstitutesList = [...institutesListFromStorage];
-
-      // Ensure default test school is present and up-to-date
-      const defaultSchoolIndex = finalInstitutesList.findIndex(s => s.adminEmail === DEFAULT_TEST_SCHOOL.adminEmail); // Match by adminEmail
-      if (defaultSchoolIndex !== -1) {
-          // If default school is found, update its details to ensure it's current, but keep its existing schoolCode
-          finalInstitutesList[defaultSchoolIndex] = {
-              ...DEFAULT_TEST_SCHOOL, // Use current default details
-              schoolCode: finalInstitutesList[defaultSchoolIndex].schoolCode, // Preserve existing school code
-          };
-          console.log("[Service:school] Default test school details updated in list from localStorage.");
-      } else {
-          finalInstitutesList.push({...DEFAULT_TEST_SCHOOL});
-          console.log("[Service:school] Default test school added to list from localStorage.");
-      }
-
       console.log("[Service:school] Initialized global institutes LIST from localStorage:", finalInstitutesList.length, "institutes loaded.");
     } else {
-        finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}];
-        console.log("[Service:school] Initialized new global institutes LIST with default test school (localStorage was empty).");
+        finalInstitutesList = []; // Start with empty list if localStorage is empty
+        console.log("[Service:school] Initialized new empty global institutes LIST (localStorage was empty).");
     }
   } catch (error) {
-    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with default:", error);
+    console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with empty list:", error);
     localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY);
-    finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}];
+    finalInstitutesList = [];
   }
 
   globalThis.mockRegisteredInstitutes_assigno_school_list = finalInstitutesList;
@@ -170,12 +152,6 @@ export async function registerInstitute(
     console.warn(`[Service:school] Registration failed: Admin email ${input.adminEmail} already exists.`);
     return { success: false, message: 'An institute with this admin email is already registered.' };
   }
-  // Allow same institute name, but admin email must be unique.
-  // if (existingInstitutes.some(inst => inst.schoolName.toLowerCase() === input.instituteName.toLowerCase())) {
-  //   console.warn(`[Service:school] Registration failed: Institute name ${input.instituteName} already exists.`);
-  //   return { success: false, message: 'An institute with this name is already registered.' };
-  // }
-
 
   const schoolCode = generateSchoolCode(input.instituteName);
   const registrationDate = new Date().toISOString();
@@ -220,8 +196,6 @@ export async function registerInstitute(
 
   } catch (userError: any) {
     console.error('[Service:school] Failed to create admin user for new institute:', userError);
-    // Rollback school registration if admin creation fails? For mock, maybe not critical.
-    // For production, transactional behavior would be needed.
     return { success: true, schoolCode, message: `Institute registered, but admin user creation failed: ${userError.message}. Please try signup manually.` };
   }
 }
