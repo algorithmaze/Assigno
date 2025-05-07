@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -18,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone } from 'lucide-react';
-import { sendOTP, verifyOTP, DEFAULT_TEST_OTP } from '@/services/otp';
+import { sendOTP, verifyOTP, DEFAULT_TEST_OTP, OTP_BYPASS_ADMIN_EMAIL, OTP_BYPASS_SCHOOL_CODE } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -73,7 +72,7 @@ export function LoginForm() {
             title: 'Login Successful',
             description: `Welcome back, ${response.user.name}!`,
           });
-          // Router will redirect based on AuthProvider's logic
+          // Router will redirect based on AuthProvider's logic (typically to /dashboard)
       } else if (response.success && !response.user) {
         toast({
           title: 'OTP Verified, User Not Found',
@@ -107,17 +106,38 @@ export function LoginForm() {
     if (!isResend) setIsLoading(true);
     else setIsResendingOtp(true);
 
+    let otpBypass = false;
+    if (data.identifier === OTP_BYPASS_ADMIN_EMAIL && (loginForm.getValues('identifier').endsWith(OTP_BYPASS_SCHOOL_CODE) || data.identifier === OTP_BYPASS_ADMIN_EMAIL)) {
+        // This is a simplified check for admin bypass for demo.
+        // In a real scenario, school code would be a separate input or derived.
+        // For this example, we assume the bypass email directly implies the bypass school for simplicity of login form.
+        otpBypass = true;
+    }
+
+
     try {
-      await sendOTP(data.identifier);
+      if (!otpBypass) {
+        await sendOTP(data.identifier);
+        toast({
+            title: isResend ? 'OTP Resent' : 'OTP Sent',
+            description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`,
+            duration: 7000,
+        });
+      } else {
+        toast({
+            title: 'OTP Bypassed (Demo Admin)',
+            description: `Proceeding to next step for ${data.identifier}. Enter OTP "${DEFAULT_TEST_OTP}".`,
+            duration: 7000,
+        });
+      }
       setIdentifierValue(data.identifier);
       setOtpSent(true);
-      toast({
-        title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`,
-        duration: 7000,
-      });
       otpForm.clearErrors('otp');
       otpForm.resetField('otp');
+      if (otpBypass) {
+        otpForm.setValue('otp', DEFAULT_TEST_OTP);
+      }
+
     } catch (error) {
       console.error('Error sending OTP:', error);
       toast({
@@ -163,7 +183,7 @@ export function LoginForm() {
                         </div>
                     </FormControl>
                     <FormDescription id="identifier-description" className="text-xs">
-                        Enter your registered credential. For testing, use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check console.
+                        Enter your registered credential. For testing admin, use "<code className="bg-muted px-1 py-0.5 rounded text-xs">{OTP_BYPASS_ADMIN_EMAIL}</code>". OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" will be pre-filled.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -183,7 +203,9 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                (MOCK: Use OTP "<code className="bg-muted px-1 py-0.5 rounded text-xs">{DEFAULT_TEST_OTP}</code>" or check browser console).
+                {(identifierValue === OTP_BYPASS_ADMIN_EMAIL)
+                ? ` (MOCK: Use OTP "${DEFAULT_TEST_OTP}", it should be pre-filled).`
+                : ` (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`}
                 </p>
             </div>
             <Form {...otpForm}>
@@ -224,17 +246,19 @@ export function LoginForm() {
                     >
                         <CornerDownLeft className="mr-2 h-4 w-4"/> Change Email/Phone
                     </Button>
-                    <Button
+                   {identifierValue !== OTP_BYPASS_ADMIN_EMAIL && (
+                     <Button
                         type="button"
                         variant="link"
                         size="sm"
                         onClick={() => handleLoginSubmit({ identifier: identifierValue })}
                         disabled={isLoading || isResendingOtp}
                         className="w-full sm:w-auto"
-                    >
+                      >
                         {isResendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Resend OTP
                     </Button>
+                   )}
                 </div>
             </form>
             </Form>

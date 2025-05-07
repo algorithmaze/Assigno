@@ -1,7 +1,7 @@
 import { LoginForm } from '@/components/auth/login-form';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
-import { Building, School } from 'lucide-react'; // Icon for branding, added School
+import { Building, School, Users } from 'lucide-react';
 
 export default function LoginPage() {
   return (
