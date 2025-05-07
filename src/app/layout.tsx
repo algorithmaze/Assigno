@@ -32,7 +32,6 @@ export default function RootLayout({
         <meta name="msapplication-TileColor" content="#3498db" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#ffffff" /> {/* Default theme color, can be overridden by role themes via JS */}
-        
         {/* Add placeholder icon links. In a real PWA, these would be actual icon files. */}
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192x192.png" />
@@ -50,3 +49,4 @@ export default function RootLayout({
     </html>
   );
 }
+
