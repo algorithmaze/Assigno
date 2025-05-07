@@ -1,5 +1,3 @@
-
-
 'use client';
 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
@@ -25,19 +23,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Phone } from 'lucide-react'; // Added Mail, Phone icons
-import { sendOTP, verifyOTP } from '@/services/otp'; 
+import { Loader2, Mail, Phone } from 'lucide-react'; 
+import { sendOTP, verifyOTP, DEFAULT_TEST_OTP, OTP_BYPASS_ADMIN_EMAIL, OTP_BYPASS_SCHOOL_CODE } from '@/services/otp'; 
 import { getSchoolDetails } from '@/services/school'; 
 import type { SchoolDetails } from '@/services/school';
 import { useAuth, type User } from '@/context/auth-context'; 
 import { useRouter } from 'next/navigation';
-import { addUser as createUserService } from '@/services/users'; // Renamed for clarity
+import { addUser as createUserService, sampleAdminCredentials, sampleStudentCredentials } from '@/services/users';
 
 const signupStep1Schema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' })
     .refine(value => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const phoneRegex = /^\+?[1-9]\d{1,14}$/; // Basic international phone number regex
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/; 
       return emailRegex.test(value) || phoneRegex.test(value);
     }, { message: 'Please enter a valid email or phone number (e.g., +1234567890).' }),
   schoolCode: z.string().min(3, { message: 'School code is required' }),
@@ -51,10 +49,6 @@ const signupStep2Schema = z.object({
   class: z.string().optional(),
   designation: z.enum(['Class Teacher', 'Subject Teacher']).optional(),
 }).refine((data) => {
-  // Validation for role-specific fields can be added here if needed.
-  // For example, if role is Student, admissionNumber and class might be required.
-  // If role is Teacher, designation might be required.
-  // This is simplified for now.
   return true; 
 });
 
@@ -103,22 +97,62 @@ export function SignupForm() {
        }
        setSchoolDetails(fetchedSchoolDetails);
 
-       // If admin role is selected, check if the identifier matches the school's admin email
        if (data.role === 'Admin' && fetchedSchoolDetails.adminEmail.toLowerCase() !== data.identifier.toLowerCase()) {
            step1Form.setError('identifier', { message: "For Admin role, email must match the registered institute admin email."});
            throw new Error("Admin email mismatch.");
        }
 
-      await sendOTP(data.identifier); 
+      let otpBypass = false;
+      if (
+        (data.role === 'Admin' && data.identifier === OTP_BYPASS_ADMIN_EMAIL && data.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
+        (data.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === data.identifier && s.schoolCode === data.schoolCode))
+      ) {
+        otpBypass = true;
+        console.log(`OTP bypass activated for ${data.identifier}`);
+      }
+
+      if (!otpBypass) {
+        await sendOTP(data.identifier); 
+        toast({
+          title: 'OTP Sent',
+          description: `An OTP has been sent to ${data.identifier}. (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`,
+          duration: 7000,
+        });
+      } else {
+         toast({
+          title: 'OTP Bypassed (Demo User)',
+          description: `Proceeding to next step for ${data.identifier}. Enter any 6 digits for OTP if prompted, or it will be auto-filled.`,
+          duration: 7000,
+        });
+      }
+      
       setStep(2); 
-      toast({
-        title: 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check console for OTP).`,
-        duration: 7000,
+      const defaultName = (otpBypass && data.role === 'Admin' && data.identifier === OTP_BYPASS_ADMIN_EMAIL)
+        ? sampleAdminCredentials.name
+        : (otpBypass && data.role === 'Student' && sampleStudentCredentials.find(s => s.identifier === data.identifier))
+        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.name || ''
+        : '';
+
+      const defaultAdmissionNumber = (otpBypass && data.role === 'Student')
+        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.admissionNumber || ''
+        : '';
+
+      const defaultClass = (otpBypass && data.role === 'Student')
+        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.class || ''
+        : '';
+      
+      const otpValueForReset = otpBypass ? DEFAULT_TEST_OTP : '';
+
+      step2Form.reset({
+        otp: otpValueForReset, 
+        name: defaultName,
+        admissionNumber: defaultAdmissionNumber,
+        class: defaultClass,
+        designation: undefined, 
       });
+
     } catch (error: any) {
       console.error('Signup Step 1 Error:', error);
-      // Avoid duplicate toast if setError was already called
       if (error.message !== 'Invalid school code' && error.message !== "Admin email mismatch.") {
         toast({
             title: 'Error',
@@ -136,16 +170,36 @@ export function SignupForm() {
     const fullData = { ...formData, ...data } as SignupStep1Data & SignupStep2Data;
 
     try {
-      const otpResponse = await verifyOTP(fullData.identifier, data.otp);
-      if (!otpResponse.success) {
-        step2Form.setError('otp', { message: otpResponse.message || 'Invalid OTP' });
-        throw new Error(otpResponse.message || 'Invalid OTP');
+      let otpVerifiedUser: User | undefined = undefined;
+      if (
+        (fullData.role === 'Admin' && fullData.identifier === OTP_BYPASS_ADMIN_EMAIL && fullData.schoolCode === OTP_BYPASS_SCHOOL_CODE && data.otp === DEFAULT_TEST_OTP) ||
+        (fullData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === fullData.identifier && s.schoolCode === fullData.schoolCode) && data.otp === DEFAULT_TEST_OTP)
+      ) {
+        console.log(`OTP check bypassed and validated for demo user ${fullData.identifier}`);
+        // For demo users, we can synthesize the user object or fetch if they were pre-added
+        if (fullData.role === 'Admin') {
+            otpVerifiedUser = { ...sampleAdminCredentials, id: sampleAdminCredentials.identifier, schoolCode: fullData.schoolCode, schoolName: schoolDetails?.schoolName, schoolAddress: schoolDetails?.address } as User;
+        } else if (fullData.role === 'Student') {
+            const studentCred = sampleStudentCredentials.find(s => s.identifier === fullData.identifier);
+            if (studentCred) {
+                 otpVerifiedUser = { ...studentCred, id: studentCred.identifier, schoolCode: fullData.schoolCode, schoolName: schoolDetails?.schoolName, schoolAddress: schoolDetails?.address } as User;
+            }
+        }
+
+      } else {
+        const otpResponse = await verifyOTP(fullData.identifier, data.otp);
+        if (!otpResponse.success) {
+          step2Form.setError('otp', { message: otpResponse.message || 'Invalid OTP' });
+          throw new Error(otpResponse.message || 'Invalid OTP');
+        }
+        otpVerifiedUser = otpResponse.user; // User object from verification, if exists
       }
+
 
        const newUserInput: Omit<User, 'id'> & { id?: string} = { 
           name: fullData.name,
-          email: fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.email,
-          phoneNumber: !fullData.identifier.includes('@') ? fullData.identifier : otpResponse.user?.phoneNumber,
+          email: fullData.identifier.includes('@') ? fullData.identifier : otpVerifiedUser?.email,
+          phoneNumber: !fullData.identifier.includes('@') ? fullData.identifier : otpVerifiedUser?.phoneNumber,
           role: fullData.role,
           schoolCode: fullData.schoolCode,
           schoolName: schoolDetails?.schoolName,
@@ -156,9 +210,8 @@ export function SignupForm() {
           designation: fullData.role === 'Teacher' ? fullData.designation : (fullData.role === 'Admin' ? 'Administrator' : undefined),
        };
        
-       // If user came from OTP verification (e.g. login found them), use that ID, else createUserService will generate one.
-       if (otpResponse.user?.id) {
-           newUserInput.id = otpResponse.user.id;
+       if (otpVerifiedUser?.id) {
+           newUserInput.id = otpVerifiedUser.id;
        }
 
        const createdUser = await createUserService(newUserInput);
@@ -173,7 +226,7 @@ export function SignupForm() {
 
     } catch (error: any) {
       console.error('Signup Step 2 Error:', error);
-       if (error.message !== (formData.otp || 'Invalid OTP') ) { // Avoid double toast for OTP error
+       if (error.message !== (formData.otp || 'Invalid OTP') ) { 
         toast({
             title: 'Signup Failed',
             description: error.message || 'Could not complete signup. Please try again.',
@@ -258,7 +311,14 @@ export function SignupForm() {
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
              <p className="text-sm text-muted-foreground">
-              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {currentIdentifier}. (MOCK: Check console for OTP)
+              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {currentIdentifier}.
+             {(
+                (formData.role === 'Admin' && formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
+                (formData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === formData.identifier && s.schoolCode === formData.schoolCode))
+            ) && (
+              <span className="font-semibold">(MOCK: Use OTP "{DEFAULT_TEST_OTP}")</span>
+             )}
+
             </p>
             <FormField
               control={step2Form.control}
@@ -349,7 +409,7 @@ export function SignupForm() {
                     />
                     <FormField
                         control={step2Form.control}
-                        name="class" // This field for teachers should be "Classes Handling"
+                        name="class" 
                         render={({ field }) => (
                             <FormItem>
                             <FormLabel>Class(es) Handling (Optional)</FormLabel>
@@ -370,9 +430,14 @@ export function SignupForm() {
              <Button variant="link" size="sm" onClick={() => {setStep(1); step2Form.reset(); /* Keep step1Form values */ }} disabled={isLoading} className="w-full">
                Back to Previous Step
              </Button>
-              <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full">
-               Resend OTP
-             </Button>
+             {!(
+                (formData.role === 'Admin' && formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
+                (formData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === formData.identifier && s.schoolCode === formData.schoolCode))
+             ) && (
+                <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full">
+                  Resend OTP
+                </Button>
+             )}
           </form>
         </Form>
       )}
