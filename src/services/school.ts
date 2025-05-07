@@ -1,6 +1,7 @@
 
 import type { User } from '@/context/auth-context';
 import { addUser } from './users'; // For creating admin user
+import { DEFAULT_TEST_SCHOOL_CONST } from './defaults'; // Import from new defaults file
 
 export interface SchoolDetails {
   schoolCode: string;
@@ -42,22 +43,12 @@ declare global {
 
 const REGISTERED_INSTITUTES_STORAGE_KEY = 'assigno_mock_registered_institutes_v9_default_school'; // Incremented version
 
-const DEFAULT_TEST_SCHOOL: SchoolDetails = {
-  schoolCode: "KV5287",
-  schoolName: "Kendriya Vidyalaya Test School",
-  instituteType: "School",
-  address: "Knowledge Park III",
-  city: "Test City",
-  state: "Test State",
-  pincode: "123456",
-  contactNumber: "+919999988888",
-  adminEmail: "admin@assigno.test", // For OTP bypass login
-  registrationDate: new Date("2024-01-01T10:00:00.000Z").toISOString(),
-};
+const DEFAULT_TEST_SCHOOL: SchoolDetails = {...DEFAULT_TEST_SCHOOL_CONST}; // Use the imported constant
+
 
 // Initialize global store for a LIST of registered institutes
 function initializeGlobalInstitutesListStore(): SchoolDetails[] {
-  
+
   if (typeof window === 'undefined') {
     if (!globalThis.mockRegisteredInstitutes_assigno_school_list) {
         globalThis.mockRegisteredInstitutes_assigno_school_list = [{...DEFAULT_TEST_SCHOOL}];
@@ -77,25 +68,32 @@ function initializeGlobalInstitutesListStore(): SchoolDetails[] {
     if (storedData) {
       const institutesListFromStorage = JSON.parse(storedData) as SchoolDetails[];
       finalInstitutesList = [...institutesListFromStorage];
-      
-      // Ensure default test school is present
-      const defaultSchoolExists = finalInstitutesList.some(s => s.schoolCode === DEFAULT_TEST_SCHOOL.schoolCode);
-      if (!defaultSchoolExists) {
-        finalInstitutesList.push({...DEFAULT_TEST_SCHOOL});
-        console.log("[Service:school] Default test school added to list from localStorage.");
+
+      // Ensure default test school is present and up-to-date
+      const defaultSchoolIndex = finalInstitutesList.findIndex(s => s.adminEmail === DEFAULT_TEST_SCHOOL.adminEmail); // Match by adminEmail
+      if (defaultSchoolIndex !== -1) {
+          // If default school is found, update its details to ensure it's current, but keep its existing schoolCode
+          finalInstitutesList[defaultSchoolIndex] = {
+              ...DEFAULT_TEST_SCHOOL, // Use current default details
+              schoolCode: finalInstitutesList[defaultSchoolIndex].schoolCode, // Preserve existing school code
+          };
+          console.log("[Service:school] Default test school details updated in list from localStorage.");
+      } else {
+          finalInstitutesList.push({...DEFAULT_TEST_SCHOOL});
+          console.log("[Service:school] Default test school added to list from localStorage.");
       }
-      
+
       console.log("[Service:school] Initialized global institutes LIST from localStorage:", finalInstitutesList.length, "institutes loaded.");
     } else {
-        finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}]; 
+        finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}];
         console.log("[Service:school] Initialized new global institutes LIST with default test school (localStorage was empty).");
     }
   } catch (error) {
     console.error("[Service:school] Error reading/parsing institutes LIST from localStorage. Re-initializing with default:", error);
-    localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY); 
-    finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}]; 
+    localStorage.removeItem(REGISTERED_INSTITUTES_STORAGE_KEY);
+    finalInstitutesList = [{...DEFAULT_TEST_SCHOOL}];
   }
-  
+
   globalThis.mockRegisteredInstitutes_assigno_school_list = finalInstitutesList;
   globalThis.mockRegisteredInstitutesInitialized_assigno_school_list = true;
   localStorage.setItem(REGISTERED_INSTITUTES_STORAGE_KEY, JSON.stringify(finalInstitutesList));
@@ -143,10 +141,10 @@ function generateSchoolCode(instituteName: string): string {
   const namePart = instituteName.replace(/[^a-zA-Z0-9\s]/g, '').slice(0, 3).toUpperCase();
   let randomPart = Math.floor(1000 + Math.random() * 9000).toString();
   let schoolCode = `${namePart}${randomPart}`;
-  
+
   const existingCodes = new Set(getMockRegisteredInstitutes().map(s => s.schoolCode));
   let attempts = 0;
-  while (existingCodes.has(schoolCode) && attempts < 20) { 
+  while (existingCodes.has(schoolCode) && attempts < 20) {
     randomPart = Math.floor(1000 + Math.random() * 9000).toString();
     schoolCode = `${namePart}${randomPart}`;
     attempts++;
@@ -155,7 +153,7 @@ function generateSchoolCode(instituteName: string): string {
     console.warn("High attempts for school code uniqueness for mock. Consider a more robust generation if this persists.");
     // Fallback to longer random part if collisions persist
     schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    if(existingCodes.has(schoolCode)) schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`; 
+    if(existingCodes.has(schoolCode)) schoolCode = `${namePart}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
   }
   return schoolCode;
 }
@@ -165,9 +163,9 @@ export async function registerInstitute(
 ): Promise<InstituteRegistrationResult> {
   await ensureMockDataInitialized();
   console.log('[Service:school] Attempting to register institute:', input.instituteName);
-  
-  const existingInstitutes = getMockRegisteredInstitutes(); 
-  
+
+  const existingInstitutes = getMockRegisteredInstitutes();
+
   if (existingInstitutes.some(inst => inst.adminEmail.toLowerCase() === input.adminEmail.toLowerCase())) {
     console.warn(`[Service:school] Registration failed: Admin email ${input.adminEmail} already exists.`);
     return { success: false, message: 'An institute with this admin email is already registered.' };
@@ -198,7 +196,7 @@ export async function registerInstitute(
   const updatedInstitutesList = [...existingInstitutes, newSchool];
   updateMockRegisteredInstitutes(updatedInstitutesList);
   console.log(`[Service:school] New school ${newSchool.schoolName} (Code: ${newSchool.schoolCode}) added to registered list.`);
-  
+
   try {
     const usersModule = await import('./users'); // Ensure users service is ready
     if (usersModule && typeof usersModule.ensureMockDataInitialized === 'function') {
@@ -206,9 +204,9 @@ export async function registerInstitute(
     } else {
       throw new Error("Users service could not be initialized for admin creation.");
     }
-    
+
     const adminUserData: Omit<User, 'id' | 'schoolName' | 'schoolAddress'> & {schoolName: string, schoolAddress: string} = {
-      name: `${input.instituteName} Admin`, 
+      name: `${input.instituteName} Admin`,
       email: input.adminEmail,
       role: 'Admin',
       schoolCode: schoolCode,
@@ -216,7 +214,7 @@ export async function registerInstitute(
       schoolAddress: `${newSchool.address}, ${newSchool.city}, ${newSchool.state} ${newSchool.pincode}`,
       designation: 'Administrator',
     };
-    const adminUser = await addUser(adminUserData); 
+    const adminUser = await addUser(adminUserData);
     console.log('[Service:school] Admin user created for new institute:', adminUser.name, adminUser.id);
     return { success: true, schoolCode, message: 'Institute registered successfully.', adminUser };
 
@@ -232,15 +230,15 @@ export async function registerInstitute(
 export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolDetails | null> {
   await ensureMockDataInitialized();
   console.log(`[Service:school] Fetching details for school code: ${schoolCodeQuery}`);
-  
+
   const institutes = getMockRegisteredInstitutes();
   const foundSchool = institutes.find(s => s.schoolCode.toLowerCase() === schoolCodeQuery.toLowerCase());
-  
+
   if (foundSchool) {
     console.log(`[Service:school] Found school: ${foundSchool.schoolName} from registered list.`);
     return { ...foundSchool };
   }
-  
+
   console.warn(`[Service:school] School with code ${schoolCodeQuery} not found in the registered list.`);
   return null;
 }
@@ -248,14 +246,14 @@ export async function getSchoolDetails(schoolCodeQuery: string): Promise<SchoolD
 
 export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDetails>): Promise<SchoolDetails | null> {
   await ensureMockDataInitialized();
-  const targetSchoolCode = updatedDetailsInput.schoolCode; 
+  const targetSchoolCode = updatedDetailsInput.schoolCode;
   if (!targetSchoolCode) {
     console.error("[Service:school] School code is required to update school details.");
     return null;
   }
 
   console.log(`[Service:school] Updating school: ${targetSchoolCode}`);
-  
+
   let schoolFoundAndUpdated = false;
   const institutesList = getMockRegisteredInstitutes();
   const updatedInstitutesList = institutesList.map(school => {
@@ -273,8 +271,8 @@ export async function updateSchoolDetails(updatedDetailsInput: Partial<SchoolDet
      console.warn(`[Service:school] School with code ${targetSchoolCode} not found in the registered list for update.`);
      return null;
   }
-  
-  updateMockRegisteredInstitutes(updatedInstitutesList); 
+
+  updateMockRegisteredInstitutes(updatedInstitutesList);
   const newlyUpdatedSchoolFromList = updatedInstitutesList.find(s => s.schoolCode === targetSchoolCode);
   return newlyUpdatedSchoolFromList ? { ...newlyUpdatedSchoolFromList } : null;
 }

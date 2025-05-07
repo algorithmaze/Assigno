@@ -1,8 +1,9 @@
 
 import type { User } from '@/context/auth-context';
-import { getSchoolDetails, DEFAULT_TEST_SCHOOL } from './school'; // Import to get school details for consistency
+import { getSchoolDetails } from './school'; // Import to get school details for consistency
 import * as XLSX from 'xlsx';
-import { TEST_ADMIN_EMAIL as OTP_BYPASS_ADMIN_EMAIL, TEST_STUDENT_EMAIL as OTP_BYPASS_STUDENT_EMAIL } from './otp'; // Import test emails
+import { OTP_BYPASS_ADMIN_EMAIL, OTP_BYPASS_STUDENT_EMAIL } from './otp'; // Import test emails
+import { DEFAULT_TEST_SCHOOL_CONST } from './defaults'; // Import from new defaults file
 
 // Use a global variable for mock data in non-production environments
 declare global {
@@ -12,27 +13,21 @@ declare global {
 
 const USERS_STORAGE_KEY = 'assigno_mock_users_data_v19_default_users'; // Incremented version
 
-// Default admin user for OTP bypass, linked to the default test school
-const DEFAULT_ADMIN_USER: User = {
+// Base definitions for default users
+const DEFAULT_ADMIN_USER_BASE = {
   id: 'admin-kv5287-test',
   name: 'Assigno Admin (Test)',
-  email: OTP_BYPASS_ADMIN_EMAIL, // Matches OTP bypass email from otp.ts
+  email: OTP_BYPASS_ADMIN_EMAIL,
   role: 'Admin',
-  schoolCode: DEFAULT_TEST_SCHOOL.schoolCode, 
-  schoolName: DEFAULT_TEST_SCHOOL.schoolName, 
-  schoolAddress: DEFAULT_TEST_SCHOOL.address, 
   designation: 'Administrator',
   profilePictureUrl: 'https://picsum.photos/100/100?random=kvadmin',
 };
 
-const DEFAULT_STUDENT_USER: User = {
+const DEFAULT_STUDENT_USER_BASE = {
   id: 'student-kv5287-test',
   name: 'Assigno Student (Test)',
-  email: OTP_BYPASS_STUDENT_EMAIL, // Matches OTP bypass email from otp.ts
+  email: OTP_BYPASS_STUDENT_EMAIL,
   role: 'Student',
-  schoolCode: DEFAULT_TEST_SCHOOL.schoolCode,
-  schoolName: DEFAULT_TEST_SCHOOL.schoolName,
-  schoolAddress: DEFAULT_TEST_SCHOOL.address,
   admissionNumber: 'S-TEST01',
   class: '10-Demo',
   profilePictureUrl: 'https://picsum.photos/100/100?random=kvstudent',
@@ -41,15 +36,27 @@ const DEFAULT_STUDENT_USER: User = {
 
 // Defines the default set of users. This is the source of truth for these specific users.
 function getDefaultInitialUsers(): User[] {
+    const adminUser: User = {
+      ...DEFAULT_ADMIN_USER_BASE,
+      schoolCode: DEFAULT_TEST_SCHOOL_CONST.schoolCode,
+      schoolName: DEFAULT_TEST_SCHOOL_CONST.schoolName,
+      schoolAddress: DEFAULT_TEST_SCHOOL_CONST.address,
+    };
+    const studentUser: User = {
+      ...DEFAULT_STUDENT_USER_BASE,
+      schoolCode: DEFAULT_TEST_SCHOOL_CONST.schoolCode,
+      schoolName: DEFAULT_TEST_SCHOOL_CONST.schoolName,
+      schoolAddress: DEFAULT_TEST_SCHOOL_CONST.address,
+    };
     return [
-      {...DEFAULT_ADMIN_USER},
-      {...DEFAULT_STUDENT_USER}
+      {...adminUser},
+      {...studentUser}
     ];
 }
 
 
 function initializeGlobalUsersStore(): User[] {
-    const defaultInitialUsers = getDefaultInitialUsers(); 
+    const defaultInitialUsers = getDefaultInitialUsers();
 
     if (typeof window === 'undefined') {
         const serverInitialUsers: User[] = [...defaultInitialUsers.map(u => ({...u}))];
@@ -70,11 +77,11 @@ function initializeGlobalUsersStore(): User[] {
             const parsedJson = JSON.parse(storedData);
             if (Array.isArray(parsedJson)) {
                 const usersFromStorage: User[] = parsedJson.map((u: any) => {
-                    const schoolCode = String(u.schoolCode || 'UNKNOWN_SC'); 
+                    const schoolCode = String(u.schoolCode || 'UNKNOWN_SC');
                     const schoolName = String(u.schoolName || 'Unknown School');
                     const schoolAddress = String(u.schoolAddress || 'N/A');
-                    
-                    return { 
+
+                    return {
                         id: String(u.id || `temp-id-${Math.random().toString(36).substring(2,7)}`),
                         name: String(u.name || 'Unknown User'),
                         email: typeof u.email === 'string' ? u.email : undefined,
@@ -91,12 +98,16 @@ function initializeGlobalUsersStore(): User[] {
                 });
                 finalUserList = [...usersFromStorage];
 
-                // Ensure default users are present
+                // Ensure default users are present and up-to-date based on current DEFAULT_TEST_SCHOOL_CONST
                 defaultInitialUsers.forEach(defaultUser => {
-                    const defaultUserExists = finalUserList.some(
-                        u => u.email === defaultUser.email && u.schoolCode === defaultUser.schoolCode
+                    const existingIndex = finalUserList.findIndex(
+                        u => u.email === defaultUser.email && u.schoolCode === DEFAULT_TEST_SCHOOL_CONST.schoolCode // Match by email and current default school code
                     );
-                    if (!defaultUserExists) {
+                    if (existingIndex !== -1) {
+                        // Update existing default user if details differ (e.g., school name changed)
+                        finalUserList[existingIndex] = {...defaultUser, id: finalUserList[existingIndex].id }; // Keep original ID
+                        console.log(`[Service:users] Default user (${defaultUser.email}) updated in list from localStorage.`);
+                    } else {
                         finalUserList.push({...defaultUser});
                         console.log(`[Service:users] Default user (${defaultUser.email}) added to list from localStorage.`);
                     }
@@ -112,10 +123,10 @@ function initializeGlobalUsersStore(): User[] {
         }
     } catch (error) {
         console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
-        localStorage.removeItem(USERS_STORAGE_KEY); 
+        localStorage.removeItem(USERS_STORAGE_KEY);
         finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
     }
-    
+
     globalThis.mockUsersData_assigno_users = finalUserList;
     globalThis.mockUsersInitialized_assigno_users = true;
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUserList));
@@ -161,16 +172,16 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
 export async function fetchUsersByIds(userIds: string[]): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Fetching users by IDs: ${userIds.join(', ')}`);
-    
+
     const users = getMockUsersData().filter(user => userIds.includes(user.id));
     console.log(`[Service:users] Found ${users.length} users for IDs (mock): ${userIds.join(', ')}`);
-    return users.map(u => ({...u})); 
+    return users.map(u => ({...u}));
 }
 
 export async function searchUsers(schoolCode: string, searchTerm: string, excludeIds: string[] = []): Promise<User[]> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] User search. Term: "${searchTerm}", School: "${schoolCode}", Excluding: ${excludeIds.length} IDs`);
-    
+
     const lowerSearchTerm = searchTerm.trim().toLowerCase();
     const filterByTerm = lowerSearchTerm.length > 0;
 
@@ -181,7 +192,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
             return false;
         }
         if (!filterByTerm) {
-             return true; 
+             return true;
         }
         const matchesName = user.name.toLowerCase().includes(lowerSearchTerm);
         const matchesEmail = user.email && user.email.toLowerCase().includes(lowerSearchTerm);
@@ -189,7 +200,7 @@ export async function searchUsers(schoolCode: string, searchTerm: string, exclud
         return matchesName || matchesEmail || matchesPhoneNumber;
     });
     console.log(`[Service:users] Found ${results.length} users matching criteria (mock).`);
-    return results.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name)); 
+    return results.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name));
 }
 
 export async function addUser(
@@ -199,12 +210,12 @@ export async function addUser(
 ): Promise<User> {
     await ensureMockDataInitialized();
     console.log("[Service:users] Adding/Updating user:", userData.name, "with schoolCode:", userData.schoolCode);
-    
+
     let schoolName = userData.schoolName;
     let schoolAddress = userData.schoolAddress;
 
     if (userData.schoolCode && (!schoolName || !schoolAddress)) {
-        const schoolDetails = await getSchoolDetails(userData.schoolCode); 
+        const schoolDetails = await getSchoolDetails(userData.schoolCode);
         schoolName = schoolDetails?.schoolName || 'Unknown School';
         schoolAddress = schoolDetails ? `${schoolDetails.address}, ${schoolDetails.city}, ${schoolDetails.state} ${schoolDetails.pincode}` : 'N/A';
         console.log(`[Service:users] Fetched school details for ${userData.schoolCode}: ${schoolName}`);
@@ -212,7 +223,7 @@ export async function addUser(
         console.warn("[Service:users] User data missing schoolCode. Cannot reliably add user without school context.");
         schoolName = schoolName || 'Placeholder School';
         schoolAddress = schoolAddress || 'Placeholder Address';
-        userData.schoolCode = 'UNKNOWN_SC'; 
+        userData.schoolCode = 'UNKNOWN_SC';
     }
 
 
@@ -224,7 +235,7 @@ export async function addUser(
         email: userData.email,
         phoneNumber: userData.phoneNumber,
         role: userData.role,
-        schoolCode: userData.schoolCode!, 
+        schoolCode: userData.schoolCode!,
         schoolName: schoolName,
         schoolAddress: schoolAddress,
         profilePictureUrl: userData.profilePictureUrl,
@@ -233,9 +244,9 @@ export async function addUser(
         designation: userData.role === 'Teacher' ? userData.designation : (userData.role === 'Admin' ? 'Administrator' : undefined),
     };
 
-    let currentUsers = getMockUsersData(); 
+    let currentUsers = getMockUsersData();
     const existingUserIndex = currentUsers.findIndex(existingUser =>
-        (userData.id && existingUser.id === userData.id) || 
+        (userData.id && existingUser.id === userData.id) ||
         (userToProcess.email && existingUser.email && existingUser.email.toLowerCase() === userToProcess.email.toLowerCase() && existingUser.schoolCode === userToProcess.schoolCode) ||
         (userToProcess.phoneNumber && existingUser.phoneNumber === userToProcess.phoneNumber && existingUser.schoolCode === userToProcess.schoolCode)
     );
@@ -247,74 +258,74 @@ export async function addUser(
         console.log("[Service:users] Added mock user:", finalUser.name, "ID:", finalUser.id);
     } else {
         // Preserve existing ID and profile picture if not explicitly provided in updates
-        const updatedUser = { 
-            ...currentUsers[existingUserIndex], 
-            ...userToProcess, 
-            id: currentUsers[existingUserIndex].id, 
-            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl, 
+        const updatedUser = {
+            ...currentUsers[existingUserIndex],
+            ...userToProcess,
+            id: currentUsers[existingUserIndex].id,
+            profilePictureUrl: userToProcess.profilePictureUrl === undefined ? currentUsers[existingUserIndex].profilePictureUrl : userToProcess.profilePictureUrl,
         };
         currentUsers[existingUserIndex] = updatedUser;
         finalUser = {...updatedUser};
         console.log("[Service:users] Updated existing mock user:", finalUser.name, "ID:", finalUser.id);
     }
-    updateMockUsersData(currentUsers); 
-    return finalUser; 
+    updateMockUsersData(currentUsers);
+    return finalUser;
 }
 
 
 export async function fetchAllUsers(schoolCode?: string): Promise<User[]> {
      await ensureMockDataInitialized();
      console.log(`[Service:users] Fetching all users. School filter: "${schoolCode || 'All Schools'}"`);
-     
+
      const allUsers = getMockUsersData();
      const users = schoolCode ? allUsers.filter(user => user.schoolCode === schoolCode) : allUsers;
 
      console.log(`[Service:users] Found ${users.length} users (mock).`);
-     return users.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name)); 
+     return users.map(u => ({...u})).sort((a,b) => a.name.localeCompare(b.name));
 }
 
 export async function updateUser(userId: string, updates: Partial<User>): Promise<User | null> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Updating user ${userId} with data:`, updates);
-    
+
     let currentUsers = getMockUsersData();
     const userIndex = currentUsers.findIndex(u => u.id === userId);
-    
+
     if (userIndex === -1) {
         console.error(`[Service:users] User ${userId} not found for update (mock).`);
         return null;
     }
-    
+
     const existingUser = currentUsers[userIndex];
     let newProfilePictureUrl = updates.profilePictureUrl;
 
     // If profilePictureUrl is explicitly set to null or a new string, use it.
     // If it's undefined in updates, keep the existing one.
-    if (updates.profilePictureUrl === undefined) { 
-        newProfilePictureUrl = existingUser.profilePictureUrl; 
+    if (updates.profilePictureUrl === undefined) {
+        newProfilePictureUrl = existingUser.profilePictureUrl;
     }
 
-    const updatedUser = { 
-      ...existingUser, 
+    const updatedUser = {
+      ...existingUser,
       ...updates, // Apply all updates
       profilePictureUrl: newProfilePictureUrl // Ensure profilePictureUrl logic is correctly applied
     };
-    
+
     currentUsers[userIndex] = updatedUser;
-    updateMockUsersData(currentUsers); 
-    
+    updateMockUsersData(currentUsers);
+
     console.log("[Service:users] Updated user (mock):", updatedUser.name);
-    return { ...updatedUser }; 
+    return { ...updatedUser };
 }
 
 export async function deleteUser(userId: string): Promise<boolean> {
     await ensureMockDataInitialized();
     console.log(`[Service:users] Deleting user ${userId}`);
-    
+
     const currentUsers = getMockUsersData();
     const initialLength = currentUsers.length;
     const updatedUsers = currentUsers.filter(u => u.id !== userId);
-    
+
     if (updatedUsers.length < initialLength) {
         updateMockUsersData(updatedUsers);
         console.log(`[Service:users] User ${userId} deleted successfully (mock).`);
@@ -328,7 +339,7 @@ export async function deleteUser(userId: string): Promise<boolean> {
 export type ExcelUserImport = {
     Name: string;
     'Email or Phone'?: string;
-    Role: 'Student' | 'Teacher'; 
+    Role: 'Student' | 'Teacher';
     'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | string;
     'Class Handling (Teacher Only)'?: string;
     'Admission Number (Student Only)'?: string;
@@ -351,7 +362,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                     return;
                 }
                 const workbook = XLSX.read(data, { type: 'binary' });
-                
+
                 const sheetNamesToTry = ["Teachers_Template", "Students_Template", "Existing_Staff", "Existing_Students", workbook.SheetNames[0]];
                 let jsonData: ExcelUserImport[] = [];
                 let foundSheet = false;
@@ -362,7 +373,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                         foundSheet = true;
                     }
                 }
-                
+
                 if (!foundSheet) {
                     errors.push("Excel file is empty or has no data in the expected sheets (Teachers_Template, Students_Template, Existing_Staff, Existing_Students or first sheet).");
                     errorCount = 1; // Or jsonData.length if you consider all rows failed due to no sheet
@@ -375,8 +386,8 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                      resolve({ successCount, errorCount, errors });
                      return;
                 }
-                
-                const schoolDetails = await getSchoolDetails(schoolCode); 
+
+                const schoolDetails = await getSchoolDetails(schoolCode);
                 if (!schoolDetails) {
                      errors.push(`Invalid school code "${schoolCode}" provided for bulk import.`);
                      jsonData.forEach(row => errors.push(`Skipping row for "${row.Name || 'N/A'}": Invalid school code.`));
@@ -403,12 +414,12 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             name: row.Name,
                             email: row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
                             phoneNumber: row['Email or Phone'] && !row['Email or Phone']?.includes('@') ? row['Email or Phone'] : undefined,
-                            role: row.Role, 
+                            role: row.Role,
                             schoolCode: schoolCode,
                             schoolName: schoolDetails.schoolName,
                             schoolAddress: `${schoolDetails.address}, ${schoolDetails.city}, ${schoolDetails.state} ${schoolDetails.pincode}`,
                         };
-                        
+
                         if (row.Role === 'Teacher') {
                             if(!row['Designation (Teacher Only)']){
                                 errors.push(`Skipping Teacher "${row.Name}": Missing "Designation (Teacher Only)".`);
@@ -433,7 +444,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             baseUser.class = row['Class (Student Only)'];
                         }
 
-                        await addUser(baseUser); 
+                        await addUser(baseUser);
                         successCount++;
                     } catch (e: any) {
                         errors.push(`Error processing row for "${row.Name || 'Unknown Name'}": ${e.message || 'Unknown error'}`);
@@ -453,4 +464,3 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
-
