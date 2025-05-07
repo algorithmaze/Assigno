@@ -10,7 +10,6 @@ import * as XLSX from 'xlsx';
 
 // Define sampleCredentials and related constants first
 const SCHOOL_CODE = 'samp123';
-// const DEFAULT_PROFILE_URL_BASE = 'https://picsum.photos/100/100?random='; // Removed
 
 
 // Use a global variable for mock data in non-production environments
@@ -19,7 +18,7 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v5_no_dummy_initials'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v6_no_dummy_initials_final'; // Incremented version
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
@@ -388,5 +387,3 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
-
-```
