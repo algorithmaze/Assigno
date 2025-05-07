@@ -18,9 +18,8 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Users, Mail, Phone } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp';
-import type { User } from '@/context/auth-context';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
 
@@ -40,37 +39,6 @@ const otpSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
-
-// Define types for dummy users for quick login
-interface DummyUserCredential {
-  label: string;
-  identifier: string; 
-  note?: string;
-}
-
-const dummyLoginDetails: Record<string, DummyUserCredential> = {
-  stAntonyAdmin: {
-    label: 'St. Antony Admin',
-    identifier: 'admin@stantony.school',
-    note: 'School: STA987'
-  },
-  dummyAdmin: {
-    label: 'Dummy Admin (St. Antony)',
-    identifier: 'dummy.admin@assigno.app',
-    note: 'School: STA987' // Updated to reflect belonging to St. Antony
-  },
-  dummyTeacher: {
-    label: 'Dummy Teacher (St. Antony)',
-    identifier: 'dummy.teacher@assigno.app',
-    note: 'School: STA987' // Updated to reflect belonging to St. Antony
-  },
-  dummyStudent: {
-    label: 'Dummy Student (St. Antony)',
-    identifier: 'dummy.student@assigno.app',
-    note: 'School: STA987' // Updated to reflect belonging to St. Antony
-  },
-};
-type DummyUserKey = keyof typeof dummyLoginDetails;
 
 
 export function LoginForm() {
@@ -135,6 +103,7 @@ export function LoginForm() {
             title: 'Login Successful',
             description: `Welcome back, ${response.user.name}!`,
           });
+          // Router will redirect based on AuthProvider's logic
       } else if (response.success && !response.user) {
         toast({
           title: 'OTP Verified, User Not Found',
@@ -160,10 +129,6 @@ export function LoginForm() {
       setIsLoading(false);
     }
   };
-
-  const fillDummyUser = (key: DummyUserKey) => {
-     loginForm.setValue('identifier', dummyLoginDetails[key].identifier);
-  }
 
 
   return (
@@ -193,7 +158,7 @@ export function LoginForm() {
                         </div>
                     </FormControl>
                     <FormDescription id="identifier-description">
-                        Enter your registered credential to receive an OTP. (MOCK: Use OTP "000000" for dummy users or check console).
+                        Enter your registered credential to receive an OTP. (MOCK: Use OTP "000000" or check console).
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -206,23 +171,6 @@ export function LoginForm() {
             </form>
             </Form>
             
-            <div className="space-y-3 pt-4 border-t">
-                <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><Users className="h-4 w-4"/>Quick Logins (Dummy Users - OTP: 000000)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(Object.keys(dummyLoginDetails) as DummyUserKey[]).map((key) => (
-                        <Button 
-                            key={key}
-                            variant="outline" 
-                            onClick={() => fillDummyUser(key)}
-                            className="flex flex-col items-start h-auto py-2 px-3 text-left"
-                        >
-                           <span className="font-semibold text-sm">{dummyLoginDetails[key].label}</span>
-                           <span className="text-xs text-muted-foreground block truncate w-full">{dummyLoginDetails[key].identifier}</span>
-                           {dummyLoginDetails[key].note && <span className="text-xs text-muted-foreground/70 block">{dummyLoginDetails[key].note}</span>}
-                        </Button>
-                    ))}
-                </div>
-            </div>
          </>
       ) : (
         <div className="space-y-6">

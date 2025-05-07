@@ -9,99 +9,20 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v14_school_refactor'; // Incremented version
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v15_no_dummies'; // Incremented version
 
 
 // Defines the default set of users. This is the source of truth for these specific users.
 function getDefaultInitialUsers(): User[] {
-    const stAntonySchoolDetails = {
-        schoolCode: "STA987",
-        schoolName: "ST.ANTONY SR. SEC SCHOOL",
-        schoolAddress: "456 Church Road, Vatican City, Metropolis, NY 10001",
-    };
-    const sampleSchoolDetails = {
-        schoolCode: "SAMP123",
-        schoolName: "Sample Sr. Sec. School",
-        schoolAddress: "123 Sample Street, Testville, Mock City, TS 00001",
-    };
-
-    return [
-        { // Admin for St. Antony
-            id: 'admin-sta987-001',
-            name: 'Antony (Admin STA)',
-            email: 'admin@stantony.school',
-            role: 'Admin',
-            schoolCode: stAntonySchoolDetails.schoolCode,
-            schoolName: stAntonySchoolDetails.schoolName,
-            schoolAddress: stAntonySchoolDetails.schoolAddress,
-            designation: 'Administrator',
-            profilePictureUrl: `https://picsum.photos/seed/adminsta987/100/100`,
-        },
-        { // Admin for Sample School
-            id: 'admin-samp123-001',
-            name: 'Sample Admin',
-            email: 'admin@sampleschool.app',
-            role: 'Admin',
-            schoolCode: sampleSchoolDetails.schoolCode,
-            schoolName: sampleSchoolDetails.schoolName,
-            schoolAddress: sampleSchoolDetails.schoolAddress,
-            designation: 'Administrator',
-            profilePictureUrl: `https://picsum.photos/seed/adminsamp123/100/100`,
-        },
-        { // Teacher for Sample School
-            id: 'teacher-samp123-001',
-            name: 'Teacher One (Sample)',
-            email: 'teacher1@sampleschool.app',
-            role: 'Teacher',
-            schoolCode: sampleSchoolDetails.schoolCode,
-            schoolName: sampleSchoolDetails.schoolName,
-            schoolAddress: sampleSchoolDetails.schoolAddress,
-            designation: 'Class Teacher',
-            class: 'Grade X A', 
-            profilePictureUrl: `https://picsum.photos/seed/teacher1samp123/100/100`,
-        },
-        { // Teacher for Sample School
-            id: 'teacher-samp123-002',
-            name: 'Teacher Two (Sample)',
-            email: 'teacher2@sampleschool.app',
-            role: 'Teacher',
-            schoolCode: sampleSchoolDetails.schoolCode,
-            schoolName: sampleSchoolDetails.schoolName,
-            schoolAddress: sampleSchoolDetails.schoolAddress,
-            designation: 'Subject Teacher',
-            class: 'Grade IX B, Grade X B', 
-            profilePictureUrl: `https://picsum.photos/seed/teacher2samp123/100/100`,
-        },
-        { // Student for Sample School
-            id: 'student-samp123-001',
-            name: 'Student Alpha (Sample)',
-            email: 'student.alpha@sampleschool.app',
-            role: 'Student',
-            schoolCode: sampleSchoolDetails.schoolCode,
-            schoolName: sampleSchoolDetails.schoolName,
-            schoolAddress: sampleSchoolDetails.schoolAddress,
-            admissionNumber: 'SAMP001A',
-            class: 'Grade X A',
-            profilePictureUrl: `https://picsum.photos/seed/studentalphasamp123/100/100`,
-        },
-        { // Student for Sample School
-            id: 'student-samp123-002',
-            name: 'Student Beta (Sample)',
-            email: 'student.beta@sampleschool.app',
-            role: 'Student',
-            schoolCode: sampleSchoolDetails.schoolCode,
-            schoolName: sampleSchoolDetails.schoolName,
-            schoolAddress: sampleSchoolDetails.schoolAddress,
-            admissionNumber: 'SAMP002B',
-            class: 'Grade IX B',
-            profilePictureUrl: `https://picsum.photos/seed/studentbetasamp123/100/100`,
-        }
-    ];
+    // No default dummy users are created here anymore.
+    // Institute registration will create the first admin user for that institute.
+    // Other users are added via admin panel or signup.
+    return [];
 }
 
 
 function initializeGlobalUsersStore(): User[] {
-    const defaultInitialUsers = getDefaultInitialUsers();
+    const defaultInitialUsers = getDefaultInitialUsers(); // Will be an empty array now
 
     if (typeof window === 'undefined') {
         const serverInitialUsers: User[] = [...defaultInitialUsers];
@@ -123,7 +44,7 @@ function initializeGlobalUsersStore(): User[] {
             if (Array.isArray(parsedJson)) {
                 const usersFromStorage: User[] = parsedJson.map((u: any) => {
                     // Basic validation and defaulting for each field
-                    const schoolCode = String(u.schoolCode || 'UNKNOWN_SC'); // Default if missing
+                    const schoolCode = String(u.schoolCode || 'UNKNOWN_SC'); 
                     const schoolName = String(u.schoolName || 'Unknown School');
                     const schoolAddress = String(u.schoolAddress || 'N/A');
                     
@@ -136,7 +57,7 @@ function initializeGlobalUsersStore(): User[] {
                         schoolCode: schoolCode,
                         schoolName: schoolName,
                         schoolAddress: schoolAddress,
-                        profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : `https://picsum.photos/seed/${u.id || 'default'}/100/100`,
+                        profilePictureUrl: typeof u.profilePictureUrl === 'string' ? u.profilePictureUrl : undefined, // Let avatar fallback handle it
                         admissionNumber: typeof u.admissionNumber === 'string' ? u.admissionNumber : undefined,
                         class: typeof u.class === 'string' ? u.class : undefined,
                         designation: typeof u.designation === 'string' ? u.designation : undefined,
@@ -145,37 +66,35 @@ function initializeGlobalUsersStore(): User[] {
 
                 finalUserList = [...usersFromStorage];
                 
-                defaultInitialUsers.forEach(defaultUser => {
-                    const existingUserIndex = finalUserList.findIndex(u => u.id === defaultUser.id);
-                    if (existingUserIndex === -1) {
-                        finalUserList.push({...defaultUser}); 
-                    } else {
-                        finalUserList[existingUserIndex] = {
-                            ...finalUserList[existingUserIndex], 
-                            role: defaultUser.role,
-                            schoolCode: defaultUser.schoolCode,
-                            schoolName: defaultUser.schoolName,
-                            schoolAddress: defaultUser.schoolAddress,
-                            designation: defaultUser.designation,
-                            admissionNumber: defaultUser.admissionNumber,
-                            class: defaultUser.class,
-                        };
-                    }
-                });
+                // Merging defaults is no longer needed as there are no predefined default users.
+                // However, if there were any other default users (e.g., super admin), they would be merged here.
+                // defaultInitialUsers.forEach(defaultUser => {
+                //     const existingUserIndex = finalUserList.findIndex(u => u.id === defaultUser.id);
+                //     if (existingUserIndex === -1) {
+                //         finalUserList.push({...defaultUser}); 
+                //     } else {
+                //         // Update existing user with default values if needed, usually for specific fields
+                //         finalUserList[existingUserIndex] = {
+                //             ...finalUserList[existingUserIndex], 
+                //             // Example of updating specific fields from default
+                //             // role: defaultUser.role, 
+                //         };
+                //     }
+                // });
                 
-                console.log("[Service:users] Client-side: Initialized global users store from localStorage and merged with defaults.", finalUserList.length, "users loaded.");
+                console.log("[Service:users] Client-side: Initialized global users store from localStorage.", finalUserList.length, "users loaded.");
             } else {
                  console.warn("[Service:users] Client-side: localStorage data is not an array. Re-initializing with defaults.");
-                 finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
+                 finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
             }
         } else {
-             finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
-             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store with defaults.");
+             finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
+             console.log("[Service:users] Client-side: localStorage empty. Initialized new global users store with defaults (empty).");
         }
     } catch (error) {
         console.error("[Service:users] Client-side: Error reading/parsing users from localStorage. Re-initializing with defaults:", error);
         localStorage.removeItem(USERS_STORAGE_KEY); 
-        finalUserList = [...defaultInitialUsers.map(u => ({...u}))];
+        finalUserList = [...defaultInitialUsers.map(u => ({...u}))]; // Will be empty array
     }
     
     globalThis.mockUsersData_assigno_users = finalUserList;
@@ -195,6 +114,7 @@ function getMockUsersData(): User[] {
 
 function updateMockUsersData(newData: User[]): void {
   globalThis.mockUsersData_assigno_users = newData;
+  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
@@ -216,7 +136,7 @@ export async function ensureMockDataInitialized() {
 
 
 // Initialize on load for client-side
-if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') { // ensure this only runs client side in dev
   ensureMockDataInitialized();
 }
 
@@ -273,10 +193,9 @@ export async function addUser(
         console.log(`[Service:users] Fetched school details for ${userData.schoolCode}: ${schoolName}`);
     } else if (!userData.schoolCode) {
         console.warn("[Service:users] User data missing schoolCode. Cannot reliably add user without school context.");
-        // Fallback to a generic placeholder if absolutely necessary, but this indicates a data issue.
         schoolName = schoolName || 'Placeholder School';
         schoolAddress = schoolAddress || 'Placeholder Address';
-        userData.schoolCode = 'UNKNOWN_SC'; // Assign placeholder school code
+        userData.schoolCode = 'UNKNOWN_SC'; 
     }
 
 
@@ -291,7 +210,7 @@ export async function addUser(
         schoolCode: userData.schoolCode!, 
         schoolName: schoolName,
         schoolAddress: schoolAddress,
-        profilePictureUrl: userData.profilePictureUrl || `https://picsum.photos/seed/${newUserId}/100/100`,
+        profilePictureUrl: userData.profilePictureUrl, // Allow undefined, AvatarFallback will handle it
         admissionNumber: userData.role === 'Student' ? userData.admissionNumber : undefined,
         class: userData.role === 'Student' || (userData.role === 'Teacher' && userData.designation === 'Class Teacher') ? userData.class : (userData.role === 'Teacher' ? userData.class : undefined),
         designation: userData.role === 'Teacher' ? userData.designation : (userData.role === 'Admin' ? 'Administrator' : undefined),
@@ -350,10 +269,10 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
     
     const existingUser = currentUsers[userIndex];
     let newProfilePictureUrl = updates.profilePictureUrl;
+    // Retain existing picture if updates.profilePictureUrl is undefined (meaning not changed)
+    // If explicitly set to null or empty string, it means remove picture.
     if (updates.profilePictureUrl === undefined) { 
         newProfilePictureUrl = existingUser.profilePictureUrl; 
-    } else if (!updates.profilePictureUrl) { 
-        newProfilePictureUrl = `https://picsum.photos/seed/${userId}/100/100`; 
     }
 
     const updatedUser = { 

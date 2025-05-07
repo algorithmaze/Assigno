@@ -4,8 +4,6 @@
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
-// getSchoolDetails is not directly used in this simplified OTP service after removing dummy logic
-// import { getSchoolDetails } from './school';
 
 
 export interface OTPVerificationResponse {
@@ -15,64 +13,20 @@ export interface OTPVerificationResponse {
 }
 
 // Mock OTP storage (in-memory, will not persist across server restarts or for different users in a real scenario)
-// For a more robust mock, consider sessionStorage or a global Map managed carefully.
 const mockOtpStore: Map<string, { otp: string, timestamp: number }> = new Map();
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const DEFAULT_TEST_OTP = "000000"; // Default OTP for testing
 
-// Predefined dummy user emails for fixed OTP
-const DUMMY_USER_EMAILS_FOR_FIXED_OTP = [
-  "admin@stantony.school", // St. Antony Admin
-  "dummy.admin@assigno.app", // New Dummy Admin
-  "dummy.teacher@assigno.app", // New Dummy Teacher
-  "dummy.student@assigno.app"  // New Dummy Student
-].map(email => email.toLowerCase());
-
 
 export async function sendOTP(identifier: string): Promise<void> {
-  let generatedOtp: string;
-  const lowerIdentifier = identifier.toLowerCase();
-
-  // Check if the identifier matches any of the predefined dummy emails
-  if (DUMMY_USER_EMAILS_FOR_FIXED_OTP.includes(lowerIdentifier)) {
-    generatedOtp = DEFAULT_TEST_OTP;
-    console.log(`Using default OTP ${DEFAULT_TEST_OTP} for recognized dummy user: ${identifier}`);
-  } else {
-    // For any other user in a mock/dev environment, you might still want a predictable OTP
-    // or a randomly generated one that's logged. For simplicity, we'll use the default.
-    generatedOtp = DEFAULT_TEST_OTP; 
-    console.log(`Using default OTP ${DEFAULT_TEST_OTP} for general user: ${identifier} (for testing).`);
-  }
+  // For any user in a mock/dev environment, we'll use the default predictable OTP.
+  const generatedOtp = DEFAULT_TEST_OTP; 
+  console.log(`Using default OTP ${DEFAULT_TEST_OTP} for user: ${identifier} (for testing).`);
   
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
   
   // --- Real Email Sending Logic Would Go Here ---
-  // In a production application, you would use an email service to send the OTP.
-  // This typically involves:
-  // 1. Setting up an email provider (e.g., SendGrid, Mailgun, AWS SES, or Nodemailer with an SMTP server).
-  // 2. Configuring API keys/credentials securely (e.g., via environment variables).
-  // 3. Using the provider's SDK or an HTTP client to send an email containing `generatedOtp` to the `identifier` (if it's an email address).
-  //
-  // Example (conceptual, using a hypothetical emailService.sendOtpEmail function):
-  // if (identifier.includes('@')) { // Check if identifier is an email
-  //   try {
-  //     await emailService.sendOtpEmail({
-  //       to: identifier,
-  //       otp: generatedOtp,
-  //       subject: 'Your Assigno Verification Code',
-  //       body: `Your OTP for Assigno is: ${generatedOtp}. It will expire in 5 minutes.`,
-  //     });
-  //     console.log(`OTP email successfully sent to ${identifier}.`);
-  //   } catch (emailError) {
-  //     console.error(`Failed to send OTP email to ${identifier}:`, emailError);
-  //     // Handle email sending failure (e.g., log it, maybe notify admin, or inform user to try again)
-  //     // You might want to throw an error here to be caught by the calling function.
-  //     // For this mock, we'll proceed to log to console even if a real email failed.
-  //   }
-  // } else {
-  //   // Handle phone number OTP sending if that's also supported, using a different service (e.g., Twilio).
-  //   console.log(`Identifier ${identifier} is not an email. Implement phone OTP if needed.`);
-  // }
+  // (Conceptual comments from previous version remain valid)
   // --- End of Real Email Sending Logic ---
 
   console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS. It expires in 5 minutes).`);
@@ -100,16 +54,12 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
   if (storedOtpData.otp === otpToVerify) {
     mockOtpStore.delete(identifier); // OTP used, remove it
 
-    // At this point, in a real app, you would fetch the user associated with 'identifier'.
-    // For this mock, we'll try to find the user from the users service.
-    // This part assumes that if OTP is correct, a user record should ideally exist or be created by the calling form.
     try {
         const usersModule = await import('./users');
         if (typeof usersModule.ensureMockDataInitialized === 'function') {
             await usersModule.ensureMockDataInitialized();
         }
-        const allUsers = await usersModule.fetchAllUsers(); // Fetch all users (mock, might need schoolCode)
-                                                        // Or better, a new service users.findUserByIdentifier(identifier)
+        const allUsers = await usersModule.fetchAllUsers(); 
         const existingUser = allUsers.find(u => 
           (u.email && u.email.toLowerCase() === identifier.toLowerCase()) || 
           (u.phoneNumber && u.phoneNumber === identifier)
@@ -119,9 +69,6 @@ export async function verifyOTP(identifier: string, otpToVerify: string): Promis
         if (existingUser) {
             return { success: true, message: 'OTP verification successful.', user: existingUser };
         } else {
-            // If it's a signup flow, the user might not exist yet. 
-            // The calling form (SignupForm) handles user creation after successful OTP.
-            // So, for verifyOTP, success means OTP matched. User object can be undefined here.
             return { success: true, message: 'OTP verification successful. User may be new.' };
         }
     } catch (error) {
