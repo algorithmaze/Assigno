@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -54,9 +55,9 @@ export default function RootPage() {
             <p className="text-center text-sm text-muted-foreground pt-4">
               Students and Teachers: Please login or create an account if your institute is already registered.
               Account creation is available via the{' '}
-              <Link href="/login" className="font-semibold text-primary hover:underline">
-                Login page
-              </Link>.
+              <Link href="/signup" className="font-semibold text-primary hover:underline">
+                Signup page
+              </Link> or Login page.
             </p>
           </CardContent>
         </Card>
@@ -72,3 +73,4 @@ export default function RootPage() {
     </div>
   );
 }
+
