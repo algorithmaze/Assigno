@@ -18,14 +18,12 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Info } from 'lucide-react'; // Removed Users icon
+import { Loader2, KeyRound, UserCheck, CornerDownLeft } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp'; 
-// import { sampleCredentials } from '@/services/users'; // Removed import
 import type { User } from '@/context/auth-context'; 
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
-// import { Separator } from '@/components/ui/separator'; // Not needed if Quick Logins removed
-// import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Not needed if OTP hints removed
+
 
 const loginSchema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
@@ -38,14 +36,12 @@ const otpSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
-// Removed SampleUserKey and SampleCredentialType types
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isResendingOtp, setIsResendingOtp] = React.useState(false);
   const [otpSent, setOtpSent] = React.useState(false);
   const [identifierValue, setIdentifierValue] = React.useState(''); 
-  // const [currentSampleUser, setCurrentSampleUser] = React.useState<SampleCredentialType | null>(null); // Removed
   const { toast } = useToast();
   const { login } = useAuth();
   const router = useRouter();
@@ -73,11 +69,9 @@ export function LoginForm() {
       await sendOTP(data.identifier);
       setIdentifierValue(data.identifier);
       setOtpSent(true); 
-
-      // Removed logic for matchedSampleUser and OTP hints
       toast({
         title: isResend ? 'OTP Resent' : 'OTP Sent',
-        description: `An OTP has been sent to ${data.identifier}.`,
+        description: `An OTP has been sent to ${data.identifier}. (Mock OTP for testing).`,
       });
       otpForm.clearErrors('otp');
       otpForm.resetField('otp'); 
@@ -99,12 +93,19 @@ export function LoginForm() {
     try {
       const response = await verifyOTP(identifierValue, data.otp);
       if (response.success && response.user) {
-          await login(response.user);
+          await login(response.user); // AuthProvider will redirect
           toast({
             title: 'Login Successful',
             description: `Welcome back, ${response.user.name}!`,
           });
-         // router.push('/dashboard'); // AuthProvider handles redirection
+      } else if (response.success && !response.user) {
+        // This case should ideally not happen for login, as user must exist.
+        // For signup, this might be okay if user creation happens after OTP.
+        toast({
+          title: 'OTP Verified, User Not Found',
+          description: 'OTP is correct, but no user account is associated with this identifier.',
+          variant: 'destructive',
+        });
       } else {
         toast({
           title: 'Invalid OTP',
@@ -125,9 +126,6 @@ export function LoginForm() {
     }
   };
 
-  // Removed fillSampleUser function
-
-  // Removed useEffect for currentSampleUser
 
   return (
     <div className="space-y-6">
@@ -163,8 +161,6 @@ export function LoginForm() {
                 </Button>
             </form>
             </Form>
-            
-            {/* Removed Quick Logins section */}
          </>
       ) : (
         <div className="space-y-6">
@@ -174,7 +170,6 @@ export function LoginForm() {
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
                 </p>
             </div>
-            {/* Removed OTP hint Alert for sample users */}
             <Form {...otpForm}>
             <form onSubmit={otpForm.handleSubmit(handleOtpSubmit)} className="space-y-6">
                 <FormField
@@ -207,7 +202,7 @@ export function LoginForm() {
                         type="button" 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => { setOtpSent(false); /* Removed setCurrentSampleUser(null) */ }} 
+                        onClick={() => { setOtpSent(false); loginForm.reset({ identifier: identifierValue }); }} 
                         disabled={isLoading || isResendingOtp} 
                         className="w-full sm:w-auto"
                     >
@@ -232,3 +227,4 @@ export function LoginForm() {
     </div>
   );
 }
+
