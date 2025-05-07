@@ -25,7 +25,7 @@ export const sampleCredentials = {
         profilePictureUrl: `${DEFAULT_PROFILE_URL_BASE}adminantony001`,
         admissionNumber: undefined,
         class: undefined,
-        designation: undefined,
+        designation: 'Administrator' as 'Administrator', // Explicitly Admin designation
      },
     teacherZara: {
         id: 'teacher-zara-001',
@@ -120,11 +120,11 @@ declare global {
   var mockUsersInitialized_assigno_users: boolean | undefined;
 }
 
-const USERS_STORAGE_KEY = 'assigno_mock_users_data_v3'; // Incremented version for potential structural changes
+const USERS_STORAGE_KEY = 'assigno_mock_users_data_v3'; 
 
 function initializeGlobalUsersStore(): User[] {
     if (typeof window === 'undefined') {
-        return []; // Server-side, return empty
+        return []; 
     }
     if (globalThis.mockUsersData_assigno_users && globalThis.mockUsersInitialized_assigno_users) {
         return globalThis.mockUsersData_assigno_users;
@@ -142,7 +142,6 @@ function initializeGlobalUsersStore(): User[] {
         console.error("[Service:users] Error reading users from localStorage during global init:", error);
     }
 
-    // If no localStorage data or error, initialize with sampleCredentials
     const safeSampleCredentials = sampleCredentials || {};
     const initialUsers = Object.values(safeSampleCredentials).map(cred => {
         if (!cred || typeof cred.id === 'undefined' || typeof cred.name === 'undefined' || typeof cred.role === 'undefined' || typeof cred.schoolCode === 'undefined') {
@@ -156,8 +155,8 @@ function initializeGlobalUsersStore(): User[] {
             phoneNumber: cred.phoneNumber,
             role: cred.role,
             schoolCode: cred.schoolCode,
-            schoolName: "Sample Sr. Sec. School", // Default, to be updated if school service is called
-            schoolAddress: "456 School Road, Testville", // Default
+            schoolName: "Sample Sr. Sec. School", 
+            schoolAddress: "456 School Road, Testville", 
             profilePictureUrl: cred.profilePictureUrl || `${DEFAULT_PROFILE_URL_BASE}${cred.id}`,
             admissionNumber: cred.admissionNumber,
             class: cred.class,
@@ -175,7 +174,7 @@ function initializeGlobalUsersStore(): User[] {
 
 function getMockUsersData(): User[] {
   if (typeof window === 'undefined') {
-    return []; // Server-side, return empty
+    return []; 
   }
   if (!globalThis.mockUsersData_assigno_users || !globalThis.mockUsersInitialized_assigno_users) {
     return initializeGlobalUsersStore();
@@ -187,8 +186,8 @@ function updateMockUsersData(newData: User[]): void {
   if (typeof window === 'undefined') {
     return;
   }
-  globalThis.mockUsersData_assigno_users = newData; // Update global store
-  globalThis.mockUsersInitialized_assigno_users = true; // Ensure this is set
+  globalThis.mockUsersData_assigno_users = newData; 
+  globalThis.mockUsersInitialized_assigno_users = true; 
   try {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newData));
     console.log("[Service:users] Saved", newData.length, "users to localStorage.");
@@ -197,7 +196,6 @@ function updateMockUsersData(newData: User[]): void {
   }
 }
 
-// Initialize on load for client-side
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
     initializeGlobalUsersStore();
 }
@@ -209,13 +207,7 @@ export async function ensureMockDataInitialized() {
             initializeGlobalUsersStore(); 
         }
     } else if (typeof window === 'undefined') {
-        // For server-side, ensure that if the store is accessed, it's at least an empty array
-        // or initialized with necessary defaults if required for server-side logic.
-        // getMockUsersData() already returns [] on server if not initialized.
-        // This function is primarily for ensuring client-side dynamic imports have data.
         if (!globalThis.mockUsersInitialized_assigno_users) {
-            //  globalThis.mockUsersData_assigno_users = []; // Or some server-side specific init
-            //  globalThis.mockUsersInitialized_assigno_users = true;
         }
     }
 }
@@ -274,29 +266,23 @@ export async function addUser(user: Omit<User, 'id' | 'schoolName' | 'schoolAddr
         profilePictureUrl: `https://picsum.photos/100/100?random=${newUserId}`,
         admissionNumber: user.role === 'Student' ? user.admissionNumber : undefined,
         class: user.role === 'Student' || user.role === 'Teacher' ? user.class : undefined,
-        designation: user.role === 'Teacher' ? user.designation : undefined,
+        designation: user.role === 'Teacher' ? user.designation : (user.role === 'Admin' ? 'Administrator' : undefined),
     };
 
     const currentUsers = getMockUsersData();
-    if (!currentUsers.some(existingUser => existingUser.id === userToAdd.id)) {
+    const existingUserIndex = currentUsers.findIndex(existingUser => existingUser.id === userToAdd.id || (userToAdd.email && existingUser.email === userToAdd.email) || (userToAdd.phoneNumber && existingUser.phoneNumber === userToAdd.phoneNumber));
+
+    if (existingUserIndex === -1) {
         const updatedUsers = [...currentUsers, userToAdd];
         updateMockUsersData(updatedUsers);
         console.log("[Service:users] Added mock user:", userToAdd.name);
         return {...userToAdd};
     } else {
-        console.log("[Service:users] User already exists, not adding (mock):", userToAdd.id);
-        const existingUserIndex = currentUsers.findIndex(u => u.id === userToAdd.id);
-        if (existingUserIndex !== -1) {
-            currentUsers[existingUserIndex] = { ...currentUsers[existingUserIndex], ...userToAdd };
-            updateMockUsersData([...currentUsers]); // Ensure new array reference for reactivity
-            console.log("[Service:users] Updated existing mock user:", userToAdd.name);
-            return {...currentUsers[existingUserIndex]};
-        }
-        // This path should ideally not be hit if the some() check is correct
-        const existingUser = currentUsers.find(u => u.id === userToAdd.id);
-        if (existingUser) return {...existingUser};
-        // Fallback, should ideally not be reached if logic is correct
-        throw new Error(`User with id ${userToAdd.id} reported as existing but not found in array.`);
+        // User exists, update them (useful for re-uploading Excel with changes)
+        currentUsers[existingUserIndex] = { ...currentUsers[existingUserIndex], ...userToAdd };
+        updateMockUsersData([...currentUsers]); 
+        console.log("[Service:users] Updated existing mock user:", userToAdd.name);
+        return {...currentUsers[existingUserIndex]};
     }
 }
 
@@ -322,7 +308,7 @@ export async function updateUser(userId: string, updates: Partial<User>): Promis
         return null;
     }
     currentUsers[userIndex] = { ...currentUsers[userIndex], ...updates };
-    updateMockUsersData([...currentUsers]); // Ensure new array reference
+    updateMockUsersData([...currentUsers]); 
     console.log("[Service:users] Updated user (mock):", currentUsers[userIndex].name);
     return { ...currentUsers[userIndex] }; 
 }
@@ -349,8 +335,8 @@ export async function deleteUser(userId: string): Promise<boolean> {
 export type ExcelUser = {
     Name: string;
     'Email or Phone'?: string; 
-    Role: 'Student' | 'Teacher';
-    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher';
+    Role: 'Student' | 'Teacher' | 'Admin'; 
+    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | 'Administrator' | string; 
     'Class Handling (Teacher Only)'?: string; 
     'Admission Number (Student Only)'?: string;
     'Class (Student Only)'?: string;
@@ -373,19 +359,19 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                 }
                 const workbook = XLSX.read(data, { type: 'binary' });
                 
-                // Try to process "Teachers_Template" first, then "Students_Template"
-                const sheetNames = ["Teachers_Template", "Students_Template"];
+                const sheetNames = ["Teachers_Template", "Students_Template", "Existing_Staff", "Existing_Students"];
                 let jsonData: ExcelUser[] = [];
+                let processedSheets = 0;
 
                 for (const sheetName of sheetNames) {
                     if (workbook.Sheets[sheetName]) {
                         const worksheet = workbook.Sheets[sheetName];
                         jsonData.push(...XLSX.utils.sheet_to_json<ExcelUser>(worksheet));
+                        processedSheets++;
                     }
                 }
-                // If specific sheets not found, try the first sheet (backward compatibility)
-                 if (jsonData.length === 0 && workbook.SheetNames.length > 0) {
-                    console.warn("[Service:users] Specific sheets 'Teachers_Template' or 'Students_Template' not found. Processing first available sheet.");
+                 if (processedSheets === 0 && workbook.SheetNames.length > 0) {
+                    console.warn("[Service:users] Specific sheets not found. Processing first available sheet as fallback.");
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
                     jsonData = XLSX.utils.sheet_to_json<ExcelUser>(worksheet);
@@ -393,7 +379,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
 
 
                 if (jsonData.length === 0) {
-                    errors.push("Excel file is empty or has no data in the expected sheets (Teachers_Template, Students_Template, or first sheet).");
+                    errors.push("Excel file is empty or has no data in the expected sheets (Teachers_Template, Students_Template, Existing_Staff, Existing_Students or first sheet).");
                     errorCount = 1;
                     resolve({ successCount, errorCount, errors });
                     return;
@@ -402,8 +388,7 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                 const schoolDetails = await getSchoolDetails(schoolCode);
                 if (!schoolDetails) {
                      errors.push(`Invalid school code "${schoolCode}" provided for bulk import.`);
-                     errorCount = jsonData.length; // All rows will fail if school code is invalid
-                     // Add individual row errors for clarity
+                     errorCount = jsonData.length; 
                      jsonData.forEach(row => errors.push(`Skipping row for "${row.Name || 'N/A'}": Invalid school code.`));
                      resolve({ successCount, errorCount, errors });
                      return;
@@ -418,7 +403,10 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
                             continue;
                         }
                          if (row.Role !== 'Student' && row.Role !== 'Teacher') {
-                            errors.push(`Skipping row for "${row.Name}": Invalid Role "${row.Role}". Must be 'Student' or 'Teacher'.`);
+                            // Admins are typically not bulk-added or managed this way. They are special users.
+                            // If an 'Admin' role is in the Excel, we skip it for bulk *addition*.
+                            // Existing admins might be updated if an ID match happens in addUser, but new admins aren't created via bulk.
+                            errors.push(`Skipping row for "${row.Name}": Invalid Role "${row.Role}" for bulk addition. Only 'Student' or 'Teacher' can be bulk added.`);
                             errorCount++;
                             continue;
                         }
@@ -474,3 +462,4 @@ export async function bulkAddUsersFromExcel(file: File, schoolCode: string): Pro
         reader.readAsBinaryString(file);
     });
 }
+

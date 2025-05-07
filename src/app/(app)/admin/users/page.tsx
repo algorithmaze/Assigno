@@ -8,12 +8,23 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlusCircle, Edit, Trash2, Loader2, User as UserIcon, Download, Upload } from "lucide-react";
 import { useAuth } from '@/context/auth-context';
-import type { User, ExcelUser } from '@/context/auth-context'; // ExcelUser might need to be defined or imported from users service if it's different
+import type { User } from '@/context/auth-context';
 import { fetchAllUsers, deleteUser as deleteUserService, bulkAddUsersFromExcel } from '@/services/users';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/input'; // For file input
-import * as XLSX from 'xlsx'; // For Excel export
+import { Input } from '@/components/ui/input'; 
+import * as XLSX from 'xlsx'; 
+
+// Define the structure for Excel import/export
+export type ExcelUser = {
+    Name: string;
+    'Email or Phone'?: string;
+    Role: 'Student' | 'Teacher' | 'Admin'; // Added Admin for export, import will only process Student/Teacher
+    'Designation (Teacher Only)'?: 'Class Teacher' | 'Subject Teacher' | 'Administrator' | string; // Allow string for admin
+    'Class Handling (Teacher Only)'?: string;
+    'Admission Number (Student Only)'?: string;
+    'Class (Student Only)'?: string;
+};
 
 
 export default function AdminUsersPage() {
@@ -22,6 +33,7 @@ export default function AdminUsersPage() {
   const [loadingUsers, setLoadingUsers] = React.useState(true);
   const [isDeleting, setIsDeleting] = React.useState<string | null>(null);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [isDownloadingExisting, setIsDownloadingExisting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const router = useRouter();
@@ -86,7 +98,6 @@ export default function AdminUsersPage() {
   };
 
   const handleDownloadTemplate = () => {
-    // Explicitly define headers matching ExcelUser type keys
     const teacherHeaders = ["Name", "Email or Phone", "Role", "Designation (Teacher Only)", "Class Handling (Teacher Only)"];
     const studentHeaders = ["Name", "Email or Phone", "Role", "Admission Number (Student Only)", "Class (Student Only)"];
 
@@ -106,8 +117,76 @@ export default function AdminUsersPage() {
     XLSX.utils.book_append_sheet(wb, wsTeachers, "Teachers_Template");
     XLSX.utils.book_append_sheet(wb, wsStudents, "Students_Template");
     XLSX.writeFile(wb, "Assigno_User_Import_Template.xlsx");
-    toast({title: "Template Downloaded", description: "Excel template has been downloaded."});
+    toast({title: "Template Downloaded", description: "Excel template for new user import has been downloaded."});
   };
+
+  const handleDownloadExistingUsers = async () => {
+    if (!adminUser || !adminUser.schoolCode) {
+        toast({ title: "Error", description: "Admin user or school code not found.", variant: "destructive" });
+        return;
+    }
+    setIsDownloadingExisting(true);
+    try {
+        const allUsers = await fetchAllUsers(adminUser.schoolCode);
+        if (allUsers.length === 0) {
+            toast({ title: "No Users", description: "No users found in your school to download.", variant: "default" });
+            setIsDownloadingExisting(false);
+            return;
+        }
+
+        const staffExcelData: ExcelUser[] = [];
+        const studentsExcelData: ExcelUser[] = [];
+
+        allUsers.forEach(user => {
+            if (user.role === 'Teacher' || user.role === 'Admin') {
+                staffExcelData.push({
+                    Name: user.name,
+                    'Email or Phone': user.email || user.phoneNumber || '',
+                    Role: user.role, 
+                    'Designation (Teacher Only)': user.designation || (user.role === 'Admin' ? 'Administrator' : ''),
+                    'Class Handling (Teacher Only)': user.class || '',
+                });
+            } else if (user.role === 'Student') {
+                studentsExcelData.push({
+                    Name: user.name,
+                    'Email or Phone': user.email || user.phoneNumber || '',
+                    Role: 'Student',
+                    'Admission Number (Student Only)': user.admissionNumber || '',
+                    'Class (Student Only)': user.class || '',
+                });
+            }
+        });
+
+        const wb = XLSX.utils.book_new();
+        const staffHeaders = ["Name", "Email or Phone", "Role", "Designation (Teacher Only)", "Class Handling (Teacher Only)"];
+        const studentHeaders = ["Name", "Email or Phone", "Role", "Admission Number (Student Only)", "Class (Student Only)"];
+
+        if (staffExcelData.length > 0) {
+            const wsStaff = XLSX.utils.json_to_sheet(staffExcelData, { header: staffHeaders });
+            XLSX.utils.book_append_sheet(wb, wsStaff, "Existing_Staff"); // Teachers and Admins
+        }
+        if (studentsExcelData.length > 0) {
+            const wsStudents = XLSX.utils.json_to_sheet(studentsExcelData, { header: studentHeaders });
+            XLSX.utils.book_append_sheet(wb, wsStudents, "Existing_Students");
+        }
+        
+        if (staffExcelData.length === 0 && studentsExcelData.length === 0) {
+             toast({ title: "No Users Formatted", description: "No user data could be formatted for download.", variant: "default" });
+             setIsDownloadingExisting(false);
+             return;
+        }
+
+        XLSX.writeFile(wb, `Existing_Users_${adminUser.schoolCode}.xlsx`);
+        toast({title: "Existing Users Downloaded", description: "Current user data has been downloaded."});
+
+    } catch (error) {
+        console.error("Failed to download existing users:", error);
+        toast({ title: "Download Failed", description: "Could not download existing user data.", variant: "destructive" });
+    } finally {
+        setIsDownloadingExisting(false);
+    }
+  };
+
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -119,25 +198,24 @@ export default function AdminUsersPage() {
       toast({
         title: "Upload Processed",
         description: `Successfully added: ${result.successCount}. Failed: ${result.errorCount}.`,
-        duration: result.errorCount > 0 ? 10000 : 5000, // Longer duration if errors
+        duration: result.errorCount > 0 ? 10000 : 5000, 
       });
       if (result.errors.length > 0) {
         console.error("Bulk import errors:", result.errors);
-        // Could display errors in a dialog or more detailed toast
         result.errors.slice(0, 5).forEach(err => toast({ title: "Import Error", description: err, variant: "destructive", duration: 10000 }));
         if (result.errors.length > 5) {
              toast({ title: "Multiple Import Errors", description: `There were ${result.errors.length - 5} more errors. Check console for details.`, variant: "destructive", duration: 10000 });
         }
       }
       if (result.successCount > 0) {
-        loadUsers(); // Refresh user list if any users were added
+        loadUsers(); 
       }
     } catch (error: any) {
       toast({ title: "Upload Failed", description: error.message || "Could not process the Excel file.", variant: "destructive" });
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""; // Reset file input
+        fileInputRef.current.value = ""; 
       }
     }
   };
@@ -160,6 +238,10 @@ export default function AdminUsersPage() {
             <Button onClick={handleDownloadTemplate} variant="outline">
               <Download className="mr-2 h-4 w-4" /> Download Template
             </Button>
+            <Button onClick={handleDownloadExistingUsers} variant="outline" disabled={isDownloadingExisting || loadingUsers}>
+              {isDownloadingExisting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              Download Existing Users
+            </Button>
             <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} variant="outline">
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
               Upload Excel
@@ -179,7 +261,7 @@ export default function AdminUsersPage() {
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle>User Directory</CardTitle>
-          <CardDescription>View, edit, or remove users in {adminUser?.schoolName}. Use Excel upload for bulk additions.</CardDescription>
+          <CardDescription>View, edit, or remove users in {adminUser?.schoolName}. Use Excel upload for bulk additions/updates.</CardDescription>
         </CardHeader>
         <CardContent>
           {loadingUsers ? (
@@ -218,6 +300,7 @@ export default function AdminUsersPage() {
                     <TableCell>
                       {user.role === 'Student' ? `${user.class || 'N/A'} (${user.admissionNumber || 'N/A'})` 
                        : user.role === 'Teacher' ? `${user.designation || 'N/A'} ${user.class ? `(${user.class})` : ''}` 
+                       : user.role === 'Admin' ? (user.designation || 'Administrator')
                        : user.class || 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
