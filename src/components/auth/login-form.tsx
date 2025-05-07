@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Users } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Users, Mail, Phone } from 'lucide-react';
 import { sendOTP, verifyOTP } from '@/services/otp'; 
 import type { User } from '@/context/auth-context'; 
 import { useAuth } from '@/context/auth-context';
@@ -26,7 +26,12 @@ import { useRouter } from 'next/navigation';
 
 
 const loginSchema = z.object({
-  identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
+  identifier: z.string().min(1, { message: 'Email or Phone number is required' })
+  .refine(value => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const phoneRegex = /^\+?[1-9]\d{1,14}$/; // Basic international phone number regex
+    return emailRegex.test(value) || phoneRegex.test(value);
+  }, { message: 'Please enter a valid email or phone number (e.g., +1234567890).' }),
 });
 
 const otpSchema = z.object({
@@ -70,8 +75,8 @@ export function LoginForm() {
       setIdentifierValue(data.identifier);
       setOtpSent(true); 
       toast({
-        title: isResend ? 'OTP Resent (Mock)' : 'OTP Sent (Mock)',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check browser console for OTP).`,
+        title: isResend ? 'OTP Resent' : 'OTP Sent',
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: In a real app, an email/SMS would be sent. For testing, check browser console for OTP).`,
         duration: 7000,
       });
       otpForm.clearErrors('otp');
@@ -100,8 +105,6 @@ export function LoginForm() {
             description: `Welcome back, ${response.user.name}!`,
           });
       } else if (response.success && !response.user) {
-        // This case should ideally not happen for login, as user must exist.
-        // For signup, this might be okay if user creation happens after OTP.
         toast({
           title: 'OTP Verified, User Not Found',
           description: 'OTP is correct, but no user account is associated with this identifier.',
@@ -141,16 +144,21 @@ export function LoginForm() {
                     <FormItem>
                     <FormLabel className="text-base">School Email or Phone</FormLabel>
                     <FormControl>
+                       <div className="relative">
+                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                           {field.value?.includes('@') ? <Mail className="h-5 w-5 text-muted-foreground" /> : <Phone className="h-5 w-5 text-muted-foreground" />}
+                         </div>
                         <Input 
                             type="text"
-                            placeholder="e.g., student@school.com or +1234567890" 
+                            placeholder="e.g., user@school.com or +1234567890" 
                             {...field} 
-                            className="text-base py-6"
+                            className="text-base py-6 pl-10" // Added pl-10 for icon padding
                             aria-describedby="identifier-description"
                          />
+                        </div>
                     </FormControl>
                     <FormDescription id="identifier-description">
-                        Enter your registered credential.
+                        Enter your registered credential to receive an OTP.
                     </FormDescription>
                     <FormMessage />
                     </FormItem>
@@ -169,7 +177,7 @@ export function LoginForm() {
                 <h3 className="text-xl font-semibold">Verify Your Identity</h3>
                 <p className="text-muted-foreground">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                (MOCK: Check console for OTP)
+                (MOCK: In a real app, an email/SMS would be sent. For testing, check browser console for OTP).
                 </p>
             </div>
             <Form {...otpForm}>
@@ -197,7 +205,7 @@ export function LoginForm() {
                 />
                 <Button type="submit" className="w-full py-6 text-base" disabled={isLoading || isResendingOtp}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserCheck className="mr-2 h-5 w-5" />}
-                Verify & Login
+                Verify &amp; Login
                 </Button>
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-2 pt-2">
                     <Button 
@@ -229,4 +237,3 @@ export function LoginForm() {
     </div>
   );
 }
-

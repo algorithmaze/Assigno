@@ -23,8 +23,36 @@ export async function sendOTP(identifier: string): Promise<void> {
   const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit OTP
   mockOtpStore.set(identifier, { otp: generatedOtp, timestamp: Date.now() });
   
-  console.log(`Simulating OTP sent to ${identifier}. OTP: ${generatedOtp}. (This OTP is for mock purposes only and will expire in 5 minutes).`);
-  // In a real app, an SMS/email would be sent here.
+  // --- Real Email Sending Logic Would Go Here ---
+  // In a production application, you would use an email service to send the OTP.
+  // This typically involves:
+  // 1. Setting up an email provider (e.g., SendGrid, Mailgun, AWS SES, or Nodemailer with an SMTP server).
+  // 2. Configuring API keys/credentials securely (e.g., via environment variables).
+  // 3. Using the provider's SDK or an HTTP client to send an email containing `generatedOtp` to the `identifier` (if it's an email address).
+  //
+  // Example (conceptual, using a hypothetical emailService.sendOtpEmail function):
+  // if (identifier.includes('@')) { // Check if identifier is an email
+  //   try {
+  //     await emailService.sendOtpEmail({
+  //       to: identifier,
+  //       otp: generatedOtp,
+  //       subject: 'Your Assigno Verification Code',
+  //       body: `Your OTP for Assigno is: ${generatedOtp}. It will expire in 5 minutes.`,
+  //     });
+  //     console.log(`OTP email successfully sent to ${identifier}.`);
+  //   } catch (emailError) {
+  //     console.error(`Failed to send OTP email to ${identifier}:`, emailError);
+  //     // Handle email sending failure (e.g., log it, maybe notify admin, or inform user to try again)
+  //     // You might want to throw an error here to be caught by the calling function.
+  //     // For this mock, we'll proceed to log to console even if a real email failed.
+  //   }
+  // } else {
+  //   // Handle phone number OTP sending if that's also supported, using a different service (e.g., Twilio).
+  //   console.log(`Identifier ${identifier} is not an email. Implement phone OTP if needed.`);
+  // }
+  // --- End of Real Email Sending Logic ---
+
+  console.log(`OTP for ${identifier}: ${generatedOtp}. (MOCK: This OTP is for testing. In a real app, it would be sent via email/SMS and not logged here. It expires in 5 minutes).`);
   
   await new Promise(resolve => setTimeout(resolve, 50)); 
   return;

@@ -25,7 +25,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail, Phone } from 'lucide-react'; // Added Mail, Phone icons
 import { sendOTP, verifyOTP } from '@/services/otp'; 
 import { getSchoolDetails } from '@/services/school'; 
 import type { SchoolDetails } from '@/services/school';
@@ -34,7 +34,12 @@ import { useRouter } from 'next/navigation';
 import { addUser as createUserService } from '@/services/users'; // Renamed for clarity
 
 const signupStep1Schema = z.object({
-  identifier: z.string().min(1, { message: 'Email or Phone number is required' }),
+  identifier: z.string().min(1, { message: 'Email or Phone number is required' })
+    .refine(value => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/; // Basic international phone number regex
+      return emailRegex.test(value) || phoneRegex.test(value);
+    }, { message: 'Please enter a valid email or phone number (e.g., +1234567890).' }),
   schoolCode: z.string().min(3, { message: 'School code is required' }),
   role: z.enum(['Student', 'Teacher', 'Admin'], { required_error: 'Please select a role' }),
 });
@@ -107,8 +112,8 @@ export function SignupForm() {
       await sendOTP(data.identifier); 
       setStep(2); 
       toast({
-        title: 'OTP Sent (Mock)',
-        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check browser console for OTP).`,
+        title: 'OTP Sent',
+        description: `An OTP has been sent to ${data.identifier}. (MOCK: Check console for OTP).`,
         duration: 7000,
       });
     } catch (error: any) {
@@ -181,6 +186,7 @@ export function SignupForm() {
   };
 
    const currentRole = step1Form.watch('role') || formData.role;
+   const currentIdentifier = step1Form.watch('identifier') || formData.identifier || '';
 
 
   return (
@@ -195,7 +201,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>School Code *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your unique school code" {...field} />
+                    <Input placeholder="Enter your unique school code" {...field} className="py-5"/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -208,7 +214,12 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Your Email or Phone Number *</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., user@school.com or +1234567890" {...field} />
+                     <div className="relative">
+                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                         {field.value?.includes('@') ? <Mail className="h-5 w-5 text-muted-foreground" /> : <Phone className="h-5 w-5 text-muted-foreground" />}
+                       </div>
+                      <Input placeholder="e.g., user@school.com or +1234567890" {...field} className="py-5 pl-10"/>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -222,7 +233,7 @@ export function SignupForm() {
                     <FormLabel>Your Role *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="py-5">
                             <SelectValue placeholder="Select your role" />
                         </SelectTrigger>
                         </FormControl>
@@ -237,9 +248,9 @@ export function SignupForm() {
                 )}
             />
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full py-5" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Verify & Send OTP
+              Verify &amp; Send OTP
             </Button>
           </form>
         </Form>
@@ -247,7 +258,7 @@ export function SignupForm() {
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
              <p className="text-sm text-muted-foreground">
-              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {formData.identifier}. (MOCK: Check console for OTP)
+              Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {currentIdentifier}. (MOCK: Check console for OTP)
             </p>
             <FormField
               control={step2Form.control}
@@ -262,6 +273,8 @@ export function SignupForm() {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         {...field}
+                        className="py-5 text-center text-lg tracking-[0.3em]"
+                        autoFocus
                      />
                   </FormControl>
                   <FormMessage />
@@ -275,7 +288,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Full Name *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Your full name" {...field} />
+                    <Input placeholder="Your full name" {...field} className="py-5"/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -290,7 +303,7 @@ export function SignupForm() {
                         <FormItem>
                         <FormLabel>Admission Number *</FormLabel>
                         <FormControl>
-                            <Input placeholder="Your admission number" {...field} />
+                            <Input placeholder="Your admission number" {...field} className="py-5"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -303,7 +316,7 @@ export function SignupForm() {
                         <FormItem>
                         <FormLabel>Class *</FormLabel>
                         <FormControl>
-                            <Input placeholder="e.g., 10A, Grade 5B" {...field} />
+                            <Input placeholder="e.g., 10A, Grade 5B" {...field} className="py-5"/>
                         </FormControl>
                          <FormMessage />
                         </FormItem>
@@ -321,7 +334,7 @@ export function SignupForm() {
                             <FormLabel>Designation *</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                <SelectTrigger>
+                                <SelectTrigger className="py-5">
                                     <SelectValue placeholder="Select your designation" />
                                 </SelectTrigger>
                                 </FormControl>
@@ -341,7 +354,7 @@ export function SignupForm() {
                             <FormItem>
                             <FormLabel>Class(es) Handling (Optional)</FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g., 10A, 9B (comma-separated)" {...field} />
+                                <Input placeholder="e.g., 10A, 9B (comma-separated)" {...field} className="py-5"/>
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -350,9 +363,9 @@ export function SignupForm() {
                 </>
              )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full py-5" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Verify OTP & Complete Signup
+              Verify OTP &amp; Complete Signup
             </Button>
              <Button variant="link" size="sm" onClick={() => {setStep(1); step2Form.reset(); /* Keep step1Form values */ }} disabled={isLoading} className="w-full">
                Back to Previous Step
