@@ -4,7 +4,7 @@
 // import { db } from '@/lib/firebase'; // Assuming you have a firebase.ts setup file
 
 import type { User } from '@/context/auth-context';
-// Import users module dynamically where needed or ensure it's initialized before use
+import * as usersModule from './users'; // Static import
 
 /**
  * Represents the structure of a group.
@@ -119,6 +119,10 @@ export async function ensureMockDataInitialized() {
         // Ensure server-side has a basic initialized store if accessed directly
         initializeGlobalGroupsStore();
     }
+     // Also ensure users service is initialized if it's a dependency for admin creation
+    if (usersModule && typeof usersModule.ensureMockDataInitialized === 'function') {
+        await usersModule.ensureMockDataInitialized();
+    }
 }
 
 // Initialize on load for client-side
@@ -174,7 +178,6 @@ export async function fetchUserGroups(userId: string, userRole: 'Admin' | 'Teach
     await ensureMockDataInitialized();
     console.log(`[Service:groups] Fetching groups for user ${userId} (${userRole}).`);
     
-    const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     
     const user = await usersModule.fetchUsersByIds([userId]).then(users => users[0]);
@@ -354,7 +357,6 @@ export async function fetchGroupJoinRequests(groupId: string, requestingUserId: 
     await ensureMockDataInitialized();
     console.log(`[Service:groups] User ${requestingUserId} fetching join requests for group ${groupId}`);
     
-    const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     
     const requestingUser = await usersModule.fetchUsersByIds([requestingUserId]).then(users => users[0]);
@@ -384,7 +386,6 @@ export async function approveJoinRequest(groupId: string, studentId: string, app
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
 
-    const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     const approverUser = await usersModule.fetchUsersByIds([approverId]).then(users => users[0]);
     if (!approverUser) return false;
@@ -417,7 +418,6 @@ export async function rejectJoinRequest(groupId: string, studentId: string, reje
     const groupToUpdate = currentStore.get(groupId);
     if (!groupToUpdate) return false;
 
-    const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     const rejectorUser = await usersModule.fetchUsersByIds([rejectorId]).then(users => users[0]);
     if(!rejectorUser) return false;
@@ -456,8 +456,6 @@ export async function getSchoolStats(schoolCode: string): Promise<SchoolStats> {
 
     const currentStore = getMockGroupsData();
     const allGroups = Array.from(currentStore.values());
-    
-    const usersModule = await import('./users'); // Await the dynamic import itself
     
     if (!usersModule) {
         console.error("[Service:groups] usersModule is not available in getSchoolStats.");
@@ -518,7 +516,6 @@ export async function updateGroupSettings(groupId: string, settings: Partial<Pic
       return null;
     }
     
-    const usersModule = await import('./users');
     await usersModule.ensureMockDataInitialized();
     const user = await usersModule.fetchUsersByIds([currentUserId]).then(users => users[0]);
     if (!user) {
