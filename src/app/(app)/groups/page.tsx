@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 
-const POLLING_INTERVAL = 7000; // Changed from 10000 to 7000 (7 seconds)
+const POLLING_INTERVAL = 7000; 
 
 export default function GroupsPage() {
   const { user } = useAuth();
@@ -160,11 +160,11 @@ export default function GroupsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
          <h1 className="text-3xl font-bold">Groups</h1>
          {canCreateGroup && (
-            <Link href="/groups/create">
-                <Button><PlusCircle className="mr-2 h-4 w-4"/>Create Group</Button>
+            <Link href="/groups/create" className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4"/>Create Group</Button>
             </Link>
          )}
       </div>
@@ -196,7 +196,7 @@ export default function GroupsPage() {
             </p>
           )}
           {!loading && !error && groups.length > 0 && (
-             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                {groups.map((group) => (
                  <Link href={`/groups/${group.id}`} key={group.id} className="block">
                     <Card className="p-4 hover:shadow-lg cursor-pointer transition-all h-full flex flex-col justify-between rounded-lg">
@@ -223,7 +223,7 @@ export default function GroupsPage() {
                     <h3 className="text-xl font-semibold mb-3">Join a Group</h3>
                      <Dialog open={isJoinGroupOpen} onOpenChange={setIsJoinGroupOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline"><LogIn className="mr-2 h-4 w-4" /> Enter Group Code</Button>
+                            <Button variant="outline" className="w-full sm:w-auto"><LogIn className="mr-2 h-4 w-4" /> Enter Group Code</Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
                             <DialogHeader>

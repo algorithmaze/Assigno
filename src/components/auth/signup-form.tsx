@@ -1,3 +1,4 @@
+
 'use client';
 
 // TODO: Firebase - Import necessary Firebase modules (e.g., getFirestore, doc, setDoc from 'firebase/firestore')
@@ -29,7 +30,7 @@ import { getSchoolDetails } from '@/services/school';
 import type { SchoolDetails } from '@/services/school';
 import { useAuth, type User } from '@/context/auth-context'; 
 import { useRouter } from 'next/navigation';
-import { addUser as createUserService, sampleAdminCredentials, sampleStudentCredentials } from '@/services/users';
+import { addUser as createUserService, sampleCredentials } from '@/services/users';
 
 const signupStep1Schema = z.object({
   identifier: z.string().min(1, { message: 'Email or Phone number is required' })
@@ -49,6 +50,9 @@ const signupStep2Schema = z.object({
   class: z.string().optional(),
   designation: z.enum(['Class Teacher', 'Subject Teacher']).optional(),
 }).refine((data) => {
+  // Validation logic can be added here if specific fields are required based on role for step 2
+  // For example, if role (from step 1) is Student, then admissionNumber and class are required
+  // This logic is illustrative; actual access to formData.role needs careful handling if splitting forms
   return true; 
 });
 
@@ -103,13 +107,16 @@ export function SignupForm() {
        }
 
       let otpBypass = false;
-      if (
-        (data.role === 'Admin' && data.identifier === OTP_BYPASS_ADMIN_EMAIL && data.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
-        (data.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === data.identifier && s.schoolCode === data.schoolCode))
-      ) {
-        otpBypass = true;
-        console.log(`OTP bypass activated for ${data.identifier}`);
+      if (data.identifier === OTP_BYPASS_ADMIN_EMAIL && data.schoolCode === OTP_BYPASS_SCHOOL_CODE) {
+        otpBypass = true; // Admin bypass
+      } else {
+        const studentCred = sampleCredentials.student.find(s => s.identifier === data.identifier && s.schoolCode === OTP_BYPASS_SCHOOL_CODE);
+        if (studentCred) {
+            otpBypass = true; // Student bypass
+        }
       }
+      console.log(`OTP bypass status for ${data.identifier}: ${otpBypass}`);
+      
 
       if (!otpBypass) {
         await sendOTP(data.identifier); 
@@ -121,25 +128,29 @@ export function SignupForm() {
       } else {
          toast({
           title: 'OTP Bypassed (Demo User)',
-          description: `Proceeding to next step for ${data.identifier}. Enter any 6 digits for OTP if prompted, or it will be auto-filled.`,
+          description: `Proceeding to next step for ${data.identifier}. Enter OTP "${DEFAULT_TEST_OTP}".`,
           duration: 7000,
         });
       }
       
       setStep(2); 
-      const defaultName = (otpBypass && data.role === 'Admin' && data.identifier === OTP_BYPASS_ADMIN_EMAIL)
-        ? sampleAdminCredentials.name
-        : (otpBypass && data.role === 'Student' && sampleStudentCredentials.find(s => s.identifier === data.identifier))
-        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.name || ''
-        : '';
+      
+      let defaultName = '';
+      let defaultAdmissionNumber = '';
+      let defaultClass = '';
 
-      const defaultAdmissionNumber = (otpBypass && data.role === 'Student')
-        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.admissionNumber || ''
-        : '';
-
-      const defaultClass = (otpBypass && data.role === 'Student')
-        ? sampleStudentCredentials.find(s => s.identifier === data.identifier)?.class || ''
-        : '';
+      if (otpBypass) {
+        if (data.role === 'Admin' && data.identifier === OTP_BYPASS_ADMIN_EMAIL) {
+            defaultName = sampleCredentials.admin?.name || '';
+        } else if (data.role === 'Student') {
+            const studentCred = sampleCredentials.student.find(s => s.identifier === data.identifier);
+            if (studentCred) {
+                defaultName = studentCred.name;
+                defaultAdmissionNumber = studentCred.admissionNumber || '';
+                defaultClass = studentCred.class || '';
+            }
+        }
+      }
       
       const otpValueForReset = otpBypass ? DEFAULT_TEST_OTP : '';
 
@@ -171,22 +182,31 @@ export function SignupForm() {
 
     try {
       let otpVerifiedUser: User | undefined = undefined;
-      if (
-        (fullData.role === 'Admin' && fullData.identifier === OTP_BYPASS_ADMIN_EMAIL && fullData.schoolCode === OTP_BYPASS_SCHOOL_CODE && data.otp === DEFAULT_TEST_OTP) ||
-        (fullData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === fullData.identifier && s.schoolCode === fullData.schoolCode) && data.otp === DEFAULT_TEST_OTP)
-      ) {
-        console.log(`OTP check bypassed and validated for demo user ${fullData.identifier}`);
-        // For demo users, we can synthesize the user object or fetch if they were pre-added
-        if (fullData.role === 'Admin') {
-            otpVerifiedUser = { ...sampleAdminCredentials, id: sampleAdminCredentials.identifier, schoolCode: fullData.schoolCode, schoolName: schoolDetails?.schoolName, schoolAddress: schoolDetails?.address } as User;
-        } else if (fullData.role === 'Student') {
-            const studentCred = sampleStudentCredentials.find(s => s.identifier === fullData.identifier);
-            if (studentCred) {
-                 otpVerifiedUser = { ...studentCred, id: studentCred.identifier, schoolCode: fullData.schoolCode, schoolName: schoolDetails?.schoolName, schoolAddress: schoolDetails?.address } as User;
-            }
-        }
-
+      
+      let otpBypassSuccess = false;
+      if (fullData.identifier === OTP_BYPASS_ADMIN_EMAIL && fullData.schoolCode === OTP_BYPASS_SCHOOL_CODE && data.otp === DEFAULT_TEST_OTP) {
+           otpBypassSuccess = true;
+           otpVerifiedUser = { 
+               ...(sampleCredentials.admin!), 
+               id: sampleCredentials.admin!.identifier,
+               schoolName: schoolDetails?.schoolName, 
+               schoolAddress: schoolDetails?.address 
+           } as User;
       } else {
+          const studentCred = sampleCredentials.student.find(s => s.identifier === fullData.identifier && s.schoolCode === OTP_BYPASS_SCHOOL_CODE);
+          if (studentCred && data.otp === DEFAULT_TEST_OTP) {
+              otpBypassSuccess = true;
+              otpVerifiedUser = { 
+                  ...studentCred, 
+                  id: studentCred.identifier,
+                  schoolName: schoolDetails?.schoolName, 
+                  schoolAddress: schoolDetails?.address 
+              } as User;
+          }
+      }
+
+
+      if (!otpBypassSuccess) {
         const otpResponse = await verifyOTP(fullData.identifier, data.otp);
         if (!otpResponse.success) {
           step2Form.setError('otp', { message: otpResponse.message || 'Invalid OTP' });
@@ -210,7 +230,7 @@ export function SignupForm() {
           designation: fullData.role === 'Teacher' ? fullData.designation : (fullData.role === 'Admin' ? 'Administrator' : undefined),
        };
        
-       if (otpVerifiedUser?.id) {
+       if (otpVerifiedUser?.id) { // If OTP verification returned an existing user (or synthesized one for bypass)
            newUserInput.id = otpVerifiedUser.id;
        }
 
@@ -254,7 +274,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>School Code *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter your unique school code" {...field} className="py-5"/>
+                    <Input placeholder="Enter your unique school code" {...field} className="py-5 text-sm sm:text-base"/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -269,9 +289,9 @@ export function SignupForm() {
                   <FormControl>
                      <div className="relative">
                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                         {field.value?.includes('@') ? <Mail className="h-5 w-5 text-muted-foreground" /> : <Phone className="h-5 w-5 text-muted-foreground" />}
+                         {field.value?.includes('@') ? <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /> : <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />}
                        </div>
-                      <Input placeholder="e.g., user@school.com or +1234567890" {...field} className="py-5 pl-10"/>
+                      <Input placeholder="e.g., user@school.com or +1234567890" {...field} className="py-5 pl-10 text-sm sm:text-base"/>
                     </div>
                   </FormControl>
                   <FormMessage />
@@ -286,7 +306,7 @@ export function SignupForm() {
                     <FormLabel>Your Role *</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                        <SelectTrigger className="py-5">
+                        <SelectTrigger className="py-5 text-sm sm:text-base">
                             <SelectValue placeholder="Select your role" />
                         </SelectTrigger>
                         </FormControl>
@@ -301,7 +321,7 @@ export function SignupForm() {
                 )}
             />
 
-            <Button type="submit" className="w-full py-5" disabled={isLoading}>
+            <Button type="submit" className="w-full py-5 text-sm sm:text-base" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Verify &amp; Send OTP
             </Button>
@@ -310,11 +330,10 @@ export function SignupForm() {
       ) : (
         <Form {...step2Form}>
           <form onSubmit={step2Form.handleSubmit(handleStep2Submit)} className="space-y-4">
-             <p className="text-sm text-muted-foreground">
+             <p className="text-xs sm:text-sm text-muted-foreground">
               Verifying for <strong>{schoolDetails?.schoolName}</strong>. Role: <strong>{currentRole}</strong>. Enter OTP sent to {currentIdentifier}.
-             {(
-                (formData.role === 'Admin' && formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
-                (formData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === formData.identifier && s.schoolCode === formData.schoolCode))
+             {( (formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
+                (sampleCredentials.student.some(s => s.identifier === formData.identifier && s.schoolCode === OTP_BYPASS_SCHOOL_CODE))
             ) && (
               <span className="font-semibold">(MOCK: Use OTP "{DEFAULT_TEST_OTP}")</span>
              )}
@@ -333,7 +352,7 @@ export function SignupForm() {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         {...field}
-                        className="py-5 text-center text-lg tracking-[0.3em]"
+                        className="py-5 text-center text-lg tracking-[0.3em] text-sm sm:text-base"
                         autoFocus
                      />
                   </FormControl>
@@ -348,7 +367,7 @@ export function SignupForm() {
                 <FormItem>
                   <FormLabel>Full Name *</FormLabel>
                   <FormControl>
-                    <Input placeholder="Your full name" {...field} className="py-5"/>
+                    <Input placeholder="Your full name" {...field} className="py-5 text-sm sm:text-base"/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -363,7 +382,7 @@ export function SignupForm() {
                         <FormItem>
                         <FormLabel>Admission Number *</FormLabel>
                         <FormControl>
-                            <Input placeholder="Your admission number" {...field} className="py-5"/>
+                            <Input placeholder="Your admission number" {...field} className="py-5 text-sm sm:text-base"/>
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -376,7 +395,7 @@ export function SignupForm() {
                         <FormItem>
                         <FormLabel>Class *</FormLabel>
                         <FormControl>
-                            <Input placeholder="e.g., 10A, Grade 5B" {...field} className="py-5"/>
+                            <Input placeholder="e.g., 10A, Grade 5B" {...field} className="py-5 text-sm sm:text-base"/>
                         </FormControl>
                          <FormMessage />
                         </FormItem>
@@ -394,7 +413,7 @@ export function SignupForm() {
                             <FormLabel>Designation *</FormLabel>
                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                <SelectTrigger className="py-5">
+                                <SelectTrigger className="py-5 text-sm sm:text-base">
                                     <SelectValue placeholder="Select your designation" />
                                 </SelectTrigger>
                                 </FormControl>
@@ -414,7 +433,7 @@ export function SignupForm() {
                             <FormItem>
                             <FormLabel>Class(es) Handling (Optional)</FormLabel>
                             <FormControl>
-                                <Input placeholder="e.g., 10A, 9B (comma-separated)" {...field} className="py-5"/>
+                                <Input placeholder="e.g., 10A, 9B (comma-separated)" {...field} className="py-5 text-sm sm:text-base"/>
                             </FormControl>
                             <FormMessage />
                             </FormItem>
@@ -423,18 +442,18 @@ export function SignupForm() {
                 </>
              )}
 
-            <Button type="submit" className="w-full py-5" disabled={isLoading}>
+            <Button type="submit" className="w-full py-5 text-sm sm:text-base" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Verify OTP &amp; Complete Signup
             </Button>
-             <Button variant="link" size="sm" onClick={() => {setStep(1); step2Form.reset(); /* Keep step1Form values */ }} disabled={isLoading} className="w-full">
+             <Button variant="link" size="sm" onClick={() => {setStep(1); step2Form.reset(); /* Keep step1Form values */ }} disabled={isLoading} className="w-full text-xs">
                Back to Previous Step
              </Button>
              {!(
-                (formData.role === 'Admin' && formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
-                (formData.role === 'Student' && sampleStudentCredentials.some(s => s.identifier === formData.identifier && s.schoolCode === formData.schoolCode))
+                (formData.identifier === OTP_BYPASS_ADMIN_EMAIL && formData.schoolCode === OTP_BYPASS_SCHOOL_CODE) ||
+                (sampleCredentials.student.some(s => s.identifier === formData.identifier && s.schoolCode === OTP_BYPASS_SCHOOL_CODE))
              ) && (
-                <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full">
+                <Button variant="link" size="sm" onClick={() => handleStep1Submit(formData as SignupStep1Data)} disabled={isLoading} className="w-full text-xs">
                   Resend OTP
                 </Button>
              )}
@@ -444,4 +463,3 @@ export function SignupForm() {
     </>
   );
 }
-

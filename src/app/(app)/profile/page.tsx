@@ -132,10 +132,10 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <h1 className="text-3xl font-bold">Your Profile</h1>
         {!isEditing && (
-            <Button onClick={() => setIsEditing(true)} variant="outline">
+            <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full sm:w-auto">
                 <Edit className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
         )}
@@ -183,7 +183,7 @@ export default function ProfilePage() {
                         name="name"
                         control={form.control}
                         render={({ field, fieldState }) => (
-                            <div className="w-full max-w-sm"> {/* Changed from max-w-xs */}
+                            <div className="w-full max-w-sm">
                                 <Input 
                                     {...field} 
                                     className="text-3xl font-semibold text-center border-0 shadow-none focus-visible:ring-1 focus-visible:ring-ring h-auto py-1"
@@ -206,10 +206,10 @@ export default function ProfilePage() {
                     )}
                 </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 grid gap-6 md:grid-cols-2">
+            <CardContent className="p-6 grid gap-6 sm:grid-cols-2">
                 <h2 className="text-xl font-semibold col-span-full border-b pb-2 mb-2">Personal Information</h2>
                 {!isEditing && ( // Name is handled by Controller when editing
-                    <div className="space-y-1">
+                    <div className="space-y-1 sm:col-span-2">
                     <Label htmlFor="profile-name-display" className="flex items-center text-muted-foreground"><UserIcon className="mr-2 h-4 w-4" />Name</Label>
                     <Input id="profile-name-display" value={user.name} readOnly className="text-base"/>
                     </div>
@@ -259,7 +259,7 @@ export default function ProfilePage() {
 
 
                 <h2 className="text-xl font-semibold col-span-full border-b pb-2 mt-4 mb-2">School Information</h2>
-                <div className="space-y-1 md:col-span-2">
+                <div className="space-y-1 sm:col-span-2">
                 <Label htmlFor="profile-schoolName" className="flex items-center text-muted-foreground"><Building className="mr-2 h-4 w-4" />School Name</Label>
                 <Input id="profile-schoolName" value={user.schoolName || 'N/A'} readOnly className="text-base"/>
                 </div>
@@ -267,15 +267,15 @@ export default function ProfilePage() {
                 <Label htmlFor="profile-schoolCode" className="flex items-center text-muted-foreground"><Hash className="mr-2 h-4 w-4" />School Code</Label>
                 <Input id="profile-schoolCode" value={user.schoolCode || 'N/A'} readOnly className="text-base"/>
                 </div>
-                <div className="space-y-1 md:col-span-2">
+                <div className="space-y-1 sm:col-span-2">
                 <Label htmlFor="profile-schoolAddress" className="flex items-center text-muted-foreground"><Building className="mr-2 h-4 w-4" />School Address</Label>
                 <Input id="profile-schoolAddress" value={user.schoolAddress || 'N/A'} readOnly className="text-base"/>
                 </div>
             </CardContent>
             {isEditing && (
-                <CardFooter className="flex justify-end gap-2 border-t pt-6">
-                    <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSaving}>Cancel</Button>
-                    <Button type="submit" disabled={isSaving || !form.formState.isDirty && !selectedFile}>
+                <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 border-t pt-6">
+                    <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={isSaving} className="w-full sm:w-auto">Cancel</Button>
+                    <Button type="submit" disabled={isSaving || !form.formState.isDirty && !selectedFile} className="w-full sm:w-auto">
                         {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Changes
                     </Button>
@@ -290,10 +290,10 @@ export default function ProfilePage() {
             <CardTitle>Admin Actions</CardTitle>
             <CardDescription>Quick links for administrators.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-4">
-            <Link href="/admin/users"><Button><UserIcon className="mr-2 h-4 w-4" /> Manage Users</Button></Link>
-            <Link href="/admin/school"><Button><ShieldCheck className="mr-2 h-4 w-4" /> School Settings</Button></Link>
-            <Link href="/settings"><Button variant="outline"><SettingsIcon className="mr-2 h-4 w-4"/>General Settings</Button></Link>
+        <CardContent className="flex flex-col sm:flex-row flex-wrap gap-4">
+            <Link href="/admin/users" className="w-full sm:w-auto"><Button className="w-full"><UserIcon className="mr-2 h-4 w-4" /> Manage Users</Button></Link>
+            <Link href="/admin/school" className="w-full sm:w-auto"><Button className="w-full"><ShieldCheck className="mr-2 h-4 w-4" /> School Settings</Button></Link>
+            <Link href="/settings" className="w-full sm:w-auto"><Button variant="outline" className="w-full"><SettingsIcon className="mr-2 h-4 w-4"/>General Settings</Button></Link>
         </CardContent>
         </Card>
     )}
@@ -301,4 +301,3 @@ export default function ProfilePage() {
   );
 }
 
-```

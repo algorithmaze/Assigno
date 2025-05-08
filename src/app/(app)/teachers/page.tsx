@@ -79,7 +79,7 @@ export default function TeachersPage() {
           ) : staff.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">No other teachers or admins found in the directory.</p>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
              {staff.map((user) => (
                <Card key={user.id} className="p-4 flex flex-col justify-between">
                   <div className="flex items-center gap-4 mb-3">
@@ -109,5 +109,3 @@ export default function TeachersPage() {
     </div>
   );
 }
-
-```

@@ -72,10 +72,10 @@ export default function SettingsPage() {
           <CardDescription>Manage how you receive notifications from Assigno.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border p-4">
-            <Label htmlFor="group-notifications" className="flex flex-col space-y-1 cursor-pointer">
+          <div className="flex items-center justify-between rounded-lg border p-3 sm:p-4">
+            <Label htmlFor="group-notifications" className="flex flex-col space-y-1 cursor-pointer flex-1 mr-2">
               <span>Group Messages</span>
-              <span className="font-normal leading-snug text-muted-foreground">
+              <span className="font-normal leading-snug text-muted-foreground text-xs sm:text-sm">
                 Receive notifications for new messages in your groups.
               </span>
             </Label>
@@ -85,10 +85,10 @@ export default function SettingsPage() {
                 onCheckedChange={(checked) => handleSettingChange('groupNotifications', checked)}
             />
           </div>
-           <div className="flex items-center justify-between rounded-lg border p-4">
-            <Label htmlFor="announcement-notifications" className="flex flex-col space-y-1 cursor-pointer">
+           <div className="flex items-center justify-between rounded-lg border p-3 sm:p-4">
+            <Label htmlFor="announcement-notifications" className="flex flex-col space-y-1 cursor-pointer flex-1 mr-2">
               <span>Announcements</span>
-              <span className="font-normal leading-snug text-muted-foreground">
+              <span className="font-normal leading-snug text-muted-foreground text-xs sm:text-sm">
                 Receive notifications for new school announcements.
               </span>
             </Label>
@@ -98,10 +98,10 @@ export default function SettingsPage() {
                 onCheckedChange={(checked) => handleSettingChange('announcementNotifications', checked)}
             />
           </div>
-           <div className="flex items-center justify-between rounded-lg border p-4">
-            <Label htmlFor="event-reminders" className="flex flex-col space-y-1 cursor-pointer">
+           <div className="flex items-center justify-between rounded-lg border p-3 sm:p-4">
+            <Label htmlFor="event-reminders" className="flex flex-col space-y-1 cursor-pointer flex-1 mr-2">
               <span>Event Reminders</span>
-              <span className="font-normal leading-snug text-muted-foreground">
+              <span className="font-normal leading-snug text-muted-foreground text-xs sm:text-sm">
                 Get reminders for upcoming events.
               </span>
             </Label>
@@ -120,10 +120,10 @@ export default function SettingsPage() {
            <CardDescription>Control your account privacy and security settings.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-           <div className="flex items-center justify-between rounded-lg border p-4">
-            <Label htmlFor="accept-chats" className="flex flex-col space-y-1 cursor-pointer">
+           <div className="flex items-center justify-between rounded-lg border p-3 sm:p-4">
+            <Label htmlFor="accept-chats" className="flex flex-col space-y-1 cursor-pointer flex-1 mr-2">
               <span>Accept Chat Requests</span>
-               <span className="font-normal leading-snug text-muted-foreground">
+               <span className="font-normal leading-snug text-muted-foreground text-xs sm:text-sm">
                  Allow teachers/admins to initiate chats. (Students cannot initiate with teachers/admins).
                </span>
             </Label>
@@ -134,7 +134,7 @@ export default function SettingsPage() {
                 disabled={user.role === 'Student'} // Example: Students might not control this
             />
           </div>
-           <Button variant="outline" disabled>Change Password (Not Implemented)</Button>
+           <Button variant="outline" disabled className="w-full sm:w-auto">Change Password (Not Implemented)</Button>
         </CardContent>
       </Card>
 
@@ -157,7 +157,7 @@ export default function SettingsPage() {
         <CardContent>
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={isDeleting}>
+                    <Button variant="destructive" disabled={isDeleting} className="w-full sm:w-auto">
                         {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
                         Delete Account
                     </Button>

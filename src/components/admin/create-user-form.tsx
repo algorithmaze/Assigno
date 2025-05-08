@@ -241,9 +241,9 @@ export function CreateUserForm({ schoolCode, schoolName, schoolAddress, onUserCr
           </>
         )}
         
-        <div className="flex justify-end gap-2 pt-4">
-          <Button type="button" variant="outline" onClick={onCloseDialog} disabled={isLoading}>Cancel</Button>
-          <Button type="submit" disabled={isLoading}>
+        <div className="flex flex-col sm:flex-row justify-end gap-2 pt-4">
+          <Button type="button" variant="outline" onClick={onCloseDialog} disabled={isLoading} className="w-full sm:w-auto">Cancel</Button>
+          <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
             Create User
           </Button>

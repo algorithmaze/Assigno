@@ -100,24 +100,24 @@ export function InstituteRegistrationForm() {
 
   if (registrationSuccess && generatedSchoolCode) {
     return (
-      <div className="space-y-6 text-center p-8 bg-card rounded-lg shadow-md border border-primary">
-        <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-        <h2 className="text-2xl font-semibold">Registration Successful!</h2>
-        <p className="text-muted-foreground">
+      <div className="space-y-6 text-center p-6 sm:p-8 bg-card rounded-lg shadow-md border border-primary">
+        <CheckCircle className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-green-500" />
+        <h2 className="text-xl sm:text-2xl font-semibold">Registration Successful!</h2>
+        <p className="text-muted-foreground text-sm sm:text-base">
           Your institute, <strong>{form.getValues('instituteName') || 'Your Institute'}</strong>, has been registered.
         </p>
         <div className="p-4 bg-muted rounded-md">
-          <p className="text-sm">Your unique School Code is:</p>
-          <p className="text-2xl font-bold text-primary tracking-wider my-2">{generatedSchoolCode}</p>
-          <p className="text-sm">Admin Email: <strong>{form.getValues('adminEmail')}</strong></p>
+          <p className="text-xs sm:text-sm">Your unique School Code is:</p>
+          <p className="text-xl sm:text-2xl font-bold text-primary tracking-wider my-2">{generatedSchoolCode}</p>
+          <p className="text-xs sm:text-sm">Admin Email: <strong>{form.getValues('adminEmail')}</strong></p>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Please use this School Code and Admin Email to create the primary admin account through the regular signup process.
         </p>
-        <Button onClick={() => router.push('/signup')} className="w-full mt-4">
+        <Button onClick={() => router.push('/signup')} className="w-full mt-4 text-sm sm:text-base">
           Go to Signup Page
         </Button>
-        <Button onClick={() => { setRegistrationSuccess(false); setGeneratedSchoolCode(null); }} variant="link" className="w-full mt-2">
+        <Button onClick={() => { setRegistrationSuccess(false); setGeneratedSchoolCode(null); }} variant="link" className="w-full mt-2 text-sm sm:text-base">
           Register Another Institute
         </Button>
       </div>
@@ -127,7 +127,7 @@ export function InstituteRegistrationForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <FormField
             control={form.control}
             name="instituteName"
@@ -179,7 +179,7 @@ export function InstituteRegistrationForm() {
           )}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           <FormField
             control={form.control}
             name="city"
@@ -221,7 +221,7 @@ export function InstituteRegistrationForm() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <FormField
             control={form.control}
             name="contactNumber"
@@ -251,13 +251,13 @@ export function InstituteRegistrationForm() {
         </div>
         
         <div className="space-y-1 bg-muted p-3 rounded-md">
-            <FormLabel className="flex items-center text-muted-foreground"><CalendarDays className="mr-2 h-4 w-4" />Date of Registration</FormLabel>
-            <Input value={format(new Date(), "PPP p")} readOnly className="text-base border-0 bg-transparent shadow-none"/>
-            <FormDescription>This is automatically set to the current date and time upon submission.</FormDescription>
+            <FormLabel className="flex items-center text-muted-foreground text-sm"><CalendarDays className="mr-2 h-4 w-4" />Date of Registration</FormLabel>
+            <Input value={format(new Date(), "PPP p")} readOnly className="text-base border-0 bg-transparent shadow-none p-0 h-auto"/>
+            <FormDescription className="text-xs">This is automatically set to the current date and time upon submission.</FormDescription>
         </div>
 
 
-        <Button type="submit" className="w-full py-3 text-lg" disabled={isLoading}>
+        <Button type="submit" className="w-full py-3 text-base sm:text-lg" disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Building className="mr-2 h-5 w-5" />}
           Register Institute
         </Button>

@@ -16,10 +16,11 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone } from 'lucide-react';
+import { Loader2, KeyRound, UserCheck, CornerDownLeft, Mail, Phone, Users } from 'lucide-react';
 import { sendOTP, verifyOTP, DEFAULT_TEST_OTP, OTP_BYPASS_ADMIN_EMAIL, OTP_BYPASS_SCHOOL_CODE } from '@/services/otp';
 import { useAuth } from '@/context/auth-context';
 import { useRouter } from 'next/navigation';
+import { sampleCredentials, type SampleUserKey } from '@/services/users';
 
 
 const loginSchema = z.object({
@@ -107,11 +108,20 @@ export function LoginForm() {
     else setIsResendingOtp(true);
 
     let otpBypass = false;
-    if (data.identifier === OTP_BYPASS_ADMIN_EMAIL && (loginForm.getValues('identifier').endsWith(OTP_BYPASS_SCHOOL_CODE) || data.identifier === OTP_BYPASS_ADMIN_EMAIL)) {
-        // This is a simplified check for admin bypass for demo.
-        // In a real scenario, school code would be a separate input or derived.
-        // For this example, we assume the bypass email directly implies the bypass school for simplicity of login form.
+    
+    // Check for OTP_BYPASS_ADMIN_EMAIL first
+    if (data.identifier === OTP_BYPASS_ADMIN_EMAIL) {
         otpBypass = true;
+    } else {
+        // Check against sampleCredentials (students or other bypass roles)
+        const sampleUserKeys = Object.keys(sampleCredentials) as SampleUserKey[];
+        for (const key of sampleUserKeys) {
+            const cred = sampleCredentials[key];
+            if (cred.identifier === data.identifier && cred.schoolCode === OTP_BYPASS_SCHOOL_CODE) {
+                otpBypass = true;
+                break;
+            }
+        }
     }
 
 
@@ -125,7 +135,7 @@ export function LoginForm() {
         });
       } else {
         toast({
-            title: 'OTP Bypassed (Demo Admin)',
+            title: 'OTP Bypassed (Demo User)',
             description: `Proceeding to next step for ${data.identifier}. Enter OTP "${DEFAULT_TEST_OTP}".`,
             duration: 7000,
         });
@@ -155,6 +165,16 @@ export function LoginForm() {
     await verifyAndLogin(identifierValue, data.otp);
   };
 
+  // Function to quickly fill form for sample users
+  const fillSampleUser = (role: SampleUserKey) => {
+     if (sampleCredentials && sampleCredentials[role]) {
+        loginForm.setValue('identifier', sampleCredentials[role].identifier);
+     } else {
+        console.warn(`Sample credentials for role "${role}" not found.`);
+        toast({title: "Error", description: `Sample user data for "${role}" is missing.`, variant: "destructive"});
+     }
+  }
+
 
   return (
     <div className="space-y-6">
@@ -167,17 +187,17 @@ export function LoginForm() {
                 name="identifier"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel className="text-base">School Email or Phone</FormLabel>
+                    <FormLabel className="text-sm sm:text-base">School Email or Phone</FormLabel>
                     <FormControl>
                        <div className="relative">
                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                           {field.value?.includes('@') ? <Mail className="h-5 w-5 text-muted-foreground" /> : <Phone className="h-5 w-5 text-muted-foreground" />}
+                           {field.value?.includes('@') ? <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" /> : <Phone className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />}
                          </div>
                         <Input
                             type="text"
                             placeholder="e.g., user@school.com or +1234567890"
                             {...field}
-                            className="text-base py-6 pl-10" 
+                            className="text-sm sm:text-base py-5 sm:py-6 pl-10" 
                             aria-describedby="identifier-description"
                          />
                         </div>
@@ -189,21 +209,42 @@ export function LoginForm() {
                     </FormItem>
                 )}
                 />
-                <Button type="submit" className="w-full py-6 text-base" disabled={isLoading}>
+                <Button type="submit" className="w-full py-5 sm:py-6 text-sm sm:text-base" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <KeyRound className="mr-2 h-5 w-5" />}
                 Send OTP / Login
                 </Button>
             </form>
             </Form>
             
+            {/* Sample User Login Buttons */}
+            {process.env.NODE_ENV !== 'production' && sampleCredentials && Object.keys(sampleCredentials).length > 0 && (
+                <div className="space-y-3 pt-4 border-t">
+                <p className="text-xs text-muted-foreground flex items-center justify-center gap-2"><Users className="h-4 w-4"/>Quick Logins (Demo Users)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {(Object.keys(sampleCredentials) as SampleUserKey[]).map((key) => (
+                        <Button 
+                            key={key}
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => fillSampleUser(key)}
+                            className="text-xs py-4"
+                        >
+                            Login as {sampleCredentials[key]?.name || key}
+                        </Button>
+                    ))}
+                </div>
+                </div>
+            )}
          </>
       ) : (
         <div className="space-y-6">
             <div className="text-center">
-                <h3 className="text-xl font-semibold">Verify Your Identity</h3>
-                <p className="text-muted-foreground">
+                <h3 className="text-lg sm:text-xl font-semibold">Verify Your Identity</h3>
+                <p className="text-muted-foreground text-sm">
                 Enter the 6-digit OTP sent to <strong className="text-primary">{identifierValue}</strong>.
-                {(identifierValue === OTP_BYPASS_ADMIN_EMAIL)
+                {(identifierValue === OTP_BYPASS_ADMIN_EMAIL || 
+                 Object.values(sampleCredentials).some(cred => cred.identifier === identifierValue && cred.schoolCode === OTP_BYPASS_SCHOOL_CODE)
+                )
                 ? ` (MOCK: Use OTP "${DEFAULT_TEST_OTP}", it should be pre-filled).`
                 : ` (MOCK: Use OTP "${DEFAULT_TEST_OTP}" or check browser console).`}
                 </p>
@@ -215,7 +256,7 @@ export function LoginForm() {
                 name="otp"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel className="text-base">One-Time Password (OTP)</FormLabel>
+                    <FormLabel className="text-sm sm:text-base">One-Time Password (OTP)</FormLabel>
                     <FormControl>
                         <Input
                             placeholder="------"
@@ -223,7 +264,7 @@ export function LoginForm() {
                             inputMode="numeric"
                             autoComplete="one-time-code"
                             {...field}
-                            className="text-center text-2xl tracking-[0.5em] py-6 font-mono"
+                            className="text-center text-xl sm:text-2xl tracking-[0.3em] sm:tracking-[0.5em] py-5 sm:py-6 font-mono"
                             autoFocus
                         />
                     </FormControl>
@@ -231,7 +272,7 @@ export function LoginForm() {
                     </FormItem>
                 )}
                 />
-                <Button type="submit" className="w-full py-6 text-base" disabled={isLoading || isResendingOtp}>
+                <Button type="submit" className="w-full py-5 sm:py-6 text-sm sm:text-base" disabled={isLoading || isResendingOtp}>
                 {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <UserCheck className="mr-2 h-5 w-5" />}
                 Verify &amp; Login
                 </Button>
@@ -242,18 +283,19 @@ export function LoginForm() {
                         size="sm"
                         onClick={() => { setOtpSent(false); loginForm.reset({ identifier: identifierValue }); }}
                         disabled={isLoading || isResendingOtp}
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto text-xs"
                     >
                         <CornerDownLeft className="mr-2 h-4 w-4"/> Change Email/Phone
                     </Button>
-                   {identifierValue !== OTP_BYPASS_ADMIN_EMAIL && (
+                   {identifierValue !== OTP_BYPASS_ADMIN_EMAIL &&
+                    !Object.values(sampleCredentials).some(cred => cred.identifier === identifierValue && cred.schoolCode === OTP_BYPASS_SCHOOL_CODE) && (
                      <Button
                         type="button"
                         variant="link"
                         size="sm"
                         onClick={() => handleLoginSubmit({ identifier: identifierValue })}
                         disabled={isLoading || isResendingOtp}
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto text-xs"
                       >
                         {isResendingOtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Resend OTP

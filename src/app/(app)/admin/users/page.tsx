@@ -247,7 +247,7 @@ export default function AdminUsersPage() {
             </Button>
             <Button onClick={handleDownloadExistingUsers} variant="outline" disabled={isDownloadingExisting || loadingUsers}>
               {isDownloadingExisting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-              Download Existing Users
+              Download Existing
             </Button>
             <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} variant="outline">
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
@@ -278,58 +278,60 @@ export default function AdminUsersPage() {
           ) : users.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">No users found in this school yet. Use 'Upload Excel' or 'Create User'.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email / Phone</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Class / Admission No. / Designation</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-9 w-9">
-                          <AvatarImage src={user.profilePictureUrl || undefined} alt={user.name} data-ai-hint="user avatar" />
-                          <AvatarFallback>
-                            {user.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="font-medium">{user.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email || user.phoneNumber || 'N/A'}</TableCell>
-                    <TableCell>{user.role}</TableCell>
-                    <TableCell>
-                      {user.role === 'Student' ? `${user.class || 'N/A'} (${user.admissionNumber || 'N/A'})` 
-                       : user.role === 'Teacher' ? `${user.designation || 'N/A'} ${user.class ? `(${user.class})` : ''}` 
-                       : user.role === 'Admin' ? (user.designation || 'Administrator')
-                       : user.class || 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)} className="mr-2" disabled>
-                        <Edit className="h-4 w-4" />
-                        <span className="sr-only">Edit User</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteUser(user.id, user.name)}
-                        disabled={isDeleting === user.id || adminUser?.id === user.id}
-                      >
-                        {isDeleting === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                        <span className="sr-only">Delete User</span>
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email / Phone</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Details</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-9 w-9">
+                            <AvatarImage src={user.profilePictureUrl || undefined} alt={user.name} data-ai-hint="user avatar" />
+                            <AvatarFallback>
+                              {user.name ? user.name.charAt(0).toUpperCase() : <UserIcon />}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="font-medium whitespace-nowrap">{user.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{user.email || user.phoneNumber || 'N/A'}</TableCell>
+                      <TableCell className="whitespace-nowrap">{user.role}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {user.role === 'Student' ? `${user.class || 'N/A'} (${user.admissionNumber || 'N/A'})` 
+                         : user.role === 'Teacher' ? `${user.designation || 'N/A'} ${user.class ? `(${user.class})` : ''}` 
+                         : user.role === 'Admin' ? (user.designation || 'Administrator')
+                         : user.class || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)} className="mr-2" disabled>
+                          <Edit className="h-4 w-4" />
+                          <span className="sr-only">Edit User</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteUser(user.id, user.name)}
+                          disabled={isDeleting === user.id || adminUser?.id === user.id}
+                        >
+                          {isDeleting === user.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                          <span className="sr-only">Delete User</span>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -356,3 +358,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+

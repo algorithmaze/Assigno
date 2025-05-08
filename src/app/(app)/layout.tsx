@@ -14,7 +14,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <SidebarInset> 
         <AppHeader />
         {/* This div is for the scrollable content within the main area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8"> {/* Updated padding */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6"> {/* Adjusted padding */}
             {children}
         </div>
       </SidebarInset>

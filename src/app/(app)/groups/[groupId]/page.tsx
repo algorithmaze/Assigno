@@ -45,7 +45,7 @@ interface GroupDetailPageProps {
 }
 
 export default function GroupDetailPage({ params }: GroupDetailPageProps) {
-  const resolvedParams = React.use(params); // Unwrap params correctly
+  const resolvedParams = React.use(params); 
   const groupId = resolvedParams.groupId;
 
   const { user: currentUser } = useAuth();
@@ -322,7 +322,7 @@ export default function GroupDetailPage({ params }: GroupDetailPageProps) {
                         </div>
                     )}
                  </div>
-                 <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                 <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center self-start sm:self-center mt-2 sm:mt-0">
                     {canManageGroup && (
                         <Link href={`/groups/${groupId}/settings`}>
                             <Button variant="outline" size="sm"><Settings className="mr-2 h-4 w-4" /> Group Settings</Button>

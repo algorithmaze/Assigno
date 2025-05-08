@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet" // Added SheetHeader, SheetTitle
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet" 
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -21,8 +22,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
+const SIDEBAR_WIDTH = "16rem" // Standard desktop width
+const SIDEBAR_WIDTH_MOBILE = "80vw" // Mobile width - increased for better usability
+const SIDEBAR_MAX_WIDTH_MOBILE = "280px"; // Max width for mobile sidebar to prevent full screen takeover on larger "mobile" views
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
@@ -32,7 +34,7 @@ type SidebarContext = {
   setOpen: (open: boolean) => void
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
-  isMobile: boolean
+  isMobile: boolean | undefined; // Can be undefined initially
   toggleSidebar: () => void
 }
 
@@ -67,11 +69,9 @@ const SidebarProvider = React.forwardRef<
     },
     ref
   ) => {
-    const isMobile = useIsMobile()
+    const isMobile = useIsMobile() // hook now returns undefined initially
     const [openMobile, setOpenMobile] = React.useState(false)
 
-    // This is the internal state of the sidebar.
-    // We use openProp and setOpenProp for control from outside the component.
     const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
     const setOpen = React.useCallback(
@@ -82,22 +82,23 @@ const SidebarProvider = React.forwardRef<
         } else {
           _setOpen(openState)
         }
-
-        // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        if (typeof document !== 'undefined') {
+            document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        }
       },
       [setOpenProp, open]
     )
 
-    // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
-      return isMobile
-        ? setOpenMobile((open) => !open)
-        : setOpen((open) => !open)
-    }, [isMobile, setOpen, setOpenMobile])
+      if (isMobile) {
+        setOpenMobile((current) => !current);
+      } else {
+        setOpen((current) => !current);
+      }
+    }, [isMobile, setOpen, setOpenMobile]);
 
-    // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
+        if (typeof window === 'undefined') return;
       const handleKeyDown = (event: KeyboardEvent) => {
         if (
           event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
@@ -112,8 +113,6 @@ const SidebarProvider = React.forwardRef<
       return () => window.removeEventListener("keydown", handleKeyDown)
     }, [toggleSidebar])
 
-    // We add a state so that we can do data-state="expanded" or "collapsed".
-    // This makes it easier to style the sidebar with Tailwind classes.
     const state = open ? "expanded" : "collapsed"
 
     const contextValue = React.useMemo<SidebarContext>(
@@ -129,6 +128,20 @@ const SidebarProvider = React.forwardRef<
       [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
     )
 
+    // Set initial cookie state for desktop sidebar on mount
+    React.useEffect(() => {
+        if (typeof document !== 'undefined' && !isMobile) {
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith(`${SIDEBAR_COOKIE_NAME}=`))
+                ?.split('=')[1];
+            if (cookieValue) {
+                _setOpen(cookieValue === 'true');
+            }
+        }
+    }, [isMobile]);
+
+
     return (
       <SidebarContext.Provider value={contextValue}>
         <TooltipProvider delayDuration={0}>
@@ -137,6 +150,8 @@ const SidebarProvider = React.forwardRef<
               {
                 "--sidebar-width": SIDEBAR_WIDTH,
                 "--sidebar-width-icon": SIDEBAR_WIDTH_ICON,
+                "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE,
+                "--sidebar-max-width-mobile": SIDEBAR_MAX_WIDTH_MOBILE,
                 ...style,
               } as React.CSSProperties
             }
@@ -191,19 +206,15 @@ const Sidebar = React.forwardRef<
         </div>
       )
     }
-
-    if (isMobile) {
+    
+    // Render for mobile or when isMobile is undefined (SSR initial render)
+    if (isMobile === true || isMobile === undefined) {
       return (
         <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-            style={
-              {
-                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-              } as React.CSSProperties
-            }
+            className="w-[--sidebar-width-mobile] max-w-[--sidebar-max-width-mobile] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
             side={side}
           >
             <SheetHeader className="sr-only">
@@ -215,6 +226,7 @@ const Sidebar = React.forwardRef<
       )
     }
 
+    // Render for desktop
     return (
       <div
         ref={ref}
@@ -515,7 +527,7 @@ const SidebarMenuItem = React.forwardRef<
 SidebarMenuItem.displayName = "SidebarMenuItem"
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
+  "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-primary data-[active=true]:font-medium data-[active=true]:text-sidebar-primary-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -586,7 +598,7 @@ const SidebarMenuButton = React.forwardRef<
         <TooltipContent
           side="right"
           align="center"
-          hidden={state !== "collapsed" || isMobile}
+          hidden={state !== "collapsed" || !!isMobile} // Use !!isMobile to handle undefined
           {...tooltip}
         />
       </Tooltip>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -11,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarTrigger,
   SidebarSeparator,
+  useSidebar
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -24,6 +26,7 @@ import {
   ClipboardList, // For Join Requests
   ShieldCheck, // For Admin specific section
   PlusCircle, // For Create User/Group by Admin
+  Building2, // Assigno Icon
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 
@@ -40,15 +43,23 @@ const isActive = (pathname: string, href: string, exact: boolean = false) => {
 export function AppSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const isAdmin = user?.role === 'Admin';
   const isTeacher = user?.role === 'Teacher';
   // const isStudent = user?.role === 'Student';
 
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <>
       <SidebarHeader className="flex items-center justify-between">
-         <Link href="/dashboard" className="text-lg font-semibold px-2 group-data-[collapsible=icon]:hidden">
+         <Link href="/dashboard" className="text-xl font-semibold px-2 group-data-[collapsible=icon]:hidden flex items-center gap-2" onClick={handleLinkClick}>
+            <Building2 className="h-6 w-6 text-primary" />
             Assigno
          </Link>
          <div className="hidden md:block">
@@ -61,7 +72,7 @@ export function AppSidebar() {
           {/* Common Links */}
           <SidebarMenuItem>
             <Link href="/dashboard" passHref legacyBehavior>
-              <SidebarMenuButton asChild isActive={isActive(pathname, '/dashboard', true)} tooltip="Dashboard">
+              <SidebarMenuButton asChild isActive={isActive(pathname, '/dashboard', true)} tooltip="Dashboard" onClick={handleLinkClick}>
                 <a><LayoutDashboard /> <span>Dashboard</span></a>
               </SidebarMenuButton>
             </Link>
@@ -69,7 +80,7 @@ export function AppSidebar() {
 
           <SidebarMenuItem>
             <Link href="/groups" passHref legacyBehavior>
-              <SidebarMenuButton asChild isActive={isActive(pathname, '/groups')} tooltip="Groups">
+              <SidebarMenuButton asChild isActive={isActive(pathname, '/groups')} tooltip="Groups" onClick={handleLinkClick}>
                 <a><Users /> <span>Groups</span></a>
               </SidebarMenuButton>
             </Link>
@@ -77,7 +88,7 @@ export function AppSidebar() {
 
            <SidebarMenuItem>
             <Link href="/announcements" passHref legacyBehavior>
-              <SidebarMenuButton asChild isActive={isActive(pathname, '/announcements')} tooltip="Announcements">
+              <SidebarMenuButton asChild isActive={isActive(pathname, '/announcements')} tooltip="Announcements" onClick={handleLinkClick}>
                 <a><Megaphone /> <span>Announcements</span></a>
               </SidebarMenuButton>
             </Link>
@@ -85,7 +96,7 @@ export function AppSidebar() {
 
             <SidebarMenuItem>
                 <Link href="/teachers" passHref legacyBehavior>
-                <SidebarMenuButton asChild isActive={isActive(pathname, '/teachers')} tooltip="Teachers & Admins">
+                <SidebarMenuButton asChild isActive={isActive(pathname, '/teachers')} tooltip="Teachers & Admins" onClick={handleLinkClick}>
                     <a><BookUser /> <span>Staff Directory</span></a>
                 </SidebarMenuButton>
                 </Link>
@@ -98,7 +109,7 @@ export function AppSidebar() {
                 {/* <SidebarSeparator /> */}
                  <SidebarMenuItem>
                     <Link href="/teacher/requests" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/teacher/requests')} tooltip="Group Join Requests">
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/teacher/requests')} tooltip="Group Join Requests" onClick={handleLinkClick}>
                         <a><ClipboardList /> <span>Join Requests</span></a>
                     </SidebarMenuButton>
                     </Link>
@@ -116,22 +127,14 @@ export function AppSidebar() {
                  </SidebarMenuItem>
                  <SidebarMenuItem>
                     <Link href="/admin/users" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/users')} tooltip="Manage Users">
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/users')} tooltip="Manage Users" onClick={handleLinkClick}>
                         <a><UserCircle /> <span>Manage Users</span></a>
                     </SidebarMenuButton>
                     </Link>
                 </SidebarMenuItem>
-                 {/* Admins can create groups from the main /groups page now, consistent with teachers if they could create
-                 <SidebarMenuItem>
-                    <Link href="/groups/create" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/groups/create')} tooltip="Create New Group">
-                        <a><PlusCircle /> <span>Create Group</span></a>
-                    </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem> */}
                 <SidebarMenuItem>
                     <Link href="/admin/school" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/school')} tooltip="School Settings">
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/admin/school')} tooltip="School Settings" onClick={handleLinkClick}>
                         <a><School /> <span>School Settings</span></a>
                     </SidebarMenuButton>
                     </Link>
@@ -148,20 +151,20 @@ export function AppSidebar() {
          <SidebarMenu>
               <SidebarMenuItem>
                 <Link href="/profile" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/profile')} tooltip="Profile">
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/profile')} tooltip="Profile" onClick={handleLinkClick}>
                        <a> <UserCircle /> <span>Profile</span> </a>
                     </SidebarMenuButton>
                 </Link>
             </SidebarMenuItem>
              <SidebarMenuItem>
                 <Link href="/settings" passHref legacyBehavior>
-                    <SidebarMenuButton asChild isActive={isActive(pathname, '/settings')} tooltip="Settings">
+                    <SidebarMenuButton asChild isActive={isActive(pathname, '/settings')} tooltip="Settings" onClick={handleLinkClick}>
                         <a><Settings /> <span>Settings</span></a>
                     </SidebarMenuButton>
                 </Link>
             </SidebarMenuItem>
              <SidebarMenuItem>
-                <SidebarMenuButton onClick={logout} tooltip="Logout">
+                <SidebarMenuButton onClick={() => {logout(); handleLinkClick();}} tooltip="Logout">
                     <LogOut /> <span>Logout</span>
                 </SidebarMenuButton>
             </SidebarMenuItem>
