@@ -8,227 +8,125 @@ body {
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* White */
-    --foreground: 0 0% 3.9%; /* Almost Black */
-    --card: 0 0% 100%; /* White */
-    --card-foreground: 0 0% 3.9%; /* Almost Black */
-    --popover: 0 0% 100%; /* White */
-    --popover-foreground: 0 0% 3.9%; /* Almost Black */
-    --primary: 0 0% 9%; /* Black - Default Primary */
-    --primary-foreground: 0 0% 98%; /* Almost White - Default Primary Foreground */
-    --secondary: 0 0% 96.1%; /* Light Gray */
-    --secondary-foreground: 0 0% 9%; /* Black */
-    --muted: 0 0% 96.1%; /* Light Gray */
-    --muted-foreground: 0 0% 45.1%; /* Medium Gray */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --destructive: 0 84.2% 60.2%; /* Red */
-    --destructive-foreground: 0 0% 98%; /* Almost White */
-    --success: 145 63% 49%; /* Green - for correct answers */
-    --success-foreground: 0 0% 100%; /* White - for text on success background */
-    --border: 0 0% 89.8%; /* Gray */
-    --input: 0 0% 89.8%; /* Gray */
-    --ring: 0 0% 3.9%; /* Almost Black */
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+    /* WhatsApp-like Light Theme based on F5EEDD (bg) and 06202B (fg), 077A7D (primary) */
+    --background: 41 56% 92%; /* F5EEDD */
+    --foreground: 203 78% 10%; /* 06202B */
+    --card: 41 56% 92%; /* F5EEDD */
+    --card-foreground: 203 78% 10%; /* 06202B */
+    --popover: 41 56% 92%; /* F5EEDD */
+    --popover-foreground: 203 78% 10%; /* 06202B */
+    --primary: 182 88% 26%; /* 077A7D */
+    --primary-foreground: 41 56% 92%; /* F5EEDD - for text on primary */
+    --secondary: 41 50% 85%; /* Slightly darker F5EEDD */
+    --secondary-foreground: 203 78% 10%; /* 06202B */
+    --muted: 41 50% 85%; /* Same as secondary */
+    --muted-foreground: 203 50% 40%; /* Mid-tone 06202B */
+    --accent: 168 63% 68%; /* 7AE2CF */
+    --accent-foreground: 203 78% 10%; /* 06202B - for text on accent */
+    --destructive: 0 84.2% 60.2%; /* Red - kept */
+    --destructive-foreground: 0 0% 98%; /* Almost White - kept */
+    --success: 145 63% 49%; /* Green - kept */
+    --success-foreground: 0 0% 100%; /* White - kept */
+    --border: 41 40% 75%; /* Darker F5EEDD for borders */
+    --input: 41 40% 75%; /* Same as border */
+    --ring: 182 88% 26%; /* 077A7D - Primary color for ring */
+    --chart-1: 182 88% 30%;
+    --chart-2: 168 63% 50%;
+    --chart-3: 203 78% 20%;
+    --chart-4: 41 56% 70%;
+    --chart-5: 182 88% 40%;
     --radius: 0.5rem;
 
-    /* Default Sidebar (can be overridden by role themes) */
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%; /* Default Sidebar Primary - Dark Gray/Black */
-    --sidebar-primary-foreground: 0 0% 98%; /* Default Sidebar Primary FG - Almost White */
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* WhatsApp-like Sidebar (Dark Sidebar, Light Text) */
+    --sidebar-background: 203 78% 10%; /* 06202B */
+    --sidebar-foreground: 41 56% 92%; /* F5EEDD */
+    --sidebar-primary: 182 88% 26%; /* 077A7D - Active item background */
+    --sidebar-primary-foreground: 41 56% 92%; /* F5EEDD - Active item text */
+    --sidebar-accent: 182 88% 20%; /* Darker Teal - Hover item background */
+    --sidebar-accent-foreground: 41 56% 92%; /* F5EEDD - Hover item text */
+    --sidebar-border: 203 70% 15%; /* Slightly lighter than sidebar background */
+    --sidebar-ring: 182 88% 26%; /* 077A7D */
   }
 
   .dark {
-    --background: 0 0% 3.9%; /* Almost Black */
-    --foreground: 0 0% 98%; /* Almost White */
-    --card: 0 0% 3.9%; /* Almost Black */
-    --card-foreground: 0 0% 98%; /* Almost White */
-    --popover: 0 0% 3.9%; /* Almost Black */
-    --popover-foreground: 0 0% 98%; /* Almost White */
-    --primary: 0 0% 98%; /* Almost White - Default Dark Primary */
-    --primary-foreground: 0 0% 9%; /* Black - Default Dark Primary Foreground */
-    --secondary: 0 0% 14.9%; /* Dark Gray */
-    --secondary-foreground: 0 0% 98%; /* Almost White */
-    --muted: 0 0% 14.9%; /* Dark Gray */
-    --muted-foreground: 0 0% 63.9%; /* Lighter Gray */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --destructive: 0 62.8% 30.6%; /* Dark Red */
-    --destructive-foreground: 0 0% 98%; /* Almost White */
-    --success: 145 63% 39%; /* Darker Green for dark mode */
-    --success-foreground: 0 0% 98%; /* Almost White for text on dark success */
-    --border: 0 0% 14.9%; /* Dark Gray */
-    --input: 0 0% 14.9%; /* Dark Gray */
-    --ring: 0 0% 83.1%; /* Light Gray */
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    /* WhatsApp-like Dark Theme based on 06202B (bg) and F5EEDD (fg), 077A7D (primary) */
+    --background: 203 78% 10%; /* 06202B */
+    --foreground: 41 56% 92%; /* F5EEDD */
+    --card: 203 78% 10%; /* 06202B */
+    --card-foreground: 41 56% 92%; /* F5EEDD */
+    --popover: 203 78% 10%; /* 06202B */
+    --popover-foreground: 41 56% 92%; /* F5EEDD */
+    --primary: 182 88% 26%; /* 077A7D */
+    --primary-foreground: 41 56% 92%; /* F5EEDD - for text on primary */
+    --secondary: 203 70% 15%; /* Slightly lighter 06202B */
+    --secondary-foreground: 41 56% 92%; /* F5EEDD */
+    --muted: 203 70% 15%; /* Same as secondary */
+    --muted-foreground: 41 40% 70%; /* Mid-tone F5EEDD */
+    --accent: 168 63% 68%; /* 7AE2CF */
+    --accent-foreground: 203 78% 10%; /* 06202B - for text on accent */
+    --destructive: 0 62.8% 30.6%; /* Dark Red - kept */
+    --destructive-foreground: 0 0% 98%; /* Almost White - kept */
+    --success: 145 63% 39%; /* Darker Green for dark mode - kept */
+    --success-foreground: 0 0% 98%; /* Almost White - kept */
+    --border: 203 60% 20%; /* Lighter 06202B for borders */
+    --input: 203 60% 20%; /* Same as border */
+    --ring: 182 88% 26%; /* 077A7D - Primary color for ring */
+    --chart-1: 182 88% 40%;
+    --chart-2: 168 63% 70%;
+    --chart-3: 203 78% 30%;
+    --chart-4: 41 56% 80%;
+    --chart-5: 182 88% 50%;
 
-    /* Default Dark Sidebar (can be overridden by role themes) */
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%; /* Default Dark Sidebar Primary - Blueish */
-    --sidebar-primary-foreground: 0 0% 100%; /* Default Dark Sidebar Primary FG - White */
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* WhatsApp-like Sidebar (Dark Sidebar, Light Text) - Consistent for dark mode */
+    --sidebar-background: 203 78% 10%; /* 06202B */
+    --sidebar-foreground: 41 56% 92%; /* F5EEDD */
+    --sidebar-primary: 182 88% 26%; /* 077A7D - Active item background */
+    --sidebar-primary-foreground: 41 56% 92%; /* F5EEDD - Active item text */
+    --sidebar-accent: 182 88% 20%; /* Darker Teal - Hover item background */
+    --sidebar-accent-foreground: 41 56% 92%; /* F5EEDD - Hover item text */
+    --sidebar-border: 203 70% 15%; /* Slightly lighter than sidebar background */
+    --sidebar-ring: 182 88% 26%; /* 077A7D */
   }
 
-  /* Admin Theme: Calming Blue (#3498db) -> hsl(207, 68%, 53%) */
+  /* Role-specific themes now primarily affect sidebar accents if needed, main content uses above theme */
+  /* Admin Theme: Sidebar distinction - subtle original blue hint for primary if desired */
   .theme-admin {
-    --background: 207 60% 95%; /* Light blue background */
-    --foreground: 207 40% 20%; /* Dark blue text */
-    --primary: 207 68% 53%; /* Blue #3498db */
-    --primary-foreground: 0 0% 100%; /* White */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 0 0% 100%; /* White cards */
-    --card-foreground: 207 40% 20%; /* Dark blue text on cards */
-    --border: 207 60% 85%; /* Lighter blue border */
-    --input: 207 60% 88%; /* Lighter blue input */
-    --ring: 207 68% 53%; /* Blue ring */
-
-    --sidebar-background: 207 68% 25%; /* Darker Blue */
-    --sidebar-foreground: 207 60% 90%; /* Light Blue Text */
-    --sidebar-primary: 207 68% 53%; /* Main Blue for active items */
-    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
-    --sidebar-accent: 207 68% 35%; /* Slightly Lighter Dark Blue for hover */
-    --sidebar-accent-foreground: 207 60% 95%; /* Lighter text on hover */
-    --sidebar-border: 207 68% 20%;
+    /* Content area uses root/dark theme vars by default */
+    /* Sidebar specific accent for Admin if needed */
+    --sidebar-primary: 207 68% 45%; /* Original Admin Blue for active sidebar items */
+    --sidebar-accent: 207 68% 35%; /* Darker Admin Blue for hover */
   }
 
   .dark .theme-admin {
-    --background: 207 70% 10%; /* Dark Blue Background */
-    --foreground: 207 60% 90%; /* Light Blue Text */
-    --primary: 207 68% 53%; /* Blue #3498db */
-    --primary-foreground: 0 0% 100%; /* White */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 207 70% 15%; /* Darker blue cards */
-    --card-foreground: 207 60% 90%; /* Light blue text on cards */
-    --border: 207 70% 25%; /* Medium blue border */
-    --input: 207 70% 20%; /* Medium blue input */
-    --ring: 207 68% 53%; /* Blue ring */
-
-    --sidebar-background: 207 68% 10%;
-    --sidebar-foreground: 207 60% 85%;
-    --sidebar-primary: 207 68% 53%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 207 68% 20%;
-    --sidebar-accent-foreground: 207 60% 90%;
-    --sidebar-border: 207 68% 15%;
+    /* Content area uses root/dark theme vars by default */
+    --sidebar-primary: 207 68% 53%; /* Original Admin Blue for active sidebar items */
+    --sidebar-accent: 207 68% 40%; /* Lighter Admin Blue for hover in dark mode */
   }
 
-  /* Teacher Theme: Professional Green (#2ecc71) -> hsl(145, 63%, 49%) */
+  /* Teacher Theme: Sidebar distinction - subtle original green hint */
   .theme-teacher {
-    --background: 145 50% 95%; /* Light green background */
-    --foreground: 145 40% 20%; /* Dark green text */
-    --primary: 145 63% 49%; /* Green #2ecc71 */
-    --primary-foreground: 0 0% 100%; /* White */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 0 0% 100%;
-    --card-foreground: 145 40% 20%;
-    --border: 145 50% 85%;
-    --input: 145 50% 88%;
-    --ring: 145 63% 49%;
-    --success: 145 63% 49%; /* Teacher theme success matches primary */
-    --success-foreground: 0 0% 100%;
-
-
-    --sidebar-background: 145 63% 20%; /* Darker Green */
-    --sidebar-foreground: 145 50% 90%; /* Light Green Text */
-    --sidebar-primary: 145 63% 49%; /* Main Green for active items */
-    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
-    --sidebar-accent: 145 63% 30%; /* Slightly Lighter Dark Green for hover */
-    --sidebar-accent-foreground: 145 50% 95%; /* Lighter text on hover */
-    --sidebar-border: 145 63% 15%;
+    /* Content area uses root/dark theme vars by default */
+    --sidebar-primary: 145 63% 40%; /* Original Teacher Green for active sidebar items */
+    --sidebar-accent: 145 63% 30%; 
   }
 
   .dark .theme-teacher {
-    --background: 145 65% 10%; /* Dark Green Background */
-    --foreground: 145 50% 90%; /* Light Green Text */
-    --primary: 145 63% 49%; /* Green #2ecc71 */
-    --primary-foreground: 0 0% 100%; /* White */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 145 65% 15%;
-    --card-foreground: 145 50% 90%;
-    --border: 145 65% 25%;
-    --input: 145 65% 20%;
-    --ring: 145 63% 49%;
-    --success: 145 63% 39%; /* Teacher dark theme success */
-    --success-foreground: 0 0% 98%;
-
-    --sidebar-background: 145 63% 10%;
-    --sidebar-foreground: 145 50% 85%;
+    /* Content area uses root/dark theme vars by default */
     --sidebar-primary: 145 63% 49%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 145 63% 20%;
-    --sidebar-accent-foreground: 145 50% 90%;
-    --sidebar-border: 145 63% 15%;
+    --sidebar-accent: 145 63% 35%;
   }
 
-  /* Student Theme: Energetic Yellow (#f1c40f) -> hsl(48, 89%, 50%) */
+  /* Student Theme: Sidebar distinction - subtle original yellow hint */
   .theme-student {
-    --background: 48 80% 95%; /* Light yellow background */
-    --foreground: 48 60% 20%; /* Dark brown/yellow text */
-    --primary: 48 89% 50%; /* Yellow #f1c40f */
-    --primary-foreground: 48 90% 15%; /* Dark text for yellow contrast */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 0 0% 100%;
-    --card-foreground: 48 60% 20%;
-    --border: 48 80% 85%;
-    --input: 48 80% 88%;
-    --ring: 48 89% 50%;
-    --success: 120 60% 45%; /* A distinct green for student theme success */
-    --success-foreground: 0 0% 100%;
-
-
-    --sidebar-background: 48 89% 20%; /* Darker Yellow/Brown */
-    --sidebar-foreground: 48 80% 90%; /* Light Yellow Text */
-    --sidebar-primary: 48 89% 50%; /* Main Yellow for active items */
-    --sidebar-primary-foreground: 48 90% 15%; /* Dark text on active */
-    --sidebar-accent: 48 89% 30%; /* Slightly Lighter Dark Yellow for hover */
-    --sidebar-accent-foreground: 48 80% 95%; /* Lighter text on hover */
-    --sidebar-border: 48 89% 15%;
+    /* Content area uses root/dark theme vars by default */
+    --sidebar-primary: 48 89% 45%; /* Original Student Yellow for active sidebar items */
+    --sidebar-accent: 48 89% 35%;
   }
 
   .dark .theme-student {
-    --background: 48 90% 10%; /* Dark Yellow/Brown Background */
-    --foreground: 48 80% 90%; /* Light Yellow Text */
-    --primary: 48 89% 50%; /* Yellow #f1c40f */
-    --primary-foreground: 48 90% 15%; /* Dark text for yellow contrast */
-    --accent: 28 80% 52%; /* Orange #e67e22 */
-    --accent-foreground: 0 0% 98%; /* Almost White */
-    --card: 48 90% 15%;
-    --card-foreground: 48 80% 90%;
-    --border: 48 90% 25%;
-    --input: 48 90% 20%;
-    --ring: 48 89% 50%;
-    --success: 120 60% 35%; /* Darker distinct green for student dark theme success */
-    --success-foreground: 0 0% 98%;
-
-    --sidebar-background: 48 89% 10%;
-    --sidebar-foreground: 48 80% 85%;
+    /* Content area uses root/dark theme vars by default */
     --sidebar-primary: 48 89% 50%;
-    --sidebar-primary-foreground: 48 90% 15%;
-    --sidebar-accent: 48 89% 20%;
-    --sidebar-accent-foreground: 48 80% 90%;
-    --sidebar-border: 48 89% 15%;
+    --sidebar-accent: 48 89% 40%;
   }
 }
 
